@@ -43,9 +43,12 @@ function horizontal(direction: 1 | -1): void {
  * Menu navigation for elements marked `data-nav`: d-pad / stick / arrow keys
  * move focus, A confirms, B goes back.
  */
-export function useMenuNav(onBack?: () => void, enabled = true): void {
+export function useMenuNav(onBack?: () => void, enabled = true, onHorizontal?: (direction: 1 | -1) => void): void {
   const backRef = useRef(onBack);
   backRef.current = onBack;
+  const horizontalRef = useRef(onHorizontal);
+  horizontalRef.current = onHorizontal;
+  const sideways = (direction: 1 | -1) => (horizontalRef.current ? horizontalRef.current(direction) : horizontal(direction));
 
   useEffect(() => {
     if (!enabled) return;
@@ -53,8 +56,8 @@ export function useMenuNav(onBack?: () => void, enabled = true): void {
       if (!e.pressed) return;
       if (UP.has(e.button)) moveFocus(-1);
       else if (DOWN.has(e.button)) moveFocus(1);
-      else if (LEFT.has(e.button)) horizontal(-1);
-      else if (RIGHT.has(e.button)) horizontal(1);
+      else if (LEFT.has(e.button)) sideways(-1);
+      else if (RIGHT.has(e.button)) sideways(1);
       else if (e.button === CONFIRM) {
         const el = document.activeElement as HTMLElement | null;
         if (el?.hasAttribute('data-nav')) el.click();
@@ -68,6 +71,9 @@ export function useMenuNav(onBack?: () => void, enabled = true): void {
       if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
         e.preventDefault();
         moveFocus(e.code === 'ArrowDown' ? 1 : -1);
+      } else if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && horizontalRef.current) {
+        e.preventDefault();
+        horizontalRef.current(e.code === 'ArrowRight' ? 1 : -1);
       } else if (e.code === 'Escape' && backRef.current) {
         e.preventDefault();
         sfx.ui('back');

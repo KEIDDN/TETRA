@@ -160,14 +160,20 @@ Decisiones tomadas en la sesión de grilling (Q1–Q34).
 
 - Una skin es un paquete completo: piezas, ghost, partículas y pack de sonido (el sonido se puede elegir aparte).
 - **Piezas conectadas**: el motor guarda qué celdas pertenecen a la misma pieza (máscara de 8 bits por celda, que se corta al limpiar líneas). Las skins conectadas dibujan cada pieza como una sola forma, con esquinas redondeadas solo en el exterior, cortes limpios en las esquinas cóncavas y luz en los bordes expuestos. El ghost es un contorno continuo.
-- Skins (v0.4):
+- Skins (v0.5), se añaden un par por iteración:
   1. **Studio** (por defecto): conectada, colores tipo Apple afinados, luz desde arriba.
   2. **Clay**: conectada, pastel mate soft-touch con grano.
   3. **Gem**: piedras facetadas con destello.
-  4. **Neon**: conectada, un tubo de luz por pieza (homenaje a Tetris Effect).
-  5. **Bevel**: biselado clásico de los stackers online.
-  6. **NES**: pixel art 8×8 con la paleta de la NES, que cambia con el nivel.
-  7. **Mono**: conectada, solo luminancia.
+  4. **Crystal**: cristal prismático tallado con borde iridiscente.
+  5. **Neon**: conectada, un tubo de luz por pieza (homenaje a Tetris Effect).
+  6. **Aurora**: conectada, células bioluminiscentes que respiran.
+  7. **Ember**: conectada, filamento incandescente dentro de una carcasa oscura.
+  8. **Bevel**: biselado clásico de los stackers online.
+  9. **Wire**: cubos isométricos en alambre.
+  10. **NES**: pixel art 8×8 con la paleta de la NES, que cambia con el nivel.
+  11. **Game Boy**: 4 verdes DMG, un patrón por pieza.
+  12. **Mono**: conectada, solo luminancia.
+- **Rejilla**: Auto / Lines / Dots / Off. Auto deja elegir a la skin. Líneas de 1 px físico que se desvanecen hacia arriba; las celdas ocupadas tapan la rejilla.
 - **Desbloqueo** ganando a bots (pendiente del hito 4); flag de desarrollador que desbloquea todo.
 
 ## 7b. Sonido
@@ -176,10 +182,18 @@ Decisiones tomadas en la sesión de grilling (Q1–Q34).
 - Mover = tick de detent; rotar = toque cerámico; hard drop = "thock" grave con peso según la distancia; líneas = toques de cristal (1 a 4 notas según las líneas), con la nota base subiendo por la escala pentatónica con el combo; B2B añade cuerpo grave.
 - Packs: Studio, Glass, Wood, Pure.
 
-## 7c. Home
+## 7c. Home (lanzador)
 
-- Hero al estilo offsuit: wordmark gigante, CTA en píldora "Play 40 Lines", y una **partida en directo** jugada por un autoplayer (heurística El-Tetris) con la skin elegida.
-- Tarjetas de modo con numerales como ilustración (40, 2:00, 150, ∞), sección Versus con la escalera de bots y footer con columnas.
+- Pantalla única sin scroll, tipo menú de Tetris Effect con estética offsuit: lista vertical de modos con tipografía enorme (↑↓ / cruceta), descripción, récord y "Play".
+- A la derecha, una **partida en directo** (autoplayer con heurística El-Tetris) que cambia según el modo seleccionado y usa la skin elegida.
+- Barra inferior con selector de skin (←→ desde la home), atajos y versión.
+
+## 7d. Ambiente
+
+- Campo de partículas de luz y bokeh que deriva despacio con los colores de la skin, compartido entre la home (Canvas 2D) y la partida (Pixi).
+- En partida reacciona sin invadir: impulso al limpiar líneas según la jugada, más brillo y velocidad con combo/B2B, rojo y agitación en peligro, destello al subir de nivel.
+- Interruptor propio ("Ambient background"), independiente de la intensidad de efectos, para quien practique en competitivo.
+- Sonido de movimiento con volumen propio ("Movement sounds").
 
 ## 8. Hitos
 

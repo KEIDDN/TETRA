@@ -37,15 +37,22 @@ export interface AppearanceSettings {
   /** Interpolate the falling piece between rows instead of stepping. */
   smoothFall: boolean;
   ghost: boolean;
-  grid: boolean;
+  /** 'auto' lets each skin choose. */
+  grid: GridMode;
+  /** Drifting light behind the board that reacts to play. */
+  ambient: boolean;
   /** "T-SPIN DOUBLE", "B2B ×3"… next to the board. */
   actionText: boolean;
 }
+
+export type GridMode = 'auto' | 'lines' | 'dots' | 'off';
 
 export interface AudioSettings {
   enabled: boolean;
   /** 0–1 */
   volume: number;
+  /** 0–1, scales move and rotate sounds on top of `volume`. */
+  movement: number;
   /** 'match' follows the skin's own sound pack. */
   pack: 'match' | SoundPackId;
 }
@@ -65,8 +72,8 @@ export interface Settings {
 export const MAX_BINDINGS = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
-  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: true, actionText: true },
-  audio: { enabled: true, volume: 0.7, pack: 'match' },
+  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, actionText: true },
+  audio: { enabled: true, volume: 0.7, movement: 0.8, pack: 'match' },
   keyboard: {
     handling: DEFAULT_HANDLING,
     bindings: {
@@ -108,6 +115,9 @@ function merge(saved: Partial<Settings> | null): Settings {
   const audio = { ...d.audio, ...saved.audio };
   // Skins and packs get renamed between versions; fall back instead of crashing.
   if (!(appearance.skin in SKINS)) appearance.skin = d.appearance.skin;
+  // v0.3 stored the grid as a boolean.
+  const grid = appearance.grid as GridMode | boolean;
+  if (typeof grid === 'boolean') appearance.grid = grid ? 'auto' : 'off';
   if (audio.pack !== 'match' && !['studio', 'glass', 'wood', 'pure'].includes(audio.pack)) audio.pack = 'match';
   return {
     appearance,

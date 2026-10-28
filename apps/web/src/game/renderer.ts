@@ -11,22 +11,27 @@ import {
   type PieceType,
 } from '@tetra/engine';
 import { Application, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js';
+import { AmbientSim } from './ambient';
 import { easeOut, easeOutBack, Particles, SpritePool, spriteTween, Tweens, type FxLevel } from './fx';
 import type { Layout } from './layout';
-import { hexToNumber, paintBlock, SKINS, type BlockKind, type Palette, type Skin } from './skins';
+import { hexToNumber, paintBlock, SKINS, type BlockKind, type GridStyle, type Palette, type Skin } from './skins';
 
 export interface RenderOptions {
   skin: Skin;
   fx: FxLevel;
   smoothFall: boolean;
   ghost: boolean;
-  grid: boolean;
+  grid: GridStyle;
+  /** Reactive ambient light behind the board. */
+  ambient: boolean;
 }
 
 /** Rows above the visible field that are still drawn (spawn area). */
 const OVERFLOW_ROWS = 3;
 const ACCENT = 0xedebfa;
 const DANGER = 0xff453a;
+/** The board's own color (black + 1.8% white); cells are masked with it so the grid never shows through. */
+const BOARD_BG = 0x050505;
 
 function canvasTexture(w: number, h: number, paint: (ctx: CanvasRenderingContext2D) => void): Texture {
   const canvas = document.createElement('canvas');
@@ -50,6 +55,8 @@ export class GameRenderer {
   private frame = new Graphics();
   private frameFlash = new Graphics();
   private boardPool: SpritePool;
+  private boardMask: SpritePool;
+  private pieceMask: SpritePool;
   private ghostPool: SpritePool;
   private piecePool: SpritePool;
   private holdPool: SpritePool;
@@ -60,6 +67,9 @@ export class GameRenderer {
   private flashLayer = new Container();
   private particles: Particles;
   private tweens = new Tweens();
+  private ambientLayer = new Container();
+  private ambientSprites: Sprite[] = [];
+  private ambient: AmbientSim | null = null;
 
   /** Block textures by kind, link mask and ghost flag, painted on first use. */
   private textures = new Map<string, Texture>();
@@ -67,7 +77,7 @@ export class GameRenderer {
   private paletteLevel = 1;
   private shared: { white: Texture; dot: Texture; square: Texture; trail: Texture } | null = null;
   private layout: Layout | null = null;
-  private options: RenderOptions = { skin: SKINS.studio, fx: 'subtle', smoothFall: false, ghost: true, grid: true };
+  private options: RenderOptions = { skin: SKINS.studio, fx: 'subtle', smoothFall: false, ghost: true, grid: 'lines', ambient: false };
   private drawn: { game: Game | null; version: number } = { game: null, version: -1 };
   private last = 0;
 
@@ -78,6 +88,8 @@ export class GameRenderer {
   private danger = 0;
   private dangerTarget = 0;
   private end: { kind: 'topout' | 'finished'; at: number } | null = null;
+
+  private transparent: boolean;
 
   static async create(host: HTMLElement, { transparent = false } = {}): Promise<GameRenderer> {
     const app = new Application();
@@ -91,12 +103,17 @@ export class GameRenderer {
       preference: 'webgl',
     });
     host.appendChild(app.canvas);
-    return new GameRenderer(app);
+    return new GameRenderer(app, transparent);
   }
 
-  private constructor(private app: Application) {
+  private constructor(
+    private app: Application,
+    transparent: boolean,
+  ) {
+    this.transparent = transparent;
     this.ticker = app.ticker;
     const layer = () => new Container();
+    const maskLayer = layer();
     const boardLayer = layer();
     const ghostLayer = layer();
     const pieceLayer = layer();
@@ -106,6 +123,7 @@ export class GameRenderer {
       this.glow,
       this.bg,
       this.grid,
+      maskLayer,
       this.frame,
       this.frameFlash,
       ghostLayer,
@@ -117,8 +135,10 @@ export class GameRenderer {
       this.nextC,
       particleLayer,
     );
-    app.stage.addChild(this.world);
+    app.stage.addChild(this.ambientLayer, this.world);
     this.boardPool = new SpritePool(boardLayer);
+    this.boardMask = new SpritePool(maskLayer);
+    this.pieceMask = new SpritePool(maskLayer);
     this.ghostPool = new SpritePool(ghostLayer);
     this.piecePool = new SpritePool(pieceLayer);
     this.holdPool = new SpritePool(this.holdC);
@@ -133,8 +153,10 @@ export class GameRenderer {
     const skinChanged = options.skin !== this.options.skin;
     this.options = options;
     this.palette = options.skin.palette(this.paletteLevel);
+    this.setupAmbient();
     if (this.layout) {
-      if (skinChanged) this.buildTextures();
+      // Block textures are painted lazily, so a new skin only needs the cache emptied.
+      if (skinChanged) this.clearTextures();
       this.drawChrome();
     }
     this.drawn.version = -1;
@@ -144,6 +166,7 @@ export class GameRenderer {
     const sizeChanged = layout.cell !== this.layout?.cell;
     this.layout = layout;
     this.app.resize();
+    this.ambient?.resize(layout.width, layout.height);
     if (sizeChanged) this.buildTextures();
     this.drawChrome();
     const { holdX, sideW, previewCell, boardY, cell } = layout;
@@ -185,11 +208,13 @@ export class GameRenderer {
     this.tweens.update(now);
     this.particles.update(dt);
     this.updateDynamics(game, now, dt);
+    this.drawAmbient(game, dt);
 
     const skin = this.options.skin;
     if (skin.leveled && game.stats.level !== this.paletteLevel) {
       this.paletteLevel = game.stats.level;
       this.palette = skin.palette(this.paletteLevel);
+      this.setupAmbient();
       this.clearTextures();
       this.drawn.version = -1;
     }
@@ -201,6 +226,14 @@ export class GameRenderer {
       this.drawPreviews(game);
     }
     this.drawPiece(game);
+    if (skin.breathe) {
+      const breath = 0.86 + 0.14 * Math.sin(now / 1100);
+      this.boardPool.layer.alpha = breath;
+      this.piecePool.layer.alpha = 0.93 + 0.07 * Math.sin(now / 1100);
+    } else {
+      this.boardPool.layer.alpha = 1;
+      this.piecePool.layer.alpha = 1;
+    }
 
     if (fx === 'off') this.world.position.set(0, 0);
   }
@@ -311,6 +344,7 @@ export class GameRenderer {
             });
           });
         }
+        this.ambient?.impulse(boardX + (BOARD_WIDTH * cell) / 2, rowY(rows[0]?.y ?? 0), power);
         if (big) {
           this.flash = 1;
           this.shake = { amp: cell * (full ? 0.14 : 0.07) * (info.perfectClear ? 1.6 : 1), start: now, duration: full ? 320 : 220 };
@@ -335,6 +369,7 @@ export class GameRenderer {
       }
       case 'levelUp':
         this.flash = Math.max(this.flash, 0.8);
+        this.ambient?.flash();
         break;
     }
     void game;
@@ -376,6 +411,46 @@ export class GameRenderer {
       });
     }
     void now;
+  }
+
+  private setupAmbient(): void {
+    const on = this.options.ambient && this.options.fx !== 'off';
+    if (!on) {
+      this.ambient = null;
+      this.ambientLayer.removeChildren().forEach((c) => c.destroy());
+      this.ambientSprites = [];
+      return;
+    }
+    const full = this.options.fx === 'full';
+    const colors = (['I', 'O', 'T', 'S', 'Z', 'J', 'L'] as const).map((k) => hexToNumber(this.palette[k]));
+    if (!this.ambient) {
+      this.ambient = new AmbientSim(full ? 90 : 60, full ? 1 : 0.6, colors);
+      if (this.layout) this.ambient.resize(this.layout.width, this.layout.height);
+    } else this.ambient.palette = colors;
+  }
+
+  private drawAmbient(game: Game, dt: number): void {
+    const sim = this.ambient;
+    if (!sim || !this.shared) return;
+    const { b2b, combo } = game.stats;
+    sim.setEnergy(Math.min(1, Math.max(0, b2b) * 0.15 + Math.max(0, combo) * 0.1));
+    sim.setDanger(this.dangerTarget);
+    sim.update(dt);
+    while (this.ambientSprites.length < sim.motes.length) {
+      const s = new Sprite(this.shared.dot);
+      s.anchor.set(0.5);
+      s.blendMode = 'add';
+      this.ambientLayer.addChild(s);
+      this.ambientSprites.push(s);
+    }
+    sim.motes.forEach((m, i) => {
+      const st = sim.style(m);
+      const s = this.ambientSprites[i];
+      s.position.set(st.x, st.y);
+      s.setSize(st.size, st.size);
+      s.alpha = st.alpha;
+      s.tint = st.color;
+    });
   }
 
   private updateDynamics(game: Game, now: number, dt: number): void {
@@ -439,7 +514,9 @@ export class GameRenderer {
     const { cell, boardX } = this.layout!;
     const board = game.board;
     const pool = this.boardPool;
+    const masking = this.masking();
     pool.begin();
+    this.boardMask.begin();
     let top = -1;
     const rows = VISIBLE_HEIGHT + OVERFLOW_ROWS;
     for (let y = 0; y < rows; y++) {
@@ -461,12 +538,16 @@ export class GameRenderer {
       for (let x = 0; x < BOARD_WIDTH; x++) {
         const code = board.get(x, y);
         if (code === 0) continue;
-        if (y < VISIBLE_HEIGHT) top = Math.max(top, y);
+        if (y < VISIBLE_HEIGHT) {
+          top = Math.max(top, y);
+          if (masking) this.boardMask.draw(Texture.WHITE, boardX + x * cell, this.rowY(y), cell, cell, 1, BOARD_BG);
+        }
         const kind: BlockKind = code === GARBAGE_CODE ? 'garbage' : CODE_PIECE[code]!;
         this.block(pool, kind, boardX + x * cell, this.rowY(y) + dy, cell, board.getLinks(x, y), alpha, tint);
       }
     }
     pool.end();
+    this.boardMask.end();
     this.dangerTarget = Math.min(1, Math.max(0, (top + 1 - 14) / 5));
 
     this.ghostPool.begin();
@@ -485,14 +566,26 @@ export class GameRenderer {
   private drawPiece(game: Game): void {
     const { cell, boardX } = this.layout!;
     this.piecePool.begin();
+    this.pieceMask.begin();
     const piece = game.piece;
     if (piece) {
       const offset = this.options.smoothFall ? game.fallProgress * cell : 0;
       const cells = pieceCells(piece);
       const masks = linkMasks(cells);
-      cells.forEach(([x, y], i) => this.block(this.piecePool, piece.type, boardX + x * cell, this.rowY(y) + offset, cell, masks[i]));
+      const masking = this.masking();
+      cells.forEach(([x, y], i) => {
+        const top = this.rowY(y) + offset;
+        if (masking && y < VISIBLE_HEIGHT) this.pieceMask.draw(Texture.WHITE, boardX + x * cell, top, cell, cell, 1, BOARD_BG);
+        this.block(this.piecePool, piece.type, boardX + x * cell, top, cell, masks[i]);
+      });
     }
     this.piecePool.end();
+    this.pieceMask.end();
+  }
+
+  /** Masking only matters when there's a grid, and needs the opaque board color behind it. */
+  private masking(): boolean {
+    return this.options.grid !== 'none' && !this.transparent;
   }
 
   private drawPreviews(game: Game): void {
@@ -531,9 +624,12 @@ export class GameRenderer {
 
   private buildTextures(): void {
     this.clearTextures();
+    // Effects hold the old shared textures; finish them before those are destroyed.
+    this.tweens.clear();
+    this.particles.clear();
     const px = Math.round(this.layout!.cell * this.app.renderer.resolution);
 
-    if (this.shared) for (const t of Object.values(this.shared)) t.destroy(true);
+    const old = this.shared;
     this.shared = {
       white: canvasTexture(px, px, (ctx) => {
         const pad = Math.max(1, Math.round(px * 0.035));
@@ -562,6 +658,49 @@ export class GameRenderer {
         ctx.fillRect(0, 0, 8, 128);
       }),
     };
+    for (const sprite of this.ambientSprites) sprite.texture = this.shared.dot;
+    if (old) for (const t of Object.values(old)) t.destroy(true);
+  }
+
+  /**
+   * Hairlines one physical pixel wide (crisp on retina), or dots at the
+   * intersections. Both fade toward the top so the grid sits under the stack.
+   */
+  private drawGrid(): void {
+    const { cell, boardX, boardY } = this.layout!;
+    const g = this.grid;
+    g.clear();
+    const style = this.options.grid;
+    if (style === 'none') return;
+    const res = this.app.renderer.resolution;
+    const hair = 1 / res;
+    const snap = (v: number) => Math.round(v * res) / res + hair / 2;
+    // Row 0 is the top of the field.
+    const fade = (row: number) => 0.35 + 0.65 * (row / VISIBLE_HEIGHT);
+
+    if (style === 'lines') {
+      const base = 0.075;
+      for (let row = 0; row < VISIBLE_HEIGHT; row++) {
+        const alpha = base * fade(row + 0.5);
+        const y0 = boardY + row * cell;
+        for (let i = 1; i < BOARD_WIDTH; i++) {
+          const x = snap(boardX + i * cell);
+          g.moveTo(x, y0).lineTo(x, y0 + cell);
+        }
+        g.stroke({ width: hair, color: 0xffffff, alpha });
+        if (row > 0) {
+          const y = snap(y0);
+          g.moveTo(boardX, y).lineTo(boardX + BOARD_WIDTH * cell, y);
+          g.stroke({ width: hair, color: 0xffffff, alpha: base * fade(row) });
+        }
+      }
+    } else {
+      const radius = Math.max(0.75, cell * 0.04);
+      for (let row = 1; row < VISIBLE_HEIGHT; row++) {
+        for (let i = 1; i < BOARD_WIDTH; i++) g.circle(boardX + i * cell, boardY + row * cell, radius);
+        g.fill({ color: 0xffffff, alpha: 0.22 * fade(row) });
+      }
+    }
   }
 
   private drawChrome(): void {
@@ -572,12 +711,7 @@ export class GameRenderer {
     this.bg.clear();
     this.bg.rect(boardX, boardY, boardW, boardH).fill({ color: 0xffffff, alpha: 0.018 });
 
-    this.grid.clear();
-    if (this.options.grid && this.options.skin.grid) {
-      for (let i = 1; i < 10; i++) this.grid.moveTo(boardX + i * cell + 0.5, boardY).lineTo(boardX + i * cell + 0.5, boardY + boardH);
-      for (let i = 1; i < 20; i++) this.grid.moveTo(boardX, boardY + i * cell + 0.5).lineTo(boardX + boardW, boardY + i * cell + 0.5);
-      this.grid.stroke({ width: 1, color: 0xffffff, alpha: 0.035 });
-    }
+    this.drawGrid();
 
     const outline = (g: Graphics, color: number, alpha: number, width = 1) =>
       g

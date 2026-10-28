@@ -16,6 +16,7 @@ import {
   updateSettings,
   useSettings,
   type AppearanceSettings,
+  type GridMode,
   type Command,
   type Device,
 } from '../lib/settings';
@@ -118,7 +119,25 @@ function AppearancePanel() {
         <ToggleRow name="Action text" hint="T-SPIN DOUBLE, B2B, combos" value={appearance.actionText} onChange={(actionText) => set({ actionText })} />
         <ToggleRow name="Smooth falling" hint="Glide between rows instead of stepping" value={appearance.smoothFall} onChange={(smoothFall) => set({ smoothFall })} />
         <ToggleRow name="Ghost piece" hint="Shows where the piece will land" value={appearance.ghost} onChange={(ghost) => set({ ghost })} />
-        <ToggleRow name="Grid" hint="Faint cell lines on the board" value={appearance.grid} onChange={(grid) => set({ grid })} />
+        <ToggleRow
+          name="Ambient background"
+          hint="Drifting light that reacts to your play"
+          value={appearance.ambient}
+          onChange={(ambient) => set({ ambient })}
+        />
+        <Row name="Grid" hint="Auto lets each skin choose">
+          <Segmented<GridMode>
+            small
+            value={appearance.grid}
+            onChange={(grid) => set({ grid })}
+            options={[
+              ['auto', 'Auto'],
+              ['lines', 'Lines'],
+              ['dots', 'Dots'],
+              ['off', 'Off'],
+            ]}
+          />
+        </Row>
       </Section>
     </>
   );
@@ -201,6 +220,17 @@ function SoundPanel() {
           display={(v) => `${Math.round(v * 100)}%`}
           onChange={(volume) => set({ volume })}
           onCommit={() => sfx.preview(audio.pack === 'match' ? SKINS[appearance.skin].sound : audio.pack)}
+        />
+        <SliderRow
+          name="Movement sounds"
+          hint="Moves and rotations, on top of the master level"
+          min={0}
+          max={1}
+          step={0.05}
+          value={audio.movement}
+          display={(v) => (v === 0 ? 'Off' : `${Math.round(v * 100)}%`)}
+          onChange={(movement) => set({ movement })}
+          onCommit={() => sfx.move()}
         />
       </Section>
 

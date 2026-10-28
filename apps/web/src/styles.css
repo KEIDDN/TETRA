@@ -329,3 +329,16 @@ body {
     animation-duration: 0.01s !important;
   }
 }
+
+@keyframes nudge {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  75% {
+    transform: translateX(6px);
+  }
+}

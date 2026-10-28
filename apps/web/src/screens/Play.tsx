@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { computeLayout, type Layout } from '../game/layout';
 import { MODE_CONFIGS, type StatKey } from '../game/modes';
 import { GameRenderer } from '../game/renderer';
-import { SKINS } from '../game/skins';
+import { resolveGrid, SKINS } from '../game/skins';
 import { ActionText } from '../ui/actionText';
 import { getSettings } from '../lib/settings';
 import { GameSession, type LiveStats, type Phase, type SessionResult } from '../game/session';
@@ -62,7 +62,14 @@ export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
     GameRenderer.create(host).then((r) => {
       if (disposed) return r.destroy();
       renderer = r;
-      r.setOptions({ skin, fx: appearance.fx, smoothFall: appearance.smoothFall, ghost: appearance.ghost, grid: appearance.grid });
+      r.setOptions({
+        skin,
+        fx: appearance.fx,
+        smoothFall: appearance.smoothFall,
+        ghost: appearance.ghost,
+        grid: resolveGrid(appearance.grid, skin),
+        ambient: appearance.ambient && appearance.fx !== 'off',
+      });
       const relayout = () => {
         const next = computeLayout(host.clientWidth, host.clientHeight);
         r.setLayout(next);
