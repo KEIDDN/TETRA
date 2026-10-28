@@ -13,6 +13,7 @@ import { getCustomBots } from './lib/customBots';
 import { Tournaments } from './screens/Tournaments';
 import { TournamentBuilder } from './screens/TournamentBuilder';
 import { Bracket } from './screens/Bracket';
+import { Profile, type ProfileSection } from './screens/Profile';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
@@ -23,6 +24,7 @@ type Screen =
   | { name: 'versus' }
   | { name: 'editor'; id?: string }
   | { name: 'match'; botId: string; firstTo: number }
+  | { name: 'profile'; section?: ProfileSection }
   | { name: 'cups' }
   | { name: 'builder' }
   | { name: 'bracket' }
@@ -82,6 +84,9 @@ export function App() {
         />
       );
       break;
+    case 'profile':
+      content = <Profile onBack={home} section={screen.section} />;
+      break;
     case 'cups':
       content = <Tournaments onBack={home} onBracket={() => setScreen({ name: 'bracket' })} onCustom={() => setScreen({ name: 'builder' })} />;
       break;
@@ -131,6 +136,7 @@ export function App() {
           onPlay={(mode) => setScreen({ name: 'play', mode })}
           onVersus={() => setScreen({ name: 'versus' })}
           onCups={() => setScreen({ name: 'cups' })}
+          onProfile={(section) => setScreen({ name: 'profile', section })}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );

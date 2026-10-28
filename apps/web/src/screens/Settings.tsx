@@ -1,11 +1,12 @@
-import { FRAME_MS, linkMasks, type Handling } from '@tetra/engine';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { FRAME_MS, type Handling } from '@tetra/engine';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Row, Section, Segmented, SliderRow, ToggleRow } from '../ui/controls';
 import { SOUND_PACK_NAMES, sfx } from '../audio/sfx';
 import type { FxLevel } from '../game/fx';
 import { gamepads } from '../game/gamepad';
 import { CUPS, skinLocked } from '../lib/tournament';
-import { paintBlock, SKIN_ORDER, SKINS, type BlockKind, type Skin, type SoundPackId } from '../game/skins';
+import { SKIN_ORDER, SKINS, type Skin, type SoundPackId } from '../game/skins';
+import { SkinSwatch } from '../ui/SkinSwatch';
 import { buttonLabel, keyLabel, PAD_NAMES } from '../lib/labels';
 import { useMenuNav } from '../lib/nav';
 import {
@@ -148,33 +149,7 @@ function AppearancePanel() {
 }
 
 /** A small stack for the gallery, piece by piece (y-up, 3 rows). */
-const PREVIEW: { kind: BlockKind; cells: [number, number][] }[] = [
-  { kind: 'J', cells: [[0, 1], [0, 0], [1, 0], [2, 0]] },
-  { kind: 'T', cells: [[3, 0], [4, 0], [5, 0], [4, 1]] },
-  { kind: 'O', cells: [[6, 0], [7, 0], [6, 1], [7, 1]] },
-  { kind: 'L', cells: [[8, 0], [9, 0], [9, 1], [9, 2]] },
-  { kind: 'S', cells: [[1, 2], [2, 2], [2, 1], [3, 1]] },
-  { kind: 'I', cells: [[4, 2], [5, 2], [6, 2], [7, 2]] },
-];
-
 function SkinCard({ skin, selected, locked, onSelect }: { skin: Skin; selected: boolean; locked: boolean; onSelect: () => void }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current!;
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const cell = 15;
-    const px = Math.round(cell * dpr);
-    canvas.width = 10 * px;
-    canvas.height = 3 * px;
-    const ctx = canvas.getContext('2d')!;
-    ctx.globalCompositeOperation = skin.blend === 'add' ? 'lighter' : 'source-over';
-    const palette = skin.palette(1);
-    const bleed = Math.ceil(px * skin.bleed);
-    for (const { kind, cells } of PREVIEW) {
-      const masks = linkMasks(cells);
-      cells.forEach(([x, y], i) => ctx.drawImage(paintBlock(skin, px, palette[kind], kind, masks[i]), x * px - bleed, (2 - y) * px - bleed));
-    }
-  }, [skin]);
 
   return (
     <button
@@ -184,7 +159,7 @@ function SkinCard({ skin, selected, locked, onSelect }: { skin: Skin; selected: 
       className={`group relative flex flex-col items-start gap-4 bg-[#0b0b0c] p-5 disabled:cursor-default [&:disabled_canvas]:opacity-25 [&:disabled_canvas]:grayscale text-left transition-colors duration-150 hover:bg-[#111113] ${focusRing} focus-visible:ring-inset`}
     >
       <div className="flex h-[56px] w-full items-center justify-center">
-        <canvas ref={ref} style={{ width: 150, height: 45 }} className="transition-transform duration-300 ease-spring group-hover:scale-[1.04]" />
+        <SkinSwatch skin={skin} className="transition-transform duration-300 ease-spring group-hover:scale-[1.04]" />
       </div>
       <div className="w-full">
         <div className="flex items-center justify-between gap-2">

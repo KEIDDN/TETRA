@@ -1,6 +1,8 @@
 import { BLITZ, ENDLESS, Game, MARATHON, type GameStats, type ModeId, type Rules } from '@tetra/engine';
 import { useEffect, useRef } from 'react';
+import type { BotProfile } from '@tetra/bot';
 import { AutoPlayer } from '../game/autoplay';
+import { botHandling, BotPilot, solo } from '../game/pilot';
 import { computeDemoLayout } from '../game/layout';
 import { GameRenderer } from '../game/renderer';
 import { resolveGrid, SKINS, type SkinId } from '../game/skins';
@@ -20,8 +22,8 @@ const DEMO: Record<DemoMode, { rules: Partial<Rules>; think: number; tap: number
 interface Props {
   mode: DemoMode;
   skin: SkinId;
-  /** Overrides the mode's autoplayer pace (e.g. to show a bot's speed). */
-  pace?: { think: number; tap: number };
+  /** Plays as this bot instead: its own brain, pace and mistakes, exactly as in a match. */
+  bot?: BotProfile;
   className?: string;
   /** A line clear happened; `y` is 0–1 down the board. */
   onClear?: (power: number, y: number) => void;
@@ -29,20 +31,21 @@ interface Props {
 }
 
 /** A game that plays itself in the player's skin: the home screen's hero. */
-export function DemoBoard({ mode, skin, pace, className, onClear, onStats }: Props) {
+export function DemoBoard({ mode, skin, bot, className, onClear, onStats }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const controls = useRef<{ setMode(mode: DemoMode): void; setSkin(skin: SkinId): void; restart(): void } | null>(null);
   const callbacks = useRef({ onClear, onStats });
   callbacks.current = { onClear, onStats };
   const initial = useRef({ mode, skin });
-  const paceRef = useRef(pace);
-  paceRef.current = pace;
+  const botRef = useRef(bot);
+  botRef.current = bot;
 
   useEffect(() => {
     const host = hostRef.current!;
     let disposed = false;
     let renderer: GameRenderer | null = null;
     let observer: ResizeObserver | null = null;
+    let cleanup = () => {};
 
     GameRenderer.create(host, { transparent: true }).then((r) => {
       if (disposed) return r.destroy();
@@ -60,19 +63,24 @@ export function DemoBoard({ mode, skin, pace, className, onClear, onStats }: Pro
 
       let current = initial.current.mode;
       let game!: Game;
-      let player!: AutoPlayer;
+      let player!: { update(t: number): void; dispose?(): void };
       let start = 0;
       let endedAt = 0;
+      let disposePlayer = () => {};
       let statsAt = 0;
       const reset = (now: number) => {
         const demo = DEMO[current];
-        game = new Game({ seed: (Math.random() * 2 ** 32) >>> 0, rules: demo.rules });
-        player = new AutoPlayer(game, paceRef.current ?? { think: demo.think, tap: demo.tap });
+        const b = botRef.current;
+        player?.dispose?.();
+        game = new Game({ seed: (Math.random() * 2 ** 32) >>> 0, rules: demo.rules, handling: b ? botHandling(b) : undefined });
+        player = b ? new BotPilot(b, solo(game), 0) : new AutoPlayer(game, { think: demo.think, tap: demo.tap });
+        disposePlayer = () => player?.dispose?.();
         start = now;
         endedAt = 0;
         r.reset();
       };
       reset(performance.now());
+      cleanup = () => disposePlayer();
       controls.current = {
         restart: () => reset(performance.now()),
         setMode(next) {
@@ -90,6 +98,7 @@ export function DemoBoard({ mode, skin, pace, className, onClear, onStats }: Pro
         if (now - last > 500) start += now - last;
         last = now;
         const t = now - start;
+        game.update(t);
         player.update(t);
         game.update(t);
         for (const e of game.events) {
@@ -116,6 +125,7 @@ export function DemoBoard({ mode, skin, pace, className, onClear, onStats }: Pro
 
     return () => {
       disposed = true;
+      cleanup();
       controls.current = null;
       observer?.disconnect();
       renderer?.destroy();
@@ -123,7 +133,7 @@ export function DemoBoard({ mode, skin, pace, className, onClear, onStats }: Pro
   }, []);
 
   useEffect(() => controls.current?.setMode(mode), [mode]);
-  useEffect(() => controls.current?.restart(), [pace?.think, pace?.tap]);
+  useEffect(() => controls.current?.restart(), [bot]);
   useEffect(() => controls.current?.setSkin(skin), [skin]);
 
   return <div ref={hostRef} className={className} aria-hidden />;

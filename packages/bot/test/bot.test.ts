@@ -65,3 +65,21 @@ describe('simulate', () => {
     expect(strongWins).toBeGreaterThanOrEqual(2);
   }, 120_000);
 });
+
+describe('every ladder bot', () => {
+  it('plays its piece with real inputs that end in a hard drop', async () => {
+    const { BOTS, think, fieldFrom } = await import('../src');
+    const { Game } = await import('@tetra/engine');
+    for (const bot of BOTS) {
+      const g = new Game({ seed: 5 });
+      const d = think(
+        { field: fieldFrom(g.board), current: g.piece!.type, hold: bot.useHold ? g.hold : null, queue: bot.useHold ? g.queue.slice(0, 5) : [], b2b: 0, combo: 0, incoming: 0, twentyG: false },
+        bot.weights,
+        { depth: bot.useHold ? bot.depth : 1, beam: bot.beam, spins: bot.spins },
+      );
+      expect(d, bot.name).not.toBeNull();
+      expect(d!.placement.path.at(-1), bot.name).toBe('hardDrop');
+      if (!bot.spins) expect(d!.placement.path, bot.name).not.toContain('softDrop');
+    }
+  });
+});

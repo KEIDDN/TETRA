@@ -1,7 +1,7 @@
 import { attackFor, DEFAULT_ATTACK, type AttackRules, type ClearInfo, type PieceType, type Rotation } from '@tetra/engine';
 import { fits, place, type Field } from './field';
 import { evaluate, type Weights } from './evaluate';
-import { placements, type Placement } from './moves';
+import { placements, SONIC, type Placement } from './moves';
 
 export interface BotState {
   field: Field;
@@ -46,6 +46,11 @@ interface Node {
 }
 
 /** Hard-drop landings only: fast enough for deeper levels of the search. */
+function playable(f: Field, type: PieceType, twentyG: boolean, spins: boolean): Placement[] {
+  const all = placements(f, type, { twentyG });
+  return spins ? all : all.filter((p) => p.spin === 'none' && !p.path.includes(SONIC));
+}
+
 function landings(f: Field, type: PieceType): Placement[] {
   const out: Placement[] = [];
   const rotations: Rotation[] = type === 'O' ? [0] : [0, 1, 2, 3];
@@ -110,7 +115,10 @@ export function think(state: BotState, w: Weights, opts: SearchOptions): Decisio
       else if (!node.hold && sequence[node.next + 1]) options.push({ type: sequence[node.next + 1], hold: piece, advance: 2, held: true });
 
       for (const option of options) {
-        const moves = depth === 0 && opts.spins ? placements(node.field, option.type, { twentyG: state.twentyG }) : landings(node.field, option.type);
+        // The move actually played needs real inputs. Bots without spins stick to what a
+        // beginner does: rotate, shift, hard drop (no soft-drop tucks). Deeper levels only
+        // need where a piece can land.
+        const moves = depth === 0 ? playable(node.field, option.type, state.twentyG, opts.spins) : landings(node.field, option.type);
         for (const p of moves) {
           const child = apply({ ...node, hold: option.hold, next: node.next + option.advance }, p, w, rules);
           child.first = node.first ?? { hold: option.held, placement: p };

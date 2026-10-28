@@ -169,7 +169,7 @@ export function VersusSelect({
               <DemoBoard
                 mode="sprint"
                 skin={appearance.skin}
-                pace={{ think: (1000 / selected.pps) * 0.5, tap: selected.tap }}
+                bot={selected}
                 className="absolute inset-0"
               />
               <span className="label absolute bottom-3 left-4">Live · {selected.name}'s pace</span>

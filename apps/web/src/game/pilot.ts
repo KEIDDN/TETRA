@@ -1,6 +1,18 @@
 import { fieldFrom, type BotProfile } from '@tetra/bot';
-import type { Action, ActivePiece, Match } from '@tetra/engine';
+import type { Action, ActivePiece, Game } from '@tetra/engine';
 import type { ThinkMove, ThinkRequest, ThinkResponse } from './bot.worker';
+
+/** What a pilot drives: a versus match, or a single board (bot previews). */
+export interface Pilotable {
+  games: Game[];
+  readonly over: boolean;
+  input(player: 0 | 1, action: Action, pressed: boolean, t: number): void;
+}
+
+/** A lone board as something a pilot can drive. */
+export function solo(game: Game): Pilotable {
+  return { games: [game], over: false, input: (_p, action, pressed, t) => game.input(action, pressed, t) };
+}
 
 interface Step {
   at: number;
@@ -32,7 +44,7 @@ export class BotPilot {
 
   constructor(
     private profile: BotProfile,
-    private match: Match,
+    private match: Pilotable,
     private player: 0 | 1,
   ) {
     this.worker.onmessage = (e: MessageEvent<ThinkResponse>) => this.onThought(e.data);
@@ -43,7 +55,7 @@ export class BotPilot {
   }
 
   /** Swaps in the next round's match. */
-  setMatch(match: Match): void {
+  setMatch(match: Pilotable): void {
     this.match = match;
     this.steps = [];
     this.planned = null;
@@ -105,12 +117,15 @@ export class BotPilot {
     }
     const path = this.withMisdrop(move, p.misdrop * nerves);
 
-    // Pace: aim for the target PPS on average, but never like a metronome.
+    // Pace: aim for the target PPS on average, but never like a metronome. The script's own
+    // length (hesitations, soft drops, corrections included) comes out of the thinking time,
+    // so a slow-handed bot still keeps its speed instead of falling behind it.
     const interval = 1000 / p.pps;
-    const execution = path.length * p.tap;
+    const steps = this.script(path, 0, nerves);
+    const execution = steps.length ? steps[steps.length - 1].at : 0;
     const rhythm = Math.exp((Math.random() - 0.5) * 0.9) * (height > DANGER_HEIGHT ? 0.75 : 1);
     const start = Math.max(this.nowRef, this.requestedAt + Math.max(40, interval * rhythm - execution));
-    this.steps = this.script(path, start, nerves);
+    this.steps = steps.map((step) => ({ ...step, at: step.at + start }));
   }
 
   /**
@@ -178,7 +193,7 @@ export class BotPilot {
   }
 }
 
-function maxHeight(game: Match['games'][number]): number {
+function maxHeight(game: Game): number {
   for (let y = 39; y >= 0; y--) if (game.board.row(y).some((c) => c !== 0)) return y + 1;
   return 0;
 }

@@ -1,4 +1,3 @@
-import { BOTS } from '@tetra/bot';
 import type { GameStats, ModeId, PieceType } from '@tetra/engine';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { sfx } from '../audio/sfx';
@@ -16,6 +15,7 @@ import { LevelChip } from '../ui/LevelChip';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
 import { skinLocked } from '../lib/tournament';
+import type { ProfileSection } from './Profile';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 
@@ -29,8 +29,8 @@ function entryName(id: Entry): string {
 }
 
 function entryDescription(id: Entry): string {
-  if (id === 'cups') return 'Eight-bot brackets. Three cups to climb, or build your own.';
-  return id === 'versus' ? 'Ten opponents that play like people, from Pebble to Zenith.' : MODE_CONFIGS[id].description;
+  if (id === 'cups') return 'Eight-bot brackets. Three cups, or your own.';
+  return id === 'versus' ? 'Ten bots that play like people.' : MODE_CONFIGS[id].description;
 }
 
 /** The live stat the showcase shows for each mode. */
@@ -50,8 +50,10 @@ export function Home({
   onPlay,
   onVersus,
   onCups,
+  onProfile,
   onSettings,
 }: {
+  onProfile: (section?: ProfileSection) => void;
   onPlay: (mode: ModeId) => void;
   onVersus: () => void;
   onCups: () => void;
@@ -106,10 +108,12 @@ export function Home({
       {appearance.ambient && appearance.fx !== 'off' && <AmbientBackground lattice={lattice} />}
 
       <div className="relative mx-auto flex min-h-full w-full max-w-[1320px] flex-col px-6 sm:px-10">
-        <header className="flex h-24 shrink-0 items-center justify-between">
+        <header className="flex h-[min(96px,12vh)] shrink-0 items-center justify-between">
           <Logo large />
           <div className="flex items-center gap-5">
-            <LevelChip />
+            <button data-nav onClick={() => onProfile()} className={`-my-1 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-white/[0.06] ${focusRing}`} aria-label="Profile">
+              <LevelChip />
+            </button>
             {padKind && (
               <span className="label hidden sm:inline">
                 <span className="mr-2 inline-block size-1.5 rounded-full bg-[#30d158] align-middle" />
@@ -126,10 +130,10 @@ export function Home({
           </div>
         </header>
 
-        <main className="grid flex-1 items-center gap-10 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.72fr)]">
+        <main className="grid flex-1 items-center gap-10 py-[min(24px,3vh)] lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.72fr)]">
           <div>
             <div className="label animate-rise">Select a mode</div>
-            <ul className="mt-6">
+            <ul className="mt-[min(24px,2.5vh)]">
               {ENTRIES.map((id, i) => {
                 const active = id === selected;
                 return (
@@ -143,12 +147,12 @@ export function Home({
                       className="group relative flex w-full items-center gap-6 py-1 text-left outline-none"
                     >
                       <span
-                        className={`absolute top-1/2 -left-5 h-[0.5em] w-1 -translate-y-1/2 rounded-full bg-accent text-[clamp(40px,5.4vw,84px)] transition-all duration-300 ease-spring ${
+                        className={`absolute top-1/2 -left-5 h-[0.5em] w-1 -translate-y-1/2 rounded-full bg-accent text-[clamp(30px,min(5.4vw,7vh),84px)] transition-all duration-300 ease-spring ${
                           active ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
                         }`}
                       />
                       <span
-                        className={`text-[clamp(40px,5.4vw,84px)] leading-[1.02] font-[480] tracking-[-0.045em] transition-colors duration-300 ${
+                        className={`text-[clamp(30px,min(5.4vw,7vh),84px)] leading-[1.02] font-[480] tracking-[-0.045em] transition-colors duration-300 ${
                           active ? 'text-fg' : 'text-white/[0.14] group-hover:text-white/30'
                         }`}
                       >
@@ -163,11 +167,10 @@ export function Home({
               })}
             </ul>
 
-            <div key={selected} className="animate-fade mt-10 flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-6">
+            <div key={selected} className="animate-fade mt-[min(40px,3.5vh)] flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-[min(24px,3vh)]">
               <p className="min-w-[220px] flex-1 text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
               {selected === 'versus' || selected === 'cups' ? (
                 <>
-                  <span className="label">{selected === 'cups' ? '3 cups · custom brackets' : `${BOTS.length} bots · first to N`}</span>
                   <PlayButton onClick={() => activate(selected)} />
                 </>
               ) : (
@@ -182,7 +185,7 @@ export function Home({
             </div>
           </div>
 
-          <div ref={showcaseRef} className="animate-rise relative mx-auto hidden aspect-[4/5] w-full max-w-[460px] [animation-delay:200ms] lg:block lg:max-h-[min(74vh,620px)]">
+          <div ref={showcaseRef} className="animate-rise relative mx-auto hidden aspect-[4/5] w-full max-w-[460px] [animation-delay:200ms] lg:block lg:max-h-[min(66vh,620px)]">
             <div className="absolute inset-0 overflow-hidden rounded-[48px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.18)] backdrop-blur-xl">
               <DemoBoard
                 mode={selected === 'cups' ? 'versus' : selected}
@@ -223,12 +226,13 @@ export function Home({
             <SkinArrow label="Previous skin" onClick={() => cycleSkin(-1)}>
               ‹
             </SkinArrow>
-            <span className="min-w-[120px] text-center">
+            <button onClick={() => onProfile('skins')} className={`group min-w-[120px] rounded-full px-3 py-1.5 text-center transition-colors hover:bg-white/[0.06] ${focusRing}`} title="All skins">
               <span className="label mr-2">Skin</span>
               <span key={skin.id} className="animate-fade text-[14px] font-medium">
                 {skin.name}
               </span>
-            </span>
+              <span className="ml-2 text-[12px] text-faint transition-colors group-hover:text-fg">All</span>
+            </button>
             <SkinArrow label="Next skin" onClick={() => cycleSkin(1)}>
               ›
             </SkinArrow>
@@ -265,7 +269,7 @@ function VersionTaps() {
   };
   return (
     <button onClick={onTap} className="label select-none">
-      v0.7
+      v0.8
     </button>
   );
 }

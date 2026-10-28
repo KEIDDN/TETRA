@@ -452,3 +452,11 @@ body {
     opacity: 0.25;
   }
 }
+
+/* Scrolling stays, the bar goes: a scrollbar appearing mid-navigation shifts the whole layout. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}

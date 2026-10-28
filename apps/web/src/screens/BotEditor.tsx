@@ -1,5 +1,5 @@
 import { BOTS } from '@tetra/bot';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CUSTOM_COLORS, deleteCustomBot, newSpec, saveCustomBot, toProfile, type CustomBotSpec } from '../lib/customBots';
 import { useMenuNav } from '../lib/nav';
 import { useSettings } from '../lib/settings';
@@ -19,7 +19,7 @@ export function BotEditor({ spec: initial, onDone, onPlay }: { spec?: CustomBotS
   const setAdv = (patch: Partial<CustomBotSpec['advanced']>) => setSpec((s) => ({ ...s, advanced: { ...s.advanced, ...patch } }));
   const setWeight = (patch: Partial<CustomBotSpec['advanced']['weights']>) =>
     setSpec((s) => ({ ...s, advanced: { ...s.advanced, weights: { ...s.advanced.weights, ...patch } } }));
-  const profile = toProfile(spec);
+  const profile = useMemo(() => toProfile(spec), [spec]);
   const rebase = (id: string) => {
     const base = BOTS.find((b) => b.id === id)!;
     const fresh = newSpec(base);
@@ -142,7 +142,7 @@ export function BotEditor({ spec: initial, onDone, onPlay }: { spec?: CustomBotS
               </div>
             </div>
             <div className="relative mt-6 h-[300px] overflow-hidden rounded-[28px] bg-black/40 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
-              <DemoBoard mode="sprint" skin={appearance.skin} pace={{ think: (1000 / profile.pps) * 0.5, tap: profile.tap }} className="absolute inset-0" />
+              <DemoBoard mode="sprint" skin={appearance.skin} bot={profile} className="absolute inset-0" />
             </div>
             <p className="mt-5 text-[13px] leading-relaxed text-faint">Saved bots appear in Versus and in custom tournaments.</p>
             <div className="mt-5 flex flex-col gap-3">
