@@ -128,7 +128,7 @@ class Sfx {
       case 'move':
         return this.move();
       case 'rotate':
-        return this.rotate(e.spin);
+        return this.rotate();
       case 'hold':
         return this.hold();
       case 'hardDrop':
@@ -159,13 +159,9 @@ class Sfx {
     this.strike(t, PURE, 2600, { gain: 0.012 * level, length: 0.06 });
   }
 
-  rotate(spin: boolean): void {
-    const level = getSettings().audio.movement;
-    // Same click as moving: every input should feel like one family.
-    this.play((t, p) => {
-      this.softClick(t, level);
-      if (spin) this.strike(t + 0.015, p.chime, midi(ROOT + 19 + p.register), { gain: 0.022, length: 0.4, send: p.room });
-    });
+  /** Rotations make exactly the move click: one soft family for every input. */
+  rotate(): void {
+    this.move();
   }
 
   hold(): void {
