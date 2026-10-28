@@ -281,7 +281,8 @@ const NEON: Skin = {
   particle: 'dot',
   flash: '#ffffff',
   sound: 'glass',
-  grid: true,
+  // Additive light would let grid lines show through the tubes.
+  grid: false,
   paint(ctx, size, color, mask) {
     const pad = Math.max(2, Math.round(size * 0.1));
     const s = shape(size, mask, pad, size * 0.2);

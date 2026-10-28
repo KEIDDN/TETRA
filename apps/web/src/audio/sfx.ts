@@ -149,7 +149,14 @@ class Sfx {
     const now = performance.now();
     if (now - this.lastTick < 24) return;
     this.lastTick = now;
-    this.play((t, p) => this.strike(t, p.tick, humanize(2300), { gain: 0.05, length: 0.7 }));
+    // A soft, breathy click: pitched ticks get tiring at DAS speed.
+    this.play((t) => this.softClick(t, 1));
+  }
+
+  /** Filtered noise with a whisper of tone; easy on the ear even when repeated fast. */
+  private softClick(t: number, level: number): void {
+    this.noise(t, 0.032 * level, 0.014, 3600, 0, 'bandpass');
+    this.strike(t, PURE, 2600, { gain: 0.012 * level, length: 0.06 });
   }
 
   rotate(spin: boolean): void {
@@ -229,7 +236,7 @@ class Sfx {
 
   ui(kind: 'move' | 'select' | 'back'): void {
     this.play((t, p) => {
-      if (kind === 'move') this.strike(t, p.tick, humanize(2600), { gain: 0.025, length: 0.6 });
+      if (kind === 'move') this.softClick(t, 0.7);
       else this.strike(t, p.tap, kind === 'select' ? 1760 : 1175, { gain: 0.04, length: 0.8 });
     });
   }
