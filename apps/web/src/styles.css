@@ -342,3 +342,22 @@ body {
     transform: translateX(6px);
   }
 }
+
+/* ── Versus ─────────────────────────────────────────────────── */
+
+.beam {
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: #000;
+  background: var(--color-accent);
+  box-shadow:
+    0 0 24px rgb(237 235 250 / 0.7),
+    0 0 4px rgb(255 255 255 / 0.9);
+  will-change: transform, opacity;
+}

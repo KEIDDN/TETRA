@@ -5,9 +5,16 @@ import { gamepads } from './game/gamepad';
 import { Home } from './screens/Home';
 import { Play } from './screens/Play';
 import { Settings } from './screens/Settings';
+import { VersusPlay } from './screens/VersusPlay';
+import { VersusSelect } from './screens/VersusSelect';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
-type Screen = { name: 'home' } | { name: 'play'; mode: ModeId } | { name: 'settings'; tab?: SettingsTab };
+type Screen =
+  | { name: 'home' }
+  | { name: 'play'; mode: ModeId }
+  | { name: 'settings'; tab?: SettingsTab }
+  | { name: 'versus' }
+  | { name: 'match'; botId: string; firstTo: number };
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
@@ -34,8 +41,28 @@ export function App() {
     case 'settings':
       content = <Settings initialTab={screen.tab} onBack={home} />;
       break;
+    case 'versus':
+      content = <VersusSelect onBack={home} onPlay={(botId, firstTo) => setScreen({ name: 'match', botId, firstTo })} />;
+      break;
+    case 'match':
+      content = (
+        <VersusPlay
+          key={screen.botId}
+          botId={screen.botId}
+          firstTo={screen.firstTo}
+          onExit={() => setScreen({ name: 'versus' })}
+          onNext={(botId) => setScreen({ name: 'match', botId, firstTo: screen.firstTo })}
+        />
+      );
+      break;
     default:
-      content = <Home onPlay={(mode) => setScreen({ name: 'play', mode })} onSettings={(tab) => setScreen({ name: 'settings', tab })} />;
+      content = (
+        <Home
+          onPlay={(mode) => setScreen({ name: 'play', mode })}
+          onVersus={() => setScreen({ name: 'versus' })}
+          onSettings={(tab) => setScreen({ name: 'settings', tab })}
+        />
+      );
   }
   // Opacity-only transition: a transform here would break the game's fixed layout.
   return (

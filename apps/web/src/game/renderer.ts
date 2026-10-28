@@ -54,6 +54,8 @@ export class GameRenderer {
   private dangerGlow = new Graphics();
   private frame = new Graphics();
   private frameFlash = new Graphics();
+  /** Incoming garbage, beside the board. */
+  private meter = new Graphics();
   private boardPool: SpritePool;
   private boardMask: SpritePool;
   private pieceMask: SpritePool;
@@ -131,6 +133,7 @@ export class GameRenderer {
       maskLayer,
       this.frame,
       this.frameFlash,
+      this.meter,
       ghostLayer,
       boardLayer,
       this.trailLayer,
@@ -235,6 +238,7 @@ export class GameRenderer {
       this.drawPreviews(game);
     }
     this.drawPiece(game);
+    this.drawMeter(game);
     if (skin.breathe) {
       const breath = 0.86 + 0.14 * Math.sin(now / 1100);
       this.boardPool.layer.alpha = breath;
@@ -366,6 +370,16 @@ export class GameRenderer {
             this.nextC.alpha = 0.5 + 0.5 * easeOut(p);
           },
         });
+        break;
+      }
+      case 'garbageRise':
+        // The stack is shoved up from below.
+        this.bump.v -= cell * (full ? 10 : 6) * Math.min(4, e.lines);
+        this.ambient?.ripple(boardX + (BOARD_WIDTH * cell) / 2, this.layout.boardY + this.layout.boardH, 2 + e.lines * 0.5, DANGER);
+        break;
+      case 'attack': {
+        const sent = e.lines.reduce((a, b) => a + b, 0);
+        this.flash = Math.max(this.flash, Math.min(1, 0.3 + sent * 0.12));
         break;
       }
       case 'levelUp':
@@ -601,6 +615,24 @@ export class GameRenderer {
       }
     }
     this.ghostPool.end();
+  }
+
+  /** Stacked segments, one per attack: amber while delayed, red once it can enter. */
+  private drawMeter(game: Game): void {
+    const g = this.meter;
+    g.clear();
+    if (!game.rules.attack || !this.layout) return;
+    const { cell, boardX, boardY, boardH } = this.layout;
+    const width = Math.max(3, cell * 0.2);
+    const x = boardX - cell * 0.38 - width;
+    let y = boardY + boardH;
+    for (const incoming of game.incoming) {
+      const h = Math.min(incoming.lines * cell, y - boardY);
+      if (h <= 0) break;
+      const ready = game.time >= incoming.readyAt;
+      g.roundRect(x, y - h + 1, width, h - 2, width / 2).fill({ color: ready ? DANGER : 0xffc53d, alpha: ready ? 0.95 : 0.7 });
+      y -= h;
+    }
   }
 
   private drawPiece(game: Game): void {

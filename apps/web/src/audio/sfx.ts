@@ -142,6 +142,14 @@ class Sfx {
         return this.clear(e.info);
       case 'levelUp':
         return this.levelUp();
+      case 'garbageRise':
+        return this.play((t) => {
+          this.strike(t, WOOD, 105, { gain: 0.16 + Math.min(e.lines, 8) * 0.015, length: 2.6 });
+          this.noise(t, 0.04, 0.06, 500, 200, 'lowpass');
+        });
+      case 'attack':
+        // A soft breath as lines leave toward the opponent.
+        return this.play((t) => this.noise(t, 0.028, 0.16, 1400, 5200, 'bandpass'));
     }
   }
 

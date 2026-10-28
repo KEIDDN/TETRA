@@ -1,3 +1,4 @@
+import { BOTS } from '@tetra/bot';
 import type { GameStats, ModeId, PieceType } from '@tetra/engine';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { sfx } from '../audio/sfx';
@@ -16,7 +17,6 @@ type SettingsTab = 'appearance' | 'sound' | 'controls';
 
 const ENTRIES: DemoMode[] = [...MODE_ORDER, 'versus'];
 const PIECES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
-const BOTS = ['Pebble', 'Drift', 'Stack', 'Tempo', 'Pivot', 'Rift', 'Vector', 'Prism', 'Apex', 'Zenith'];
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
 function entryName(id: DemoMode): string {
@@ -40,14 +40,21 @@ function liveStat(id: DemoMode, s: GameStats): [string, string] {
   }
 }
 
-export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; onSettings: (tab?: SettingsTab) => void }) {
+export function Home({
+  onPlay,
+  onVersus,
+  onSettings,
+}: {
+  onPlay: (mode: ModeId) => void;
+  onVersus: () => void;
+  onSettings: (tab?: SettingsTab) => void;
+}) {
   const { appearance } = useSettings();
   const padKind = useSyncExternalStore(
     (l) => gamepads.onStatus(l),
     () => gamepads.kind,
   );
   const [selected, setSelected] = useState<DemoMode>('sprint');
-  const [nudge, setNudge] = useState(0);
   const firstRef = useRef<HTMLButtonElement>(null);
   const showcaseRef = useRef<HTMLDivElement>(null);
   const statLabelRef = useRef<HTMLSpanElement>(null);
@@ -81,10 +88,7 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
     if (el) lattice.ripple(el.left, el.top + el.height / 2, 2.2);
   };
 
-  const activate = (id: DemoMode) => {
-    if (id === 'versus') return setNudge((n) => n + 1);
-    onPlay(id);
-  };
+  const activate = (id: DemoMode) => (id === 'versus' ? onVersus() : onPlay(id));
 
   const best = selected === 'versus' ? null : loadBest(selected);
 
@@ -134,17 +138,14 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
                         }`}
                       />
                       <span
-                        key={active && id === 'versus' ? nudge : 0}
                         className={`text-[clamp(44px,6.2vw,92px)] leading-[1.02] font-[480] tracking-[-0.045em] transition-colors duration-300 ${
                           active ? 'text-fg' : 'text-white/[0.14] group-hover:text-white/30'
-                        } ${active && id === 'versus' && nudge ? 'animate-[nudge_0.4s_ease]' : ''}`}
+                        }`}
                       >
                         {entryName(id)}
                       </span>
                       {id === 'versus' && (
-                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium text-faint shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]">
-                          Soon
-                        </span>
+                        <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold text-black">New</span>
                       )}
                     </button>
                   </li>
@@ -155,21 +156,17 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
             <div key={selected} className="animate-fade mt-10 flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-6">
               <p className="min-w-[220px] flex-1 text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
               {selected === 'versus' ? (
-                <span className="label">{BOTS.length} bots · in development</span>
+                <>
+                  <span className="label">{BOTS.length} bots · first to N</span>
+                  <PlayButton onClick={() => activate(selected)} />
+                </>
               ) : (
                 <>
                   <div>
                     <div className="label">Best</div>
                     <div className="tabular mt-1.5 text-[18px] font-medium">{best ? MODE_CONFIGS[selected].formatRecord(best) : '—'}</div>
                   </div>
-                  <button
-                    data-nav
-                    onClick={() => activate(selected)}
-                    className={`flex items-center gap-3 rounded-full bg-accent py-3 pr-3 pl-6 text-[16px] font-semibold text-black transition-transform duration-250 ease-spring hover:scale-[1.04] active:scale-[0.98] ${focusRing}`}
-                  >
-                    Play
-                    <span className="grid size-7 place-items-center rounded-full bg-black/10 font-mono text-[12px]">↵</span>
-                  </button>
+                  <PlayButton onClick={() => activate(selected)} />
                 </>
               )}
             </div>
@@ -241,6 +238,19 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
         </footer>
       </div>
     </div>
+  );
+}
+
+function PlayButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      data-nav
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-full bg-accent py-3 pr-3 pl-6 text-[16px] font-semibold text-black transition-transform duration-250 ease-spring hover:scale-[1.04] active:scale-[0.98] ${focusRing}`}
+    >
+      Play
+      <span className="grid size-7 place-items-center rounded-full bg-black/10 font-mono text-[12px]">↵</span>
+    </button>
   );
 }
 
