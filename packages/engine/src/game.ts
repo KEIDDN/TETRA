@@ -1,9 +1,10 @@
-import { Board } from './board';
+import { attackFor, marginMultiplier, surgeFor, type AttackRules } from './attack';
+import { Board, BOARD_WIDTH } from './board';
 import { levelForLines, levelGravity, type LevelCurve } from './levels';
 import { linkMasks } from './links';
 import { getKicks } from './kicks';
-import { PIECE_CODE, SHAPES, spawnPosition, type Cell, type PieceType, type Rotation } from './pieces';
-import { Bag } from './rng';
+import { GARBAGE_CODE, PIECE_CODE, SHAPES, spawnPosition, type Cell, type PieceType, type Rotation } from './pieces';
+import { Bag, Rng } from './rng';
 import { clearScore, HARD_DROP_POINTS, SOFT_DROP_POINTS } from './scoring';
 
 /** One logic frame at 60 Hz, in ms. Gravity is expressed in G (rows per frame). */
@@ -56,6 +57,8 @@ export interface Rules {
   timeLimit: number | null;
   /** When set, gravity follows the level curve instead of `gravity`. */
   levelCurve: LevelCurve | null;
+  /** Versus rules; null in solo modes. */
+  attack: AttackRules | null;
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -68,6 +71,7 @@ export const DEFAULT_RULES: Rules = {
   lineGoal: null,
   timeLimit: null,
   levelCurve: null,
+  attack: null,
 };
 
 export type SpinKind = 'none' | 'mini' | 'full';
@@ -100,7 +104,13 @@ export type GameEvent =
   | { type: 'clear'; info: ClearInfo; score: number; rows: ClearedRow[] }
   | { type: 'levelUp'; level: number }
   | { type: 'topout' }
-  | { type: 'finish' };
+  | { type: 'finish' }
+  /** Lines sent to the opponent after cancelling; one entry per segment. */
+  | { type: 'attack'; lines: number[]; time: number }
+  /** Incoming lines cancelled by this player's attack. */
+  | { type: 'cancel'; lines: number }
+  | { type: 'garbageIn'; lines: number }
+  | { type: 'garbageRise'; lines: number };
 
 export type GameState = 'playing' | 'topout' | 'finished';
 
@@ -123,6 +133,19 @@ export interface GameStats {
   maxB2b: number;
   score: number;
   level: number;
+  /** Lines of attack produced (before cancelling). */
+  attack: number;
+  garbageReceived: number;
+  /** Garbage rows cleared (for the VS score). */
+  garbageCleared: number;
+}
+
+export interface IncomingGarbage {
+  lines: number;
+  /** Game time from which it may enter the board. */
+  readyAt: number;
+  /** Hole column, chosen when the attack first enters. */
+  hole?: number;
 }
 
 export interface GameOptions {
@@ -152,7 +175,9 @@ export class Game {
   handling: Handling;
   readonly queue: PieceType[] = [];
   readonly events: GameEvent[] = [];
-  readonly stats: GameStats = { pieces: 0, lines: 0, inputs: 0, holds: 0, b2b: -1, combo: -1, maxCombo: -1, maxB2b: -1, score: 0, level: 1 };
+  readonly stats: GameStats = { pieces: 0, lines: 0, inputs: 0, holds: 0, b2b: -1, combo: -1, maxCombo: -1, maxB2b: -1, score: 0, level: 1, attack: 0, garbageReceived: 0, garbageCleared: 0 };
+  /** Garbage waiting to enter, oldest first. */
+  readonly incoming: IncomingGarbage[] = [];
 
   state: GameState = 'playing';
   time = 0;
@@ -164,6 +189,8 @@ export class Game {
   version = 0;
 
   private bag: Bag;
+  private garbageRng: Rng;
+  private garbageColumn = -1;
   private held = new Set<Action>();
   private dir: -1 | 0 | 1 = 0;
   private dasStart = 0;
@@ -183,6 +210,7 @@ export class Game {
     this.rules = { ...DEFAULT_RULES, ...options.rules };
     this.handling = { ...DEFAULT_HANDLING, ...options.handling };
     this.bag = new Bag(options.seed);
+    this.garbageRng = new Rng((options.seed ^ 0x9e3779b9) >>> 0);
     this.queue.push(...(options.pieces ?? []));
     this.refillQueue();
     this.spawnNext();
@@ -252,6 +280,27 @@ export class Game {
     }
     this.time = Math.max(this.time, t);
     if (limit !== null && this.time >= limit && this.state === 'playing') this.finish();
+  }
+
+  /** Queues garbage sent by the opponent at game time `t`. */
+  receive(lines: number, t: number): void {
+    if (lines <= 0 || this.state !== 'playing') return;
+    this.incoming.push({ lines, readyAt: t + (this.rules.attack?.garbageDelay ?? 0) });
+    this.stats.garbageReceived += lines;
+    this.events.push({ type: 'garbageIn', lines });
+  }
+
+  /** Total lines waiting to enter. */
+  get pendingGarbage(): number {
+    return this.incoming.reduce((n, g) => n + g.lines, 0);
+  }
+
+  /** Ends a versus round from the outside (the opponent topped out). */
+  stop(): void {
+    if (this.state !== 'playing') return;
+    this.state = 'finished';
+    this.finishedAt = this.time;
+    this.piece = null;
   }
 
   /** Swaps handling mid-game (e.g. when the player switches between keyboard and controller). */
@@ -525,6 +574,8 @@ export class Game {
     const rows = this.board.fullRows().map((y) => ({ y, cells: this.board.row(y) }));
     const lines = this.board.clearLines();
     const s = this.stats;
+    s.garbageCleared += rows.filter((r) => r.cells.includes(GARBAGE_CODE)).length;
+    const streakBefore = s.b2b;
     if (lines > 0) {
       s.lines += lines;
       s.combo++;
@@ -554,11 +605,89 @@ export class Game {
       const score = clearScore(info, s.level);
       s.score += score;
       this.events.push({ type: 'clear', info, score, rows });
+      if (this.rules.attack) this.sendAttack(info, streakBefore);
+    }
+    if (lines === 0 && this.rules.attack && !this.takeGarbage()) {
+      this.piece = null;
+      this.state = 'topout';
+      this.finishedAt = this.time;
+      this.events.push({ type: 'topout' });
+      return;
     }
     this.version++;
 
     if (this.rules.lineGoal !== null && s.lines >= this.rules.lineGoal) return this.finish();
     this.spawnNext();
+  }
+
+  /** Turns a clear into attack: cancel incoming garbage first, send the rest. */
+  private sendAttack(info: ClearInfo, streakBefore: number): void {
+    const rules = this.rules.attack!;
+    const segments: number[] = [];
+    const main = Math.floor(attackFor(info, rules) * marginMultiplier(this.time, rules));
+    if (main > 0) segments.push(main);
+    // Breaking a long B2B streak releases its stored surge.
+    if (info.b2b === -1 && streakBefore >= rules.surgeStart) segments.push(...surgeFor(streakBefore, rules));
+    const total = segments.reduce((a, b) => a + b, 0);
+    if (total === 0) return;
+    this.stats.attack += total;
+
+    const cancel = Math.min(total, this.pendingGarbage);
+    if (cancel > 0) {
+      this.events.push({ type: 'cancel', lines: cancel });
+      let left = cancel;
+      while (left > 0) {
+        const g = this.incoming[0];
+        const used = Math.min(g.lines, left);
+        g.lines -= used;
+        left -= used;
+        if (g.lines === 0) this.incoming.shift();
+      }
+    }
+    // Cancelling eats segments from the front; whatever survives is sent.
+    const out: number[] = [];
+    let skip = cancel;
+    for (const seg of segments) {
+      const keep = Math.max(0, seg - skip);
+      skip = Math.max(0, skip - seg);
+      if (keep > 0) out.push(keep);
+    }
+    if (out.length) this.events.push({ type: 'attack', lines: out, time: this.time });
+  }
+
+  /** Lets ready garbage rise into the board, up to the cap. False if it pushed blocks off the top. */
+  private takeGarbage(): boolean {
+    const rules = this.rules.attack!;
+    let budget = rules.garbageCap;
+    let total = 0;
+    let ok = true;
+    while (budget > 0 && this.incoming.length > 0 && this.incoming[0].readyAt <= this.time) {
+      const g = this.incoming[0];
+      if (g.hole === undefined) {
+        const change = this.garbageColumn < 0 || this.garbageRng.next() < rules.messiness;
+        g.hole = change ? Math.floor(this.garbageRng.next() * BOARD_WIDTH) : this.garbageColumn;
+        this.garbageColumn = g.hole;
+      }
+      const n = Math.min(g.lines, budget);
+      ok = this.insertGarbage(n, g.hole) && ok;
+      g.lines -= n;
+      budget -= n;
+      total += n;
+      if (g.lines === 0) this.incoming.shift();
+    }
+    if (total > 0) this.events.push({ type: 'garbageRise', lines: total });
+    return ok;
+  }
+
+  /** Raises the stack and fills the bottom rows with linked garbage around one hole. */
+  private insertGarbage(count: number, hole: number): boolean {
+    const ok = this.board.raise(count);
+    const cells: Cell[] = [];
+    for (let y = 0; y < count; y++) for (let x = 0; x < BOARD_WIDTH; x++) if (x !== hole) cells.push([x, y]);
+    const masks = linkMasks(cells);
+    cells.forEach(([x, y], i) => this.board.set(x, y, GARBAGE_CODE, masks[i]));
+    this.version++;
+    return ok;
   }
 
   private finish(): void {

@@ -71,6 +71,17 @@ export class Board {
     return cleared;
   }
 
+  /** Pushes everything up by `count` rows. Returns false if blocks were pushed off the top. */
+  raise(count: number): boolean {
+    const shift = count * BOARD_WIDTH;
+    const overflow = this.cells.subarray(this.cells.length - shift).some((c) => c !== 0);
+    this.cells.copyWithin(shift, 0, this.cells.length - shift);
+    this.links.copyWithin(shift, 0, this.links.length - shift);
+    this.cells.fill(0, 0, shift);
+    this.links.fill(0, 0, shift);
+    return !overflow;
+  }
+
   isEmpty(): boolean {
     return this.cells.every((c) => c === 0);
   }
