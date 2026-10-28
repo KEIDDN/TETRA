@@ -1,4 +1,4 @@
-import { BOTS } from '@tetra/bot';
+import { BOTS, type BotProfile } from '@tetra/bot';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { computeLayout, type Layout } from '../game/layout';
 import { GameRenderer } from '../game/renderer';
@@ -9,6 +9,7 @@ import { useMenuNav } from '../lib/nav';
 import { getSettings } from '../lib/settings';
 import { isUnlocked } from '../lib/versus';
 import { ActionText } from '../ui/actionText';
+import { BotEmblem } from '../ui/BotEmblem';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
@@ -116,7 +117,7 @@ export function VersusPlay({
       );
     });
 
-    // A small capsule of light carries each attack across to the opponent's meter.
+    // Each attack is a comet: it arcs from the sender's stack to the receiver's meter and lands with a ring.
     const launchBeam = (from: 0 | 1, lines: number) => {
       const layer = beamsRef.current;
       const src = layoutRef.current[from];
@@ -125,22 +126,59 @@ export function VersusPlay({
       const dstHost = hosts[1 - from].current?.getBoundingClientRect();
       if (!layer || !src || !dst || !srcHost || !dstHost) return;
       const sx = srcHost.left + src.boardX + src.boardW / 2;
-      const sy = srcHost.top + src.boardY + src.boardH * 0.6;
+      const sy = srcHost.top + src.boardY + src.boardH * 0.55;
       const tx = dstHost.left + dst.boardX - dst.cell * 0.5;
       const ty = dstHost.top + dst.boardY + dst.boardH * 0.85;
-      const el = document.createElement('div');
-      el.className = 'beam';
-      el.textContent = `+${lines}`;
-      layer.append(el);
-      const anim = el.animate(
-        [
-          { transform: `translate(${sx}px, ${sy}px) translate(-50%, -50%) scale(0.6)`, opacity: 0 },
-          { transform: `translate(${sx}px, ${sy - 30}px) translate(-50%, -50%) scale(1)`, opacity: 1, offset: 0.2 },
-          { transform: `translate(${tx}px, ${ty}px) translate(-50%, -50%) scale(0.7)`, opacity: 0.9 },
-        ],
-        { duration: 520, easing: 'cubic-bezier(0.55, 0, 0.75, 0.4)' },
-      );
-      anim.onfinish = () => el.remove();
+      const color = lines >= 8 ? '#ff453a' : lines >= 4 ? '#ffb84a' : from === 1 ? bot.color : '#edebfa';
+      const width = 2 + Math.min(lines, 10) * 0.7;
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('class', 'comet');
+      svg.style.color = color;
+      const path = document.createElementNS(ns, 'path');
+      const cx = (sx + tx) / 2;
+      const cy = Math.min(sy, ty) - 120 - Math.min(lines, 10) * 10;
+      path.setAttribute('d', `M${sx},${sy} Q${cx},${cy} ${tx},${ty}`);
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', String(width));
+      svg.append(path);
+      const head = document.createElement('div');
+      head.className = 'comet-head';
+      head.style.setProperty('--c', color);
+      head.style.width = head.style.height = `${8 + Math.min(lines, 10) * 1.6}px`;
+      head.textContent = '';
+      const label = document.createElement('div');
+      label.className = 'comet-label';
+      label.textContent = `+${lines}`;
+      layer.append(svg, head, label);
+      const length = path.getTotalLength();
+      const tail = length * 0.32;
+      path.style.strokeDasharray = `${tail} ${length + tail}`;
+      const duration = 560;
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const e = t * t * (3 - 2 * t);
+        const at = e * length;
+        path.style.strokeDashoffset = String(tail - at);
+        const p = path.getPointAtLength(at);
+        head.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`;
+        label.style.transform = `translate(${p.x}px, ${p.y - 22}px) translate(-50%, -50%)`;
+        label.style.opacity = String(t < 0.15 ? t / 0.15 : 1 - Math.max(0, t - 0.75) / 0.25);
+        if (t < 1) requestAnimationFrame(step);
+        else {
+          svg.remove();
+          head.remove();
+          label.remove();
+          const ring = document.createElement('div');
+          ring.className = 'comet-impact';
+          ring.style.setProperty('--c', color);
+          ring.style.transform = `translate(${tx}px, ${ty}px) translate(-50%, -50%)`;
+          layer.append(ring);
+          ring.addEventListener('animationend', () => ring.remove());
+        }
+      };
+      requestAnimationFrame(step);
     };
 
     return () => {
@@ -172,7 +210,7 @@ export function VersusPlay({
         >
           {phase === 'playing' ? 'Pause' : '← Menu'} <span className="label ml-2">Esc</span>
         </button>
-        <Scoreboard score={score} firstTo={firstTo} botName={bot.name} />
+        <Scoreboard score={score} firstTo={firstTo} botName={bot.name} botColor={bot.color} />
         <span className="label justify-self-end">First to {firstTo}</span>
       </header>
 
@@ -206,7 +244,8 @@ export function VersusPlay({
         <div ref={hosts[1]} className="relative">
           {them && (
             <>
-              <div className="absolute flex items-baseline gap-3" style={{ left: them.boardX, top: them.boardY - 34 }}>
+              <div className="absolute flex items-center gap-3" style={{ left: them.holdX, top: them.boardY - 58 }}>
+                <BotEmblem bot={bot} size={30} glow />
                 <span className="text-[18px] font-medium tracking-[-0.02em]">{bot.name}</span>
                 <span className="label">Level {bot.level}</span>
               </div>
@@ -253,6 +292,7 @@ export function VersusPlay({
       {result && (
         <Results
           result={result}
+          bot={bot}
           botName={bot.name}
           onRematch={() => sessionRef.current?.rematch()}
           onNext={next && result.won && isUnlocked(next) ? () => onNext(next.id) : undefined}
@@ -264,19 +304,23 @@ export function VersusPlay({
   );
 }
 
-function Scoreboard({ score, firstTo, botName }: { score: [number, number]; firstTo: number; botName: string }) {
-  const dots = (won: number) =>
+function Scoreboard({ score, firstTo, botName, botColor }: { score: [number, number]; firstTo: number; botName: string; botColor: string }) {
+  const dots = (won: number, color: string) =>
     Array.from({ length: firstTo }, (_, i) => (
-      <span key={i} className={`inline-block size-2 rounded-full transition-colors duration-300 ${i < won ? 'bg-accent' : 'bg-white/15'}`} />
+      <span
+        key={i}
+        className="inline-block size-2 rounded-full transition-all duration-300 ease-spring"
+        style={{ background: i < won ? color : 'rgba(255,255,255,0.15)', transform: i < won ? 'scale(1.25)' : undefined }}
+      />
     ));
   return (
     <div className="flex items-center gap-5">
       <span className="label text-fg">You</span>
-      <span className="flex gap-1.5">{dots(score[0])}</span>
+      <span className="flex gap-1.5">{dots(score[0], '#edebfa')}</span>
       <span className="tabular text-[15px] font-medium">
         {score[0]}–{score[1]}
       </span>
-      <span className="flex gap-1.5">{dots(score[1])}</span>
+      <span className="flex gap-1.5">{dots(score[1], botColor)}</span>
       <span className="label text-fg">{botName}</span>
     </div>
   );
@@ -326,6 +370,7 @@ function Pill({ children, onClick, hint, primary }: { children: ReactNode; onCli
 
 function Results({
   result,
+  bot,
   botName,
   onRematch,
   onNext,
@@ -333,6 +378,7 @@ function Results({
   onExit,
 }: {
   result: VersusResult;
+  bot: BotProfile;
   botName: string;
   onRematch: () => void;
   onNext?: () => void;
@@ -352,7 +398,10 @@ function Results({
         <span className="label">Versus · {botName}</span>
         {result.won && <span className="rounded-full bg-accent px-3 py-1 text-[12px] font-semibold text-black">Victory</span>}
       </div>
-      <div className="mt-6 text-[52px] leading-none font-medium tracking-[-0.045em]">{result.won ? 'You win' : `${botName} wins`}</div>
+      <div className="mt-6 flex items-center gap-5">
+        <BotEmblem bot={bot} size={64} glow />
+        <div className="text-[48px] leading-none font-medium tracking-[-0.045em]">{result.won ? 'You win' : `${botName} wins`}</div>
+      </div>
       <div className="tabular mt-3 text-[15px] text-muted">
         {result.score[0]} — {result.score[1]}
       </div>

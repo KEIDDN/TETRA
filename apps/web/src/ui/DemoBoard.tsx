@@ -20,6 +20,8 @@ const DEMO: Record<DemoMode, { rules: Partial<Rules>; think: number; tap: number
 interface Props {
   mode: DemoMode;
   skin: SkinId;
+  /** Overrides the mode's autoplayer pace (e.g. to show a bot's speed). */
+  pace?: { think: number; tap: number };
   className?: string;
   /** A line clear happened; `y` is 0–1 down the board. */
   onClear?: (power: number, y: number) => void;
@@ -27,12 +29,14 @@ interface Props {
 }
 
 /** A game that plays itself in the player's skin: the home screen's hero. */
-export function DemoBoard({ mode, skin, className, onClear, onStats }: Props) {
+export function DemoBoard({ mode, skin, pace, className, onClear, onStats }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const controls = useRef<{ setMode(mode: DemoMode): void; setSkin(skin: SkinId): void } | null>(null);
+  const controls = useRef<{ setMode(mode: DemoMode): void; setSkin(skin: SkinId): void; restart(): void } | null>(null);
   const callbacks = useRef({ onClear, onStats });
   callbacks.current = { onClear, onStats };
   const initial = useRef({ mode, skin });
+  const paceRef = useRef(pace);
+  paceRef.current = pace;
 
   useEffect(() => {
     const host = hostRef.current!;
@@ -63,13 +67,14 @@ export function DemoBoard({ mode, skin, className, onClear, onStats }: Props) {
       const reset = (now: number) => {
         const demo = DEMO[current];
         game = new Game({ seed: (Math.random() * 2 ** 32) >>> 0, rules: demo.rules });
-        player = new AutoPlayer(game, { think: demo.think, tap: demo.tap });
+        player = new AutoPlayer(game, paceRef.current ?? { think: demo.think, tap: demo.tap });
         start = now;
         endedAt = 0;
         r.reset();
       };
       reset(performance.now());
       controls.current = {
+        restart: () => reset(performance.now()),
         setMode(next) {
           if (next === current) return;
           current = next;
@@ -118,6 +123,7 @@ export function DemoBoard({ mode, skin, className, onClear, onStats }: Props) {
   }, []);
 
   useEffect(() => controls.current?.setMode(mode), [mode]);
+  useEffect(() => controls.current?.restart(), [pace?.think, pace?.tap]);
   useEffect(() => controls.current?.setSkin(skin), [skin]);
 
   return <div ref={hostRef} className={className} aria-hidden />;

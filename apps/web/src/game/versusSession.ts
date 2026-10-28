@@ -4,7 +4,7 @@ import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
 import { recordMatch } from '../lib/versus';
 import { InputRouter } from './input';
-import { BOT_HANDLING, BotPilot } from './pilot';
+import { botHandling, BotPilot } from './pilot';
 import type { GameRenderer } from './renderer';
 
 const COUNTDOWN_STEP_MS = 500;
@@ -91,6 +91,8 @@ export class VersusSession {
     this.startRound();
     this.pilot = new BotPilot(bot, this.match, 1);
     renderers[0].ticker.add(this.tick);
+    // Lets browser tests poke the match; stripped from production builds.
+    if (import.meta.env.DEV) (window as unknown as { __versus: unknown }).__versus = this;
   }
 
   rematch(): void {
@@ -131,7 +133,7 @@ export class VersusSession {
 
   private startRound(): void {
     const settings = getSettings();
-    this.match = new Match({ seed: (Math.random() * 2 ** 32) >>> 0, handling: [settings.keyboard.handling, BOT_HANDLING] });
+    this.match = new Match({ seed: (Math.random() * 2 ** 32) >>> 0, handling: [settings.keyboard.handling, botHandling(this.bot)] });
     this.pilot?.setMatch(this.match);
     this.renderers.forEach((r) => r.reset());
     this.view.reset();

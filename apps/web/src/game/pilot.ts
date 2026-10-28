@@ -8,8 +8,10 @@ interface Step {
   pressed: boolean;
 }
 
-/** Bots press keys instantly when told to; DAS never kicks in because taps are released right away. */
-export const BOT_HANDLING = { das: 60_000, arr: 60_000, sdf: Infinity, dcd: 0, cancelDasOnDirectionChange: true };
+/** A bot's own handling: short taps move one cell, held keys use its DAS and ARR. */
+export function botHandling(p: BotProfile) {
+  return { das: p.das, arr: p.arr, sdf: Infinity, dcd: 17, cancelDasOnDirectionChange: true };
+}
 
 const DANGER_HEIGHT = 12;
 
@@ -107,14 +109,65 @@ export class BotPilot {
     const interval = 1000 / p.pps;
     const execution = path.length * p.tap;
     const rhythm = Math.exp((Math.random() - 0.5) * 0.9) * (height > DANGER_HEIGHT ? 0.75 : 1);
-    let at = Math.max(this.nowRef, this.requestedAt + Math.max(40, interval * rhythm - execution));
-    this.steps = [];
-    for (const action of path) {
-      at += p.tap * (0.7 + Math.random() * 0.6);
-      this.steps.push({ at, action, pressed: true });
-      this.steps.push({ at: at + (action === 'softDrop' ? 25 : 1), action, pressed: false });
-      if (action === 'softDrop') at += 25;
+    const start = Math.max(this.nowRef, this.requestedAt + Math.max(40, interval * rhythm - execution));
+    this.steps = this.script(path, start, nerves);
+  }
+
+  /**
+   * Turns a path into timed key presses the way a person would play it:
+   * long slides on DAS (sometimes a column too far, then corrected), the
+   * odd rotation the long way round, a hesitation, a soft drop instead of
+   * a hard drop.
+   */
+  private script(path: Action[], start: number, nerves: number): Step[] {
+    const p = this.profile;
+    const steps: Step[] = [];
+    let at = start;
+    const tap = () => p.tap * (0.75 + Math.random() * 0.5);
+    const press = (action: Action, hold = 1) => {
+      steps.push({ at, action, pressed: true });
+      steps.push({ at: at + hold, action, pressed: false });
+    };
+    const opposite: Partial<Record<Action, Action>> = { rotateCW: 'rotateCCW', rotateCCW: 'rotateCW', moveLeft: 'moveRight', moveRight: 'moveLeft' };
+
+    for (let i = 0; i < path.length; ) {
+      const action = path[i];
+      let run = 1;
+      while (path[i + run] === action) run++;
+      if (Math.random() < (p.hesitation * nerves) / 3) at += 120 + Math.random() * 330;
+      at += tap();
+
+      if ((action === 'moveLeft' || action === 'moveRight') && run >= 3 && p.arr >= 20) {
+        // Hold the key: one move on press, one at DAS, then one every ARR.
+        let hold = p.das + (run - 2) * p.arr + Math.min(8, p.arr / 3);
+        const overshoot = Math.random() < p.overshoot * nerves;
+        if (overshoot) hold += p.arr;
+        press(action, hold);
+        at += hold;
+        if (overshoot) {
+          at += 110 + Math.random() * 120;
+          press(opposite[action]!);
+        }
+      } else if ((action === 'rotateCW' || action === 'rotateCCW') && run === 1 && !path.slice(0, i).includes('softDrop') && Math.random() < p.fumble) {
+        // Three turns the other way: same result in open air, very human.
+        for (let k = 0; k < 3; k++) {
+          press(opposite[action]!);
+          at += tap() * 0.8;
+        }
+      } else if (action === 'hardDrop' && Math.random() < p.softDrops) {
+        press('softDrop', 140 + Math.random() * 160);
+        at += 320 + Math.random() * 120;
+        press('hardDrop');
+      } else {
+        for (let k = 0; k < run; k++) {
+          press(action, action === 'softDrop' ? 25 : 1);
+          if (k < run - 1) at += tap() * 0.85;
+        }
+        if (action === 'softDrop') at += 25;
+      }
+      i += run;
     }
+    return steps;
   }
 
   private withMisdrop(move: ThinkMove, chance: number): Action[] {
