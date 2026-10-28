@@ -31,6 +31,13 @@ export interface VersusResult {
   timeline: { t: number; sent: [number, number] }[];
 }
 
+export interface VersusOptions {
+  /** Watch this bot play the right-hand bot instead of playing yourself. */
+  left?: BotProfile;
+  /** Tournament bouts keep their own records and XP. */
+  tournament?: boolean;
+}
+
 export interface VersusView {
   reset(): void;
   phase(phase: VersusPhase): void;
@@ -67,6 +74,8 @@ function sideStats(game: Game, elapsed: number): SideStats {
 export class VersusSession {
   private match!: Match;
   private pilot: BotPilot;
+  /** When watching two bots, the left side has a pilot too. */
+  private leftPilot: BotPilot | null = null;
   private router: InputRouter;
   private phase: VersusPhase = 'countdown';
   private startAt = 0;
@@ -87,12 +96,12 @@ export class VersusSession {
     private renderers: [GameRenderer, GameRenderer],
     private view: VersusView,
     private onExit: () => void,
-    /** Tournaments award their own XP. */
-    private awardXp = true,
+    private options: VersusOptions = {},
   ) {
     this.router = new InputRouter(getSettings(), this.onCommand);
     this.startRound();
     this.pilot = new BotPilot(bot, this.match, 1);
+    if (options.left) this.leftPilot = new BotPilot(options.left, this.match, 0);
     renderers[0].ticker.add(this.tick);
     // Lets browser tests poke the match; stripped from production builds.
     if (import.meta.env.DEV) (window as unknown as { __versus: unknown }).__versus = this;
@@ -113,7 +122,7 @@ export class VersusSession {
     if (this.phase !== 'playing') return;
     const t = performance.now() - this.startAt;
     this.match.update(t);
-    for (const { action } of this.router.heldActions()) this.match.input(0, action, false, t);
+    if (!this.leftPilot) for (const { action } of this.router.heldActions()) this.match.input(0, action, false, t);
     this.goGameTime = this.match.games[0].time;
     this.setPhase('paused');
   }
@@ -126,6 +135,7 @@ export class VersusSession {
     this.clearTimers();
     this.router.dispose();
     this.pilot.dispose();
+    this.leftPilot?.dispose();
     this.renderers[0].ticker.remove(this.tick);
   }
 
@@ -136,8 +146,9 @@ export class VersusSession {
 
   private startRound(): void {
     const settings = getSettings();
-    this.match = new Match({ seed: (Math.random() * 2 ** 32) >>> 0, handling: [settings.keyboard.handling, botHandling(this.bot)] });
+    this.match = new Match({ seed: (Math.random() * 2 ** 32) >>> 0, handling: [this.options.left ? botHandling(this.options.left) : settings.keyboard.handling, botHandling(this.bot)] });
     this.pilot?.setMatch(this.match);
+    this.leftPilot?.setMatch(this.match);
     this.renderers.forEach((r) => r.reset());
     this.view.reset();
     this.beginCountdown(0);
@@ -159,14 +170,14 @@ export class VersusSession {
 
   private onCommand = (command: Command, pressed: boolean, time: number, device: Device): void => {
     if (isAction(command)) {
-      if (this.phase !== 'playing') return;
+      if (this.phase !== 'playing' || this.leftPilot) return;
       if (pressed) this.match.games[0].setHandling(getSettings()[device].handling);
       this.match.input(0, command, pressed, time - this.startAt);
       return;
     }
     if (!pressed) return;
     if (command === 'retry') {
-      if (this.phase === 'done') this.rematch();
+      if (this.phase === 'done' && !this.options.tournament) this.rematch();
       return;
     }
     if (this.phase === 'playing') this.pause();
@@ -190,7 +201,7 @@ export class VersusSession {
         this.shownStep = 0;
         this.view.countdown(0);
         sfx.go();
-        for (const { action, since, device } of this.router.heldActions()) {
+        if (!this.leftPilot) for (const { action, since, device } of this.router.heldActions()) {
           this.match.games[0].setHandling(getSettings()[device].handling);
           this.match.input(0, action, true, this.goGameTime, since - this.startAt);
         }
@@ -203,6 +214,7 @@ export class VersusSession {
       }
       const t = now - this.startAt;
       this.match.update(t);
+      this.leftPilot?.update(t);
       this.pilot.update(t);
       this.match.update(t);
     }
@@ -249,8 +261,10 @@ export class VersusSession {
   private finishMatch(): void {
     this.setPhase('done');
     const won = this.score[0] > this.score[1];
-    recordMatch(this.bot.id, won, this.score[0], this.score[1]);
-    if (this.awardXp) awardXp(versusXp(won, this.bot.level, this.score[0]), `vs ${this.bot.name}`);
+    if (!this.options.tournament && !this.options.left) {
+      recordMatch(this.bot.id, won, this.score[0], this.score[1]);
+      awardXp(versusXp(won, this.bot.level, this.score[0]), `vs ${this.bot.name}`);
+    }
     const totals = [0, 1].map((i) =>
       this.past.games.reduce((acc, round) => ({
         attack: acc.attack + round[i].attack,

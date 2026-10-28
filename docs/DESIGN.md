@@ -221,3 +221,29 @@ Cada hito es jugable y se revisa antes de pasar al siguiente.
    - Supabase: login con Google, email (enlace mágico) y Discord.
    - Perfiles públicos, rankings por modo verificados re-simulando la partida (replays), página de stats potente a nivel diseño.
    - Se juega sin cuenta; al iniciar sesión, lo local se sube y fusiona.
+
+## 7e. Tournaments
+
+- **Format**: single elimination. Cups have 8 seats: you plus 7 bots. Quarterfinals are FT2, semifinals FT3 and the final FT4.
+- **Cups**: each cup unlocks by winning the one before it. Developer mode unlocks everything.
+
+  | Cup | Bot levels | Reward skin |
+  | --- | --- | --- |
+  | Foundations | 1,1,2,2,3,3,4 | Crystal |
+  | Contenders | 3,4,4,5,5,6,7 | Aurora |
+  | Summit | 6,7,7,8,9,9,10 | Ember |
+
+- **Clones**: when a level appears twice, the second copy plays exactly like the original but gets its own name, a hue-shifted color and its own emblem.
+- **Seeding**: seeding by level makes you the top seed, so you meet the weakest bot first and the strongest last. Random seeding shuffles everyone.
+- **Bot vs bot**: these bouts are simulated for real with `simulateMatch` in a Web Worker, using simulated time at each bot's own pace and with its own mistakes. The bracket keeps moving while you play.
+  - Any ready bout can be watched live. Watching hands the bout to the live match.
+  - Leaving a bout early hands it back to the simulator.
+- **Rewards**:
+  - XP via `tournamentXp(place, tier)`.
+  - A trophy for finishing champion or finalist.
+  - The cup's reward skin for winning it.
+- **Custom brackets**: they unlock after you win any cup.
+  - 4, 8 or 16 seats, with ladder or custom bots; picking the same bot twice adds a clone.
+  - Each round has its own first-to setting.
+  - Seeding by level or random.
+  - "Play in it" can be turned off to only watch.

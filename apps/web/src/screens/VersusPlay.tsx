@@ -14,19 +14,37 @@ import { BotEmblem } from '../ui/BotEmblem';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
+/** A tournament bout: no rematch, the result goes back to the bracket. */
+export interface BoutContext {
+  label: string;
+  onResult: (score: [number, number]) => void;
+}
+
 export function VersusPlay({
   botId,
+  profile,
+  left,
+  bout,
   firstTo,
   onExit,
   onNext,
 }: {
   botId: string;
+  /** Overrides the bot looked up by id (tournament clones). */
+  profile?: BotProfile;
+  /** Spectate: this bot plays the left board. */
+  left?: BotProfile;
+  bout?: BoutContext;
   firstTo: number;
   onExit: () => void;
-  onNext: (botId: string) => void;
+  onNext?: (botId: string) => void;
 }) {
-  const bot = findBot(botId) ?? BOTS[0];
-  const next = botId.startsWith('custom-') ? undefined : BOTS.find((b) => b.level === bot.level + 1);
+  const bot = profile ?? findBot(botId) ?? BOTS[0];
+  const next = bout || botId.startsWith('custom-') ? undefined : BOTS.find((b) => b.level === bot.level + 1);
+  const leftName = left?.name ?? 'You';
+  const leftColor = left?.color ?? '#edebfa';
+  const boutRef = useRef(bout);
+  boutRef.current = bout;
   const hosts = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)];
   const [layouts, setLayouts] = useState<[Layout | null, Layout | null]>([null, null]);
   const layoutRef = useRef<[Layout | null, Layout | null]>([null, null]);
@@ -65,7 +83,7 @@ export function VersusPlay({
           skin,
           fx: appearance.fx,
           smoothFall: appearance.smoothFall,
-          ghost: i === 0 && appearance.ghost,
+          ghost: i === 0 && !left && appearance.ghost,
           grid: resolveGrid(appearance.grid, skin),
           ambient: i === 0 && appearance.ambient && appearance.fx !== 'off',
         });
@@ -112,9 +130,13 @@ export function VersusPlay({
             if (player !== 0) return;
             if (e.type === 'clear') callouts()?.clear(e.info, skin.palette(game.stats.level)[e.info.piece]);
           },
-          result: setResult,
+          result: (r) => {
+            setResult(r);
+            if (r) boutRef.current?.onResult(r.score);
+          },
         },
         () => exitRef.current(),
+        { left, tournament: !!bout },
       );
     });
 
@@ -130,7 +152,7 @@ export function VersusPlay({
       const sy = srcHost.top + src.boardY + src.boardH * 0.55;
       const tx = dstHost.left + dst.boardX - dst.cell * 0.5;
       const ty = dstHost.top + dst.boardY + dst.boardH * 0.85;
-      const color = lines >= 8 ? '#ff453a' : lines >= 4 ? '#ffb84a' : from === 1 ? bot.color : '#edebfa';
+      const color = lines >= 8 ? '#ff453a' : lines >= 4 ? '#ffb84a' : from === 1 ? bot.color : leftColor;
       const width = 2 + Math.min(lines, 10) * 0.7;
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');
@@ -211,14 +233,21 @@ export function VersusPlay({
         >
           {phase === 'playing' ? 'Pause' : '← Menu'} <span className="label ml-2">Esc</span>
         </button>
-        <Scoreboard score={score} firstTo={firstTo} botName={bot.name} botColor={bot.color} />
-        <span className="label justify-self-end">First to {firstTo}</span>
+        <Scoreboard score={score} firstTo={firstTo} botName={bot.name} botColor={bot.color} leftName={leftName} leftColor={leftColor} />
+        <span className="label justify-self-end">{bout ? `${bout.label} · ` : ''}First to {firstTo}</span>
       </header>
 
-      <div className="absolute inset-0 top-16 grid grid-cols-[1.25fr_1fr]">
+      <div className={`absolute inset-0 top-16 grid ${left ? 'grid-cols-2' : 'grid-cols-[1.25fr_1fr]'}`}>
         <div ref={hosts[0]} className="relative">
           {you && (
             <>
+              {left && (
+                <div className="absolute flex items-center gap-3" style={{ left: you.holdX, top: you.boardY - 58 }}>
+                  <BotEmblem bot={left} size={30} glow />
+                  <span className="text-[18px] font-medium tracking-[-0.02em]">{left.name}</span>
+                  <span className="label">Level {left.level}</span>
+                </div>
+              )}
               <div className="label absolute" style={{ left: you.holdX, top: you.boardY, width: you.sideW }}>
                 Hold
               </div>
@@ -267,7 +296,7 @@ export function VersusPlay({
       {banner && phase === 'roundOver' && (
         <div key={banner.key} className="pointer-events-none absolute inset-0 z-30 grid place-items-center">
           <div className="animate-pop text-center">
-            <div className="label">{banner.winner === 0 ? 'Round won' : 'Round lost'}</div>
+            <div className="label">{left ? `${banner.winner === 0 ? left.name : bot.name} takes the round` : banner.winner === 0 ? 'Round won' : 'Round lost'}</div>
             <div className="tabular mt-3 text-[64px] leading-none font-medium tracking-[-0.05em]">
               {score[0]} — {score[1]}
             </div>
@@ -277,7 +306,7 @@ export function VersusPlay({
 
       {phase === 'paused' && (
         <Overlay>
-          <span className="label">Versus · {bot.name}</span>
+          <span className="label">{bout?.label ?? 'Versus'} · {left ? `${left.name} vs ${bot.name}` : bot.name}</span>
           <div className="mt-6 text-[44px] leading-none font-medium tracking-[-0.035em]">Paused</div>
           <div className="mt-8 flex flex-col gap-3">
             <Pill primary onClick={() => sessionRef.current?.resume()} hint="Esc">
@@ -295,8 +324,10 @@ export function VersusPlay({
           result={result}
           bot={bot}
           botName={bot.name}
-          onRematch={() => sessionRef.current?.rematch()}
-          onNext={next && result.won && isUnlocked(next) ? () => onNext(next.id) : undefined}
+          left={left}
+          label={bout?.label}
+          onRematch={bout ? undefined : () => sessionRef.current?.rematch()}
+          onNext={next && onNext && result.won && isUnlocked(next) ? () => onNext(next.id) : undefined}
           nextName={next?.name}
           onExit={onExit}
         />
@@ -305,7 +336,21 @@ export function VersusPlay({
   );
 }
 
-function Scoreboard({ score, firstTo, botName, botColor }: { score: [number, number]; firstTo: number; botName: string; botColor: string }) {
+function Scoreboard({
+  score,
+  firstTo,
+  botName,
+  botColor,
+  leftName,
+  leftColor,
+}: {
+  score: [number, number];
+  firstTo: number;
+  botName: string;
+  botColor: string;
+  leftName: string;
+  leftColor: string;
+}) {
   const dots = (won: number, color: string) =>
     Array.from({ length: firstTo }, (_, i) => (
       <span
@@ -316,8 +361,8 @@ function Scoreboard({ score, firstTo, botName, botColor }: { score: [number, num
     ));
   return (
     <div className="flex items-center gap-5">
-      <span className="label text-fg">You</span>
-      <span className="flex gap-1.5">{dots(score[0], '#edebfa')}</span>
+      <span className="label text-fg">{leftName}</span>
+      <span className="flex gap-1.5">{dots(score[0], leftColor)}</span>
       <span className="tabular text-[15px] font-medium">
         {score[0]}–{score[1]}
       </span>
@@ -373,6 +418,8 @@ function Results({
   result,
   bot,
   botName,
+  left,
+  label,
   onRematch,
   onNext,
   nextName,
@@ -381,7 +428,9 @@ function Results({
   result: VersusResult;
   bot: BotProfile;
   botName: string;
-  onRematch: () => void;
+  left?: BotProfile;
+  label?: string;
+  onRematch?: () => void;
   onNext?: () => void;
   nextName?: string;
   onExit: () => void;
@@ -396,12 +445,14 @@ function Results({
   return (
     <Overlay>
       <div className="flex items-center justify-between">
-        <span className="label">Versus · {botName}</span>
-        {result.won && <span className="rounded-full bg-accent px-3 py-1 text-[12px] font-semibold text-black">Victory</span>}
+        <span className="label">{label ?? 'Versus'} · {left ? `${left.name} vs ${botName}` : botName}</span>
+        {result.won && !left && <span className="rounded-full bg-accent px-3 py-1 text-[12px] font-semibold text-black">Victory</span>}
       </div>
       <div className="mt-6 flex items-center gap-5">
-        <BotEmblem bot={bot} size={64} glow />
-        <div className="text-[48px] leading-none font-medium tracking-[-0.045em]">{result.won ? 'You win' : `${botName} wins`}</div>
+        <BotEmblem bot={left && result.won ? left : bot} size={64} glow />
+        <div className="text-[48px] leading-none font-medium tracking-[-0.045em]">
+          {left ? `${result.won ? left.name : botName} wins` : result.won ? 'You win' : `${botName} wins`}
+        </div>
       </div>
       <div className="tabular mt-3 text-[15px] text-muted">
         {result.score[0]} — {result.score[1]}
@@ -409,7 +460,7 @@ function Results({
 
       <div className="mt-8 grid grid-cols-[1fr_auto_auto] gap-x-8 gap-y-2.5 border-t border-line pt-5">
         <span />
-        <span className="label text-right">You</span>
+        <span className="label text-right">{left?.name ?? 'You'}</span>
         <span className="label text-right">{botName}</span>
         {rows.map(([label, fmt]) => (
           <Row key={label} label={label} a={fmt(result.stats[0])} b={fmt(result.stats[1])} />
@@ -419,13 +470,21 @@ function Results({
       <AttackChart timeline={result.timeline} />
 
       <div className="mt-8 flex flex-wrap gap-3">
-        <Pill primary onClick={onRematch} hint="R">
-          Rematch
-        </Pill>
+        {onRematch ? (
+          <Pill primary onClick={onRematch} hint="R">
+            Rematch
+          </Pill>
+        ) : (
+          <Pill primary onClick={onExit} hint="Esc">
+            Back to bracket
+          </Pill>
+        )}
         {onNext && <Pill onClick={onNext}>Next · {nextName}</Pill>}
-        <Pill onClick={onExit} hint="Esc">
-          Menu
-        </Pill>
+        {onRematch && (
+          <Pill onClick={onExit} hint="Esc">
+            Menu
+          </Pill>
+        )}
       </div>
     </Overlay>
   );

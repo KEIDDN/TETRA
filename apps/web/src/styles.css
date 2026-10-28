@@ -438,3 +438,17 @@ body {
     transform: translateY(6px);
   }
 }
+
+/* Bracket: a bout being simulated right now. */
+.sim-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #ff453a;
+  animation: sim-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sim-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}

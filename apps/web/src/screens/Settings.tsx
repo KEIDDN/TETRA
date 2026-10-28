@@ -4,6 +4,7 @@ import { Row, Section, Segmented, SliderRow, ToggleRow } from '../ui/controls';
 import { SOUND_PACK_NAMES, sfx } from '../audio/sfx';
 import type { FxLevel } from '../game/fx';
 import { gamepads } from '../game/gamepad';
+import { CUPS, skinLocked } from '../lib/tournament';
 import { paintBlock, SKIN_ORDER, SKINS, type BlockKind, type Skin, type SoundPackId } from '../game/skins';
 import { buttonLabel, keyLabel, PAD_NAMES } from '../lib/labels';
 import { useMenuNav } from '../lib/nav';
@@ -101,7 +102,7 @@ function AppearancePanel() {
       <Section label="Skin" note="Pieces, ghost, particles and sound.">
         <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3">
           {SKIN_ORDER.map((id) => (
-            <SkinCard key={id} skin={SKINS[id]} selected={appearance.skin === id} onSelect={() => set({ skin: id })} />
+            <SkinCard key={id} skin={SKINS[id]} selected={appearance.skin === id} locked={skinLocked(id)} onSelect={() => set({ skin: id })} />
           ))}
         </div>
       </Section>
@@ -156,7 +157,7 @@ const PREVIEW: { kind: BlockKind; cells: [number, number][] }[] = [
   { kind: 'I', cells: [[4, 2], [5, 2], [6, 2], [7, 2]] },
 ];
 
-function SkinCard({ skin, selected, onSelect }: { skin: Skin; selected: boolean; onSelect: () => void }) {
+function SkinCard({ skin, selected, locked, onSelect }: { skin: Skin; selected: boolean; locked: boolean; onSelect: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current!;
@@ -178,8 +179,9 @@ function SkinCard({ skin, selected, onSelect }: { skin: Skin; selected: boolean;
   return (
     <button
       data-nav
+      disabled={locked && !selected}
       onClick={onSelect}
-      className={`group relative flex flex-col items-start gap-4 bg-[#0b0b0c] p-5 text-left transition-colors duration-150 hover:bg-[#111113] ${focusRing} focus-visible:ring-inset`}
+      className={`group relative flex flex-col items-start gap-4 bg-[#0b0b0c] p-5 disabled:cursor-default [&:disabled_canvas]:opacity-25 [&:disabled_canvas]:grayscale text-left transition-colors duration-150 hover:bg-[#111113] ${focusRing} focus-visible:ring-inset`}
     >
       <div className="flex h-[56px] w-full items-center justify-center">
         <canvas ref={ref} style={{ width: 150, height: 45 }} className="transition-transform duration-300 ease-spring group-hover:scale-[1.04]" />
@@ -193,7 +195,7 @@ function SkinCard({ skin, selected, onSelect }: { skin: Skin; selected: boolean;
             }`}
           />
         </div>
-        <div className="mt-1 text-[12px] leading-snug text-faint">{skin.description}</div>
+        <div className="mt-1 text-[12px] leading-snug text-faint">{locked ? `Win ${CUPS.find((c) => c.reward === skin.id)?.name} to unlock` : skin.description}</div>
       </div>
     </button>
   );

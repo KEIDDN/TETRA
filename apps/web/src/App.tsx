@@ -10,6 +10,10 @@ import { VersusPlay } from './screens/VersusPlay';
 import { VersusSelect } from './screens/VersusSelect';
 import { BotEditor } from './screens/BotEditor';
 import { getCustomBots } from './lib/customBots';
+import { Tournaments } from './screens/Tournaments';
+import { TournamentBuilder } from './screens/TournamentBuilder';
+import { Bracket } from './screens/Bracket';
+import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 type Screen =
@@ -18,7 +22,11 @@ type Screen =
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
   | { name: 'editor'; id?: string }
-  | { name: 'match'; botId: string; firstTo: number };
+  | { name: 'match'; botId: string; firstTo: number }
+  | { name: 'cups' }
+  | { name: 'builder' }
+  | { name: 'bracket' }
+  | { name: 'bout'; r: number; i: number };
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
@@ -74,11 +82,55 @@ export function App() {
         />
       );
       break;
+    case 'cups':
+      content = <Tournaments onBack={home} onBracket={() => setScreen({ name: 'bracket' })} onCustom={() => setScreen({ name: 'builder' })} />;
+      break;
+    case 'builder':
+      content = <TournamentBuilder onBack={() => setScreen({ name: 'cups' })} onStart={() => setScreen({ name: 'bracket' })} />;
+      break;
+    case 'bracket':
+      content = <Bracket onBack={() => setScreen({ name: 'cups' })} onBout={(r, i) => setScreen({ name: 'bout', r, i })} />;
+      break;
+    case 'bout': {
+      const t = getTournament();
+      const bout = t?.rounds[screen.r]?.[screen.i];
+      if (!t || !bout || bout.a === null || bout.b === null) {
+        content = null;
+        break;
+      }
+      // You always play on the left; when two bots meet, you watch from the left one's side.
+      const flip = isYou(t, bout.b);
+      const left = t.entrants[flip ? bout.b : bout.a];
+      const right = t.entrants[flip ? bout.a : bout.b];
+      const spectating = left.bot !== null;
+      const { r, i } = screen;
+      if (spectating) runner.watch(r, i);
+      const back = () => {
+        if (spectating) runner.unwatch(r, i);
+        setScreen({ name: 'bracket' });
+      };
+      content = (
+        <VersusPlay
+          key={`${t.id}-${r}-${i}`}
+          botId={right.key}
+          profile={entrantProfile(right)!}
+          left={entrantProfile(left) ?? undefined}
+          firstTo={t.formats[r]}
+          bout={{
+            label: `${t.name} · ${roundName(t, r)}`,
+            onResult: (score) => report(r, i, flip ? [score[1], score[0]] : score),
+          }}
+          onExit={back}
+        />
+      );
+      break;
+    }
     default:
       content = (
         <Home
           onPlay={(mode) => setScreen({ name: 'play', mode })}
           onVersus={() => setScreen({ name: 'versus' })}
+          onCups={() => setScreen({ name: 'cups' })}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );

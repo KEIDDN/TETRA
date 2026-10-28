@@ -15,23 +15,26 @@ import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
 import { LevelChip } from '../ui/LevelChip';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
+import { skinLocked } from '../lib/tournament';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 
-const ENTRIES: DemoMode[] = [...MODE_ORDER, 'versus'];
+type Entry = DemoMode | 'cups';
+const ENTRIES: Entry[] = [...MODE_ORDER, 'versus', 'cups'];
 const PIECES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
-function entryName(id: DemoMode): string {
-  return id === 'versus' ? 'Versus' : MODE_CONFIGS[id].def.name;
+function entryName(id: Entry): string {
+  return id === 'versus' ? 'Versus' : id === 'cups' ? 'Cups' : MODE_CONFIGS[id].def.name;
 }
 
-function entryDescription(id: DemoMode): string {
+function entryDescription(id: Entry): string {
+  if (id === 'cups') return 'Eight-bot brackets. Three cups to climb, or build your own.';
   return id === 'versus' ? 'Ten opponents that play like people, from Pebble to Zenith.' : MODE_CONFIGS[id].description;
 }
 
 /** The live stat the showcase shows for each mode. */
-function liveStat(id: DemoMode, s: GameStats): [string, string] {
+function liveStat(id: Entry, s: GameStats): [string, string] {
   switch (id) {
     case 'blitz':
       return ['Score', s.score.toLocaleString('en-US')];
@@ -46,10 +49,12 @@ function liveStat(id: DemoMode, s: GameStats): [string, string] {
 export function Home({
   onPlay,
   onVersus,
+  onCups,
   onSettings,
 }: {
   onPlay: (mode: ModeId) => void;
   onVersus: () => void;
+  onCups: () => void;
   onSettings: (tab?: SettingsTab) => void;
 }) {
   const { appearance } = useSettings();
@@ -57,7 +62,7 @@ export function Home({
     (l) => gamepads.onStatus(l),
     () => gamepads.kind,
   );
-  const [selected, setSelected] = useState<DemoMode>('sprint');
+  const [selected, setSelected] = useState<Entry>('sprint');
   const firstRef = useRef<HTMLButtonElement>(null);
   const showcaseRef = useRef<HTMLDivElement>(null);
   const statLabelRef = useRef<HTMLSpanElement>(null);
@@ -70,8 +75,9 @@ export function Home({
   }, [lattice, skin]);
 
   const cycleSkin = (direction: 1 | -1) => {
-    const i = SKIN_ORDER.indexOf(appearance.skin);
-    const next = SKIN_ORDER[(i + direction + SKIN_ORDER.length) % SKIN_ORDER.length];
+    const order = SKIN_ORDER.filter((id) => !skinLocked(id) || id === appearance.skin);
+    const i = order.indexOf(appearance.skin);
+    const next = order[(i + direction + order.length) % order.length];
     updateSettings((s) => ({ ...s, appearance: { ...s.appearance, skin: next } }));
     sfx.ui('move');
     const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
@@ -83,7 +89,7 @@ export function Home({
     firstRef.current?.focus({ preventScroll: true });
   }, []);
 
-  const select = (id: DemoMode) => {
+  const select = (id: Entry) => {
     if (id === selected) return;
     setSelected(id);
     // A small ripple from the newly selected entry.
@@ -91,9 +97,9 @@ export function Home({
     if (el) lattice.ripple(el.left, el.top + el.height / 2, 2.2);
   };
 
-  const activate = (id: DemoMode) => (id === 'versus' ? onVersus() : onPlay(id));
+  const activate = (id: Entry) => (id === 'versus' ? onVersus() : id === 'cups' ? onCups() : onPlay(id));
 
-  const best = selected === 'versus' ? null : loadBest(selected);
+  const best = selected === 'versus' || selected === 'cups' ? null : loadBest(selected);
 
   return (
     <div className="fixed inset-0 overflow-x-hidden overflow-y-auto">
@@ -137,18 +143,18 @@ export function Home({
                       className="group relative flex w-full items-center gap-6 py-1 text-left outline-none"
                     >
                       <span
-                        className={`absolute top-1/2 -left-5 h-[0.5em] w-1 -translate-y-1/2 rounded-full bg-accent text-[clamp(44px,6.2vw,92px)] transition-all duration-300 ease-spring ${
+                        className={`absolute top-1/2 -left-5 h-[0.5em] w-1 -translate-y-1/2 rounded-full bg-accent text-[clamp(40px,5.4vw,84px)] transition-all duration-300 ease-spring ${
                           active ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
                         }`}
                       />
                       <span
-                        className={`text-[clamp(44px,6.2vw,92px)] leading-[1.02] font-[480] tracking-[-0.045em] transition-colors duration-300 ${
+                        className={`text-[clamp(40px,5.4vw,84px)] leading-[1.02] font-[480] tracking-[-0.045em] transition-colors duration-300 ${
                           active ? 'text-fg' : 'text-white/[0.14] group-hover:text-white/30'
                         }`}
                       >
                         {entryName(id)}
                       </span>
-                      {id === 'versus' && (
+                      {id === 'cups' && (
                         <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold text-black">New</span>
                       )}
                     </button>
@@ -159,9 +165,9 @@ export function Home({
 
             <div key={selected} className="animate-fade mt-10 flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-6">
               <p className="min-w-[220px] flex-1 text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
-              {selected === 'versus' ? (
+              {selected === 'versus' || selected === 'cups' ? (
                 <>
-                  <span className="label">{BOTS.length} bots · first to N</span>
+                  <span className="label">{selected === 'cups' ? '3 cups · custom brackets' : `${BOTS.length} bots · first to N`}</span>
                   <PlayButton onClick={() => activate(selected)} />
                 </>
               ) : (
@@ -179,7 +185,7 @@ export function Home({
           <div ref={showcaseRef} className="animate-rise relative mx-auto hidden aspect-[4/5] w-full max-w-[460px] [animation-delay:200ms] lg:block lg:max-h-[min(74vh,620px)]">
             <div className="absolute inset-0 overflow-hidden rounded-[48px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.18)] backdrop-blur-xl">
               <DemoBoard
-                mode={selected}
+                mode={selected === 'cups' ? 'versus' : selected}
                 skin={appearance.skin}
                 className="absolute inset-0"
                 onClear={(power, y) => {
@@ -259,7 +265,7 @@ function VersionTaps() {
   };
   return (
     <button onClick={onTap} className="label select-none">
-      v0.6
+      v0.7
     </button>
   );
 }
