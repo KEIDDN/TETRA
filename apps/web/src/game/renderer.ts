@@ -12,7 +12,7 @@ import {
 } from '@tetra/engine';
 import { Application, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js';
 import { Lattice, type Echo } from './ambient';
-import { easeOut, easeOutBack, Particles, SpritePool, spriteTween, Tweens, type FxLevel } from './fx';
+import { easeOut, easeOutBack, FlowLight, Particles, SpritePool, spriteTween, Tweens, type FxLevel } from './fx';
 import type { Layout } from './layout';
 import { hexToNumber, paintBlock, SKINS, type BlockKind, type GridStyle, type Palette, type Skin } from './skins';
 
@@ -66,6 +66,7 @@ export class GameRenderer {
   private trailLayer = new Container();
   private flashLayer = new Container();
   private particles: Particles;
+  private flow: FlowLight;
   private tweens = new Tweens();
   private ambientLayer = new Container();
   private ambientDots = new Container();
@@ -149,6 +150,7 @@ export class GameRenderer {
     this.holdPool = new SpritePool(this.holdC);
     this.nextPool = new SpritePool(this.nextC);
     this.particles = new Particles(particleLayer);
+    this.flow = new FlowLight(particleLayer, () => this.shared!.dot);
     this.palette = this.options.skin.palette(1);
   }
 
@@ -186,6 +188,7 @@ export class GameRenderer {
   reset(): void {
     this.tweens.clear();
     this.particles.clear();
+    this.flow.clear();
     this.end = null;
     this.glowLevel = this.flash = this.danger = this.dangerTarget = 0;
     this.bump = { y: 0, v: 0 };
@@ -212,6 +215,7 @@ export class GameRenderer {
 
     this.tweens.update(now);
     this.particles.update(dt);
+    this.flow.update(dt);
     this.updateDynamics(game, now, dt);
     this.drawAmbient(game, dt);
 
@@ -321,27 +325,18 @@ export class GameRenderer {
             sp.setSize(Math.max(1.5, cell * 0.06), cell * 1.1);
             sp.alpha = 1 - p;
           });
-          if (!full) continue;
-          // Full: a few mini-minos in the skin's own style float off the cut.
-          row.cells.forEach((code, x) => {
-            if (Math.random() < 0.35) return;
-            const kind: BlockKind = code === GARBAGE_CODE ? 'garbage' : (CODE_PIECE[code] ?? 'garbage');
-            this.particles.emit({
-              x: boardX + (x + 0.5) * cell,
-              y,
-              count: 1,
-              color: 0xffffff,
-              texture: this.texture(kind, 0, false),
-              blend: skin.blend,
-              speed: cell * (2.5 + power * 0.4),
-              lift: cell * 3.2,
-              bias: (x - 4.5) / 9,
-              life: [0.55, 1.0],
-              size: [cell * 0.3, cell * 0.42],
-              gravity: cell * 3,
-              drag: 1.6,
-              spin: 4,
-            });
+          // The row turns into flowing light in its own colors.
+          const colors = row.cells.map((code) => hexToNumber(this.palette[code === GARBAGE_CODE ? 'garbage' : (CODE_PIECE[code] ?? 'garbage')]));
+          this.flow.burst({
+            x0: boardX,
+            x1: right,
+            y,
+            count: Math.round((full ? 70 : 28) * (1 + power * 0.25)),
+            colors,
+            speed: cell * (full ? 9 : 6) * (1 + power * 0.08),
+            swirl: cell * (full ? 4 : 3),
+            life: full ? [1.1, 2.2] : [0.7, 1.3],
+            size: [Math.max(2, cell * 0.08), Math.max(3, cell * 0.16)],
           });
         }
         const cx = boardX + (BOARD_WIDTH * cell) / 2;
@@ -672,6 +667,7 @@ export class GameRenderer {
     // Effects hold the old shared textures; finish them before those are destroyed.
     this.tweens.clear();
     this.particles.clear();
+    this.flow.clear();
     const px = Math.round(this.layout!.cell * this.app.renderer.resolution);
 
     const old = this.shared;

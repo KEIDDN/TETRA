@@ -196,3 +196,114 @@ export class Particles {
     this.live = [];
   }
 }
+
+interface Mote {
+  sprite: Sprite;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+  life: number;
+  size: number;
+  seed: number;
+}
+
+export interface FlowBurst {
+  /** Where the light comes from: a row's horizontal span. */
+  x0: number;
+  x1: number;
+  y: number;
+  count: number;
+  colors: number[];
+  /** Outward speed, px/s. */
+  speed: number;
+  /** Strength of the swirling current. */
+  swirl: number;
+  life: [number, number];
+  size: [number, number];
+}
+
+const MAX_MOTES = 1400;
+
+/**
+ * Flowing light, after Tetris Effect: tiny additive points that burst out
+ * of a cleared row, then get carried by a slowly changing curl field into
+ * soft swirls, stretching into silk-like streaks while they move fast.
+ */
+export class FlowLight {
+  private live: Mote[] = [];
+  private spare: Sprite[] = [];
+  private time = 0;
+
+  constructor(
+    private layer: Container,
+    private texture: () => Texture,
+  ) {}
+
+  burst(b: FlowBurst): void {
+    const cx = (b.x0 + b.x1) / 2;
+    const half = (b.x1 - b.x0) / 2;
+    for (let i = 0; i < b.count && this.live.length < MAX_MOTES; i++) {
+      const sprite = this.spare.pop() ?? this.layer.addChild(new Sprite());
+      sprite.texture = this.texture();
+      sprite.anchor.set(0.5);
+      sprite.blendMode = 'add';
+      sprite.tint = b.colors[i % b.colors.length];
+      sprite.visible = true;
+      const x = b.x0 + Math.random() * (b.x1 - b.x0);
+      const side = (x - cx) / half || (Math.random() - 0.5);
+      const speed = b.speed * (0.4 + Math.random() * 0.8);
+      this.live.push({
+        sprite,
+        x,
+        y: b.y + (Math.random() - 0.5) * 6,
+        vx: side * speed + (Math.random() - 0.5) * speed * 0.3,
+        vy: (Math.random() - 0.5) * speed * 0.35 - speed * 0.15,
+        age: 0,
+        life: b.life[0] + Math.random() * (b.life[1] - b.life[0]),
+        size: b.size[0] + Math.random() * (b.size[1] - b.size[0]),
+        seed: b.swirl * (0.6 + Math.random() * 0.8),
+      });
+    }
+  }
+
+  update(dt: number): void {
+    const s = Math.min(0.05, dt / 1000);
+    this.time += s;
+    const t = this.time;
+    this.live = this.live.filter((m) => {
+      m.age += s;
+      if (m.age >= m.life) {
+        m.sprite.visible = false;
+        this.spare.push(m.sprite);
+        return false;
+      }
+      // Divergence-free-ish swirl from a few sines: smooth, never jittery.
+      const fx = Math.sin(m.y * 0.013 + t * 0.7) + Math.cos(m.y * 0.007 - t * 0.4);
+      const fy = Math.cos(m.x * 0.011 - t * 0.6) - Math.sin(m.x * 0.017 + t * 0.3);
+      const drag = Math.exp(-s * 2.2);
+      m.vx = m.vx * drag + fx * m.seed * s;
+      m.vy = m.vy * drag + (fy * m.seed - 12) * s;
+      m.x += m.vx * s;
+      m.y += m.vy * s;
+      const p = m.age / m.life;
+      const speed = Math.hypot(m.vx, m.vy);
+      const length = m.size * (1 + Math.min(6, speed / 45));
+      const sp = m.sprite;
+      sp.position.set(m.x, m.y);
+      sp.rotation = Math.atan2(m.vy, m.vx);
+      sp.setSize(length, m.size);
+      sp.alpha = (p < 0.08 ? p / 0.08 : 1) * (1 - p) ** 1.3 * (0.75 + 0.25 * Math.sin(m.age * 9 + m.seed));
+      return true;
+    });
+  }
+
+  clear(): void {
+    for (const m of this.live) {
+      m.sprite.visible = false;
+      this.spare.push(m.sprite);
+    }
+    this.live = [];
+  }
+}

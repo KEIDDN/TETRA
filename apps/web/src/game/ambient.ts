@@ -68,7 +68,9 @@ export class Lattice {
   echoes: Echo[] = [];
   /** Echo colors per piece. */
   palette: Partial<Record<PieceType, number>> = {};
-  private points: { x: number; y: number }[] = [];
+  /** Each dot remembers the light a ripple left on it (its afterglow). */
+  private points: { x: number; y: number; glow: number; color: number }[] = [];
+  private glowing = false;
   private time = 0;
   private energy = 0;
   private energyTarget = 0;
@@ -92,7 +94,7 @@ export class Lattice {
     for (let y = startY; y <= h + 1; y += spacing) {
       for (let x = startX; x <= w + 1; x += spacing) {
         if (exclude && x >= exclude.x - 1 && x <= exclude.x + exclude.w + 1 && y >= exclude.y - 1 && y <= exclude.y + exclude.h + 1) continue;
-        this.points.push({ x, y });
+        this.points.push({ x, y, glow: 0, color: 0xffffff });
       }
     }
     this.focus = exclude ? { x: exclude.x + exclude.w / 2, y: exclude.y + exclude.h / 2 } : { x: w / 2, y: h / 2 };
@@ -100,8 +102,9 @@ export class Lattice {
 
   /** A ripple from (x, y). `power` ~1 for a single, ~6+ for a quad or T-spin. */
   ripple(x: number, y: number, power: number, color = 0xffffff): void {
-    const reach = Math.min(2400, 90 + power * power * 40);
-    this.ripples.push({ x, y, radius: 0, speed: 260 + power * 70, strength: Math.min(1, 0.25 + power * 0.1), reach, color });
+    // Single ≈ 520 px, double ≈ 780, triple ≈ 1040, quad and spins cross the screen.
+    const reach = Math.min(2600, 260 + power * 260);
+    this.ripples.push({ x, y, radius: 0, speed: 380 + power * 90, strength: Math.min(1, 0.45 + power * 0.1), reach, color });
   }
 
   /** A big moment: a wide ripple plus a few echoes leaving the board. */
@@ -138,7 +141,13 @@ export class Lattice {
 
   /** True while something is changing and the lattice needs redrawing. */
   get active(): boolean {
-    return this.ripples.length > 0 || Math.abs(this.energy - this.energyTarget) > 0.002 || this.danger > 0.002 || this.dangerTarget > 0;
+    return (
+      this.ripples.length > 0 ||
+      this.glowing ||
+      Math.abs(this.energy - this.energyTarget) > 0.002 ||
+      this.danger > 0.002 ||
+      this.dangerTarget > 0
+    );
   }
 
   update(dt: number): void {
@@ -147,6 +156,15 @@ export class Lattice {
     this.energy += (this.energyTarget - this.energy) * Math.min(1, s * 2);
     this.danger += (this.dangerTarget - this.danger) * Math.min(1, s * 2.5);
     this.ripples = this.ripples.filter((r) => (r.radius += r.speed * s) < r.reach + 60);
+    const fade = Math.exp(-s * 1.4);
+    let glowing = false;
+    for (const p of this.points) {
+      if (p.glow > 0.004) {
+        p.glow *= fade;
+        glowing = true;
+      } else p.glow = 0;
+    }
+    this.glowing = glowing;
     this.echoes = this.echoes.filter((e) => {
       e.age += s;
       e.x += e.vx * s;
@@ -167,7 +185,7 @@ export class Lattice {
     for (const p of this.points) {
       let alpha = BASE_ALPHA;
       let size = 1;
-      let color = 0xffffff;
+      let color = p.glow > 0.01 ? mix(0xffffff, p.color, Math.min(1, p.glow * 1.4)) : 0xffffff;
       const dFocus = Math.hypot(p.x - this.focus.x, p.y - this.focus.y);
       if (this.energy > 0.01) alpha += this.energy * 0.07 * Math.exp(-dFocus / 380);
       for (const r of this.ripples) {
@@ -176,10 +194,17 @@ export class Lattice {
         const k = (d - r.radius) / band;
         if (k > 3 || k < -3) continue;
         const amp = r.strength * Math.exp(-k * k) * (1 - d / r.reach);
-        alpha += amp * 0.7;
-        size += amp;
+        alpha += amp * 0.5;
+        size += amp * 0.6;
         color = mix(color, r.color, Math.min(1, amp * 1.6));
+        // The wave front lights the dot; the light lingers after it passes.
+        if (amp > p.glow) {
+          p.glow = amp;
+          p.color = r.color;
+        }
       }
+      alpha += p.glow * 0.75;
+      size += p.glow * 1.1;
       if (this.danger > 0.01) {
         const near = Math.exp(-dFocus / 520);
         color = mix(color, DANGER, Math.min(1, this.danger * near * 1.4));
