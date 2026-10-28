@@ -27,8 +27,30 @@ export interface MoteStyle {
   x: number;
   y: number;
   size: number;
+  /** Stretch along `angle`: fast motes become streaks. */
+  stretch: number;
+  angle: number;
   alpha: number;
   color: number;
+}
+
+/** An expanding ring that pushes motes outward as its front passes. */
+export interface Wave {
+  x: number;
+  y: number;
+  radius: number;
+  /** px/s */
+  speed: number;
+  power: number;
+  color: number;
+  /** 0–1, fades as it travels. */
+  life: number;
+}
+
+function mix(a: number, b: number, t: number): number {
+  const [ar, ag, ab] = rgb(a);
+  const [br, bg, bb] = rgb(b);
+  return (Math.round(ar + (br - ar) * t) << 16) | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ab + (bb - ab) * t);
 }
 
 const DANGER_RGB = [255, 69, 58];
@@ -39,6 +61,8 @@ function rgb(color: number): [number, number, number] {
 
 export class AmbientSim {
   motes: Mote[] = [];
+  waves: Wave[] = [];
+  private tint = { color: 0xffffff, amount: 0 };
   private w = 0;
   private h = 0;
   private time = 0;
@@ -86,6 +110,18 @@ export class AmbientSim {
     this.dangerTarget = d;
   }
 
+  /**
+   * A big moment (quad, T-spin, all clear): a ring of `color` light sweeps
+   * outward from (x, y), shoving motes as it passes, and the field takes on
+   * the color for a while.
+   */
+  shockwave(x: number, y: number, power: number, color: number): void {
+    this.waves.push({ x, y, radius: 0, speed: 420 + power * 60, power, color, life: 1 });
+    this.impulse(x, y, power * 0.5);
+    this.tint = { color, amount: Math.min(0.85, 0.35 + power * 0.06) };
+    this.pulse = Math.min(1, this.pulse + power * 0.1);
+  }
+
   /** A soft wash of light, e.g. on level up. */
   flash(amount = 0.6): void {
     this.pulse = Math.min(1, this.pulse + amount);
@@ -97,6 +133,24 @@ export class AmbientSim {
     this.energy += (this.energyTarget - this.energy) * Math.min(1, s * 1.5);
     this.danger += (this.dangerTarget - this.danger) * Math.min(1, s * 2);
     this.pulse *= Math.exp(-s * 1.6);
+    this.tint.amount *= Math.exp(-s * 0.7);
+    const reach = Math.hypot(this.w, this.h);
+    this.waves = this.waves.filter((wave) => {
+      wave.radius += wave.speed * s;
+      wave.life = Math.max(0, 1 - wave.radius / reach);
+      for (const m of this.motes) {
+        const dx = m.x - wave.x;
+        const dy = m.y - wave.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const front = Math.abs(d - wave.radius);
+        if (front < 60) {
+          const f = wave.power * 120 * wave.life * (1 - front / 60) * (0.4 + m.depth) * s * 10;
+          m.ix += (dx / d) * f;
+          m.iy += (dy / d) * f;
+        }
+      }
+      return wave.life > 0.02;
+    });
     const speed = 1 + this.energy * 2.2 + this.pulse;
     const drag = Math.exp(-s * 1.8);
     for (let i = 0; i < this.motes.length; i++) {
@@ -120,6 +174,7 @@ export class AmbientSim {
     const lift = 1 + this.energy * 1.1 + this.pulse * 1.5;
     const base = m.bokeh ? 0.035 + 0.035 * m.depth : 0.06 + 0.16 * m.depth;
     let color = this.palette[m.color % this.palette.length];
+    if (this.tint.amount > 0.01) color = mix(color, this.tint.color, this.tint.amount);
     if (this.danger > 0.01) {
       const [r, g, b] = rgb(color);
       const t = this.danger * 0.85;
@@ -128,11 +183,14 @@ export class AmbientSim {
         (Math.round(g + (DANGER_RGB[1] - g) * t) << 8) |
         Math.round(b + (DANGER_RGB[2] - b) * t);
     }
+    const speed = Math.hypot(m.ix, m.iy);
     return {
       x: m.x,
       y: m.y,
       size: m.size * (1 + this.pulse * 0.15),
-      alpha: Math.min(0.6, base * twinkle * lift * this.intensity),
+      stretch: m.bokeh ? 1 : 1 + Math.min(4, speed / 90),
+      angle: Math.atan2(m.iy, m.ix),
+      alpha: Math.min(0.7, base * twinkle * lift * this.intensity * (1 + Math.min(1.5, speed / 200))),
       color,
     };
   }

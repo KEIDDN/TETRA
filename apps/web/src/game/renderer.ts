@@ -68,6 +68,8 @@ export class GameRenderer {
   private particles: Particles;
   private tweens = new Tweens();
   private ambientLayer = new Container();
+  private ambientMotes = new Container();
+  private ambientWaves = new Graphics();
   private ambientSprites: Sprite[] = [];
   private ambient: AmbientSim | null = null;
 
@@ -135,6 +137,7 @@ export class GameRenderer {
       this.nextC,
       particleLayer,
     );
+    this.ambientLayer.addChild(this.ambientMotes, this.ambientWaves);
     app.stage.addChild(this.ambientLayer, this.world);
     this.boardPool = new SpritePool(boardLayer);
     this.boardMask = new SpritePool(maskLayer);
@@ -270,6 +273,9 @@ export class GameRenderer {
           }
         }
         this.bump.v += Math.min(e.distance + 2, 14) * cell * (full ? 1.6 : 0.8);
+        const lowest = Math.min(...e.cells.map(([, y]) => y));
+        const xs = e.cells.map(([x]) => x);
+        this.ambient?.impulse(boardX + ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cell, rowY(lowest) + cell, 0.35 + Math.min(e.distance, 20) * 0.02);
         if (full) {
           const bottoms = e.cells.filter(([x, y]) => !e.cells.some(([x2, y2]) => x2 === x && y2 === y - 1));
           for (const [x, y] of bottoms) {
@@ -344,7 +350,10 @@ export class GameRenderer {
             });
           });
         }
-        this.ambient?.impulse(boardX + (BOARD_WIDTH * cell) / 2, rowY(rows[0]?.y ?? 0), power);
+        const cx = boardX + (BOARD_WIDTH * cell) / 2;
+        const cy = rowY(rows[0]?.y ?? 0);
+        if (big) this.ambient?.shockwave(cx, cy, power, hexToNumber(this.palette[info.piece]));
+        else this.ambient?.impulse(cx, cy, power);
         if (big) {
           this.flash = 1;
           this.shake = { amp: cell * (full ? 0.14 : 0.07) * (info.perfectClear ? 1.6 : 1), start: now, duration: full ? 320 : 220 };
@@ -369,7 +378,7 @@ export class GameRenderer {
       }
       case 'levelUp':
         this.flash = Math.max(this.flash, 0.8);
-        this.ambient?.flash();
+        this.ambient?.shockwave(boardX + (BOARD_WIDTH * cell) / 2, this.layout.boardY + this.layout.boardH / 2, 3, ACCENT);
         break;
     }
     void game;
@@ -417,8 +426,9 @@ export class GameRenderer {
     const on = this.options.ambient && this.options.fx !== 'off';
     if (!on) {
       this.ambient = null;
-      this.ambientLayer.removeChildren().forEach((c) => c.destroy());
+      this.ambientMotes.removeChildren().forEach((c) => c.destroy());
       this.ambientSprites = [];
+      this.ambientWaves.clear();
       return;
     }
     const full = this.options.fx === 'full';
@@ -440,17 +450,27 @@ export class GameRenderer {
       const s = new Sprite(this.shared.dot);
       s.anchor.set(0.5);
       s.blendMode = 'add';
-      this.ambientLayer.addChild(s);
+      this.ambientMotes.addChild(s);
       this.ambientSprites.push(s);
     }
     sim.motes.forEach((m, i) => {
       const st = sim.style(m);
       const s = this.ambientSprites[i];
       s.position.set(st.x, st.y);
-      s.setSize(st.size, st.size);
+      s.rotation = st.angle;
+      s.setSize(st.size * st.stretch, st.size);
       s.alpha = st.alpha;
       s.tint = st.color;
     });
+    // Shockwave rings: a crisp front with a soft halo behind it.
+    const g = this.ambientWaves;
+    g.clear();
+    const strength = this.options.fx === 'full' ? 1 : 0.6;
+    for (const wave of sim.waves) {
+      g.circle(wave.x, wave.y, wave.radius).stroke({ width: 2, color: wave.color, alpha: 0.32 * wave.life * strength });
+      g.circle(wave.x, wave.y, Math.max(0, wave.radius - 14)).stroke({ width: 22, color: wave.color, alpha: 0.05 * wave.life * strength });
+    }
+
   }
 
   private updateDynamics(game: Game, now: number, dt: number): void {

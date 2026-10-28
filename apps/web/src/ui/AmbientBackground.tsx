@@ -49,7 +49,28 @@ export function AmbientBackground({ sim }: { sim: AmbientSim }) {
       for (const m of sim.motes) {
         const st = sim.style(m);
         ctx.globalAlpha = st.alpha;
-        ctx.drawImage(sprite(st.color), st.x - st.size / 2, st.y - st.size / 2, st.size, st.size);
+        if (st.stretch > 1.05) {
+          ctx.save();
+          ctx.translate(st.x, st.y);
+          ctx.rotate(st.angle);
+          const w = st.size * st.stretch;
+          ctx.drawImage(sprite(st.color), -w / 2, -st.size / 2, w, st.size);
+          ctx.restore();
+        } else ctx.drawImage(sprite(st.color), st.x - st.size / 2, st.y - st.size / 2, st.size, st.size);
+      }
+      for (const wave of sim.waves) {
+        const hex = `#${wave.color.toString(16).padStart(6, '0')}`;
+        ctx.strokeStyle = hex;
+        ctx.globalAlpha = 0.28 * wave.life;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, wave.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.045 * wave.life;
+        ctx.lineWidth = 22;
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, Math.max(0, wave.radius - 14), 0, Math.PI * 2);
+        ctx.stroke();
       }
       frame = requestAnimationFrame(loop);
     };

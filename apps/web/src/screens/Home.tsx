@@ -90,8 +90,8 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
       {appearance.ambient && appearance.fx !== 'off' && <AmbientBackground sim={sim} />}
 
       <div className="relative mx-auto flex min-h-full w-full max-w-[1320px] flex-col px-6 sm:px-10">
-        <header className="flex h-20 shrink-0 items-center justify-between">
-          <Logo />
+        <header className="flex h-24 shrink-0 items-center justify-between">
+          <Logo large />
           <div className="flex items-center gap-4">
             {padKind && (
               <span className="label hidden sm:inline">
@@ -180,7 +180,11 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
                 className="absolute inset-0"
                 onClear={(power, y) => {
                   const rect = showcaseRef.current?.getBoundingClientRect();
-                  if (rect) sim.impulse(rect.left + rect.width * 0.4, rect.top + rect.height * y, power * 0.7);
+                  if (!rect) return;
+                  const x = rect.left + rect.width * 0.4;
+                  const at = rect.top + rect.height * y;
+                  if (power >= 4) sim.shockwave(x, at, power * 0.8, sim.palette[Math.floor(Math.random() * sim.palette.length)]);
+                  else sim.impulse(x, at, power * 0.7);
                 }}
                 onStats={(stats) => {
                   const [label, value] = liveStat(selected, stats);
@@ -248,10 +252,11 @@ function SkinArrow({ children, label, onClick }: { children: string; label: stri
   );
 }
 
-function Logo() {
+function Logo({ large = false }: { large?: boolean }) {
+  const mark = large ? 34 : 22;
   return (
-    <span className="flex items-center gap-2.5">
-      <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden>
+    <span className={`animate-rise flex items-center ${large ? 'gap-3.5' : 'gap-2.5'}`}>
+      <svg width={mark} height={mark} viewBox="0 0 64 64" aria-hidden>
         <g fill="#fbfbfc">
           <rect x="4" y="12" width="17" height="17" rx="4.5" />
           <rect x="23.5" y="12" width="17" height="17" rx="4.5" />
@@ -259,7 +264,7 @@ function Logo() {
           <rect x="23.5" y="31.5" width="17" height="17" rx="4.5" />
         </g>
       </svg>
-      <span className="text-[15px] font-semibold tracking-[-0.01em]">TETRA</span>
+      <span className={large ? 'text-[28px] font-semibold tracking-[-0.03em]' : 'text-[15px] font-semibold tracking-[-0.01em]'}>TETRA</span>
     </span>
   );
 }
