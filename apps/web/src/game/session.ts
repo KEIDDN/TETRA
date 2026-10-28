@@ -1,4 +1,5 @@
-import { Game, type Action, type ModeId } from '@tetra/engine';
+import { Game, type Action, type GameEvent, type ModeId } from '@tetra/engine';
+import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
 import { loadBest, submitBest, type RunRecord } from '../lib/storage';
 import { InputRouter } from './input';
@@ -29,6 +30,9 @@ export interface SessionResult {
 }
 
 export interface SessionView {
+  /** A fresh game started (retry). */
+  reset(): void;
+  event(event: GameEvent, game: Game): void;
   countdown(step: number | null): void;
   phase(phase: Phase): void;
   stats(stats: LiveStats): void;
@@ -51,6 +55,7 @@ export class GameSession {
   private goGameTime = 0;
   private phase: Phase = 'countdown';
   private shownStep = -1;
+  private resultTimer = 0;
   private router: InputRouter;
 
   constructor(
@@ -62,6 +67,13 @@ export class GameSession {
     this.router = new InputRouter(getSettings(), this.onCommand);
     renderer.ticker.add(this.tick);
     this.restart();
+    // Lets browser tests set up positions; stripped from production builds.
+    if (import.meta.env.DEV) (window as unknown as { __tetra: unknown }).__tetra = this;
+  }
+
+  /** The current game (dev tooling). */
+  get current(): Game {
+    return this.game;
   }
 
   restart(): void {
@@ -71,6 +83,9 @@ export class GameSession {
       rules: MODE_CONFIGS[this.mode].def.rules,
       handling: settings.keyboard.handling,
     });
+    clearTimeout(this.resultTimer);
+    this.renderer.reset();
+    this.view.reset();
     this.view.result(null);
     this.beginCountdown(0);
   }
@@ -90,6 +105,7 @@ export class GameSession {
   }
 
   dispose(): void {
+    clearTimeout(this.resultTimer);
     this.router.dispose();
     this.renderer.ticker.remove(this.tick);
   }
@@ -146,9 +162,13 @@ export class GameSession {
         if (step !== this.shownStep) {
           this.shownStep = step;
           this.view.countdown(step);
+          sfx.countdown(step);
         }
       } else {
         this.setPhase('playing');
+        this.shownStep = 0;
+        this.view.countdown(0);
+        sfx.go();
         for (const { action, since, device } of this.router.heldActions()) {
           this.useHandling(device);
           this.game.input(action, true, this.goGameTime, since - this.startAt);
@@ -156,10 +176,14 @@ export class GameSession {
       }
     }
     if (this.phase === 'playing') {
+      if (this.shownStep === 0 && now - this.goAt > 450) {
+        this.shownStep = -1;
+        this.view.countdown(null);
+      }
       this.game.update(now - this.startAt);
       this.afterStep();
     }
-    this.renderer.draw(this.game);
+    this.renderer.draw(this.game, now);
 
     const { stats, rules } = this.game;
     const elapsed = this.game.elapsed;
@@ -175,10 +199,21 @@ export class GameSession {
 
   private afterStep(): void {
     const game = this.game;
-    game.events.length = 0;
+    if (game.events.length > 0) {
+      const now = performance.now();
+      for (const e of game.events) {
+        this.renderer.onEvent(e, game, now);
+        sfx.onEvent(e);
+        this.view.event(e, game);
+      }
+      game.events.length = 0;
+    }
     if (game.state === 'playing' || this.phase === 'done') return;
 
     this.setPhase('done');
+    const kind = game.state === 'finished' ? 'finished' : 'topout';
+    this.renderer.endGame(kind, performance.now());
+    sfx.end(kind);
     const config = MODE_CONFIGS[this.mode];
     const finished = game.state === 'finished';
     const { stats } = game;
@@ -194,6 +229,10 @@ export class GameSession {
     const previousBest = loadBest(this.mode);
     const counts = (finished || !config.recordNeedsFinish) && stats.pieces > 0;
     const personalBest = counts && submitBest(this.mode, record, config.isBetter);
-    this.view.result({ mode: this.mode, finished, record, personalBest, previousBest });
+    // Let the end animation play before the results card covers the board.
+    this.resultTimer = window.setTimeout(
+      () => this.view.result({ mode: this.mode, finished, record, personalBest, previousBest }),
+      finished ? 900 : 1100,
+    );
   }
 }

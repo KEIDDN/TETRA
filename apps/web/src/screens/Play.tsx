@@ -3,6 +3,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { computeLayout, type Layout } from '../game/layout';
 import { MODE_CONFIGS, type StatKey } from '../game/modes';
 import { GameRenderer } from '../game/renderer';
+import { SKINS } from '../game/skins';
+import { ActionText } from '../ui/actionText';
+import { getSettings } from '../lib/settings';
 import { GameSession, type LiveStats, type Phase, type SessionResult } from '../game/session';
 import { formatRate, formatTime } from '../lib/format';
 import { useMenuNav } from '../lib/nav';
@@ -31,6 +34,8 @@ export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
   const sessionRef = useRef<GameSession | null>(null);
   const clockRef = useRef<HTMLDivElement>(null);
   const statRefs = useRef<Partial<Record<StatKey, HTMLSpanElement | null>>>({});
+  const actionSideRef = useRef<HTMLDivElement>(null);
+  const actionCenterRef = useRef<HTMLDivElement>(null);
   const exitRef = useRef(onExit);
   exitRef.current = onExit;
 
@@ -50,9 +55,14 @@ export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
       for (const key of config.stats) setText(statRefs.current[key], statText(key, s));
     };
 
+    const { appearance } = getSettings();
+    const skin = SKINS[appearance.skin];
+    let actions: ActionText | null = null;
+
     GameRenderer.create(host).then((r) => {
       if (disposed) return r.destroy();
       renderer = r;
+      r.setOptions({ skin, fx: appearance.fx, smoothFall: appearance.smoothFall, ghost: appearance.ghost, grid: appearance.grid });
       const relayout = () => {
         const next = computeLayout(host.clientWidth, host.clientHeight);
         r.setLayout(next);
@@ -61,10 +71,27 @@ export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
       relayout();
       observer = new ResizeObserver(relayout);
       observer.observe(host);
+      // The overlay containers mount with the first layout, so create the callouts on first use.
+      const callouts = () => {
+        if (!actions && appearance.actionText && actionSideRef.current && actionCenterRef.current) {
+          actions = new ActionText(actionSideRef.current, actionCenterRef.current);
+        }
+        return actions;
+      };
       sessionRef.current = new GameSession(
         mode,
         r,
-        { countdown: setCountdown, phase: setPhase, stats: showStats, result: setResult },
+        {
+          reset: () => callouts()?.reset(),
+          event: (e) => {
+            if (e.type === 'clear') callouts()?.clear(e.info, skin.colors[e.info.piece]);
+            else if (e.type === 'levelUp') callouts()?.levelUp(e.level);
+          },
+          countdown: setCountdown,
+          phase: setPhase,
+          stats: showStats,
+          result: setResult,
+        },
         () => exitRef.current(),
       );
     });
@@ -124,13 +151,29 @@ export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
             </div>
           </div>
 
+          <div
+            ref={actionSideRef}
+            className="action-stack pointer-events-none absolute"
+            style={{ right: layout.width - layout.holdX - layout.sideW, top: layout.boardY + layout.boardH * 0.24, width: layout.sideW * 2 }}
+          />
+          <div
+            ref={actionCenterRef}
+            className="pointer-events-none absolute"
+            style={{ left: layout.boardX, top: layout.boardY, width: layout.boardW, height: layout.boardH }}
+          />
+
           {countdown !== null && (
             <div
               className="pointer-events-none absolute grid place-items-center"
               style={{ left: layout.boardX, top: layout.boardY, width: layout.boardW, height: layout.boardH }}
             >
-              <span key={countdown} className="animate-pop tabular text-[clamp(56px,7vw,96px)] font-medium tracking-[-0.04em]">
-                {countdown}
+              <span
+                key={countdown}
+                className={`animate-pop font-medium tracking-[-0.04em] ${
+                  countdown === 0 ? 'text-[clamp(44px,5.5vw,76px)] text-accent' : 'tabular text-[clamp(56px,7vw,96px)]'
+                }`}
+              >
+                {countdown === 0 ? 'Go' : countdown}
               </span>
             </div>
           )}

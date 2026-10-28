@@ -1,6 +1,8 @@
 # TETRA
 
-A minimal stacker built for practice. It plays like TETR.IO (SRS+, 180° spins, DAS/ARR/SDF) and adds 1v1 against bots. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design.
+A minimal stacker built for practice. It plays like TETR.IO (SRS+, 180° spins, DAS/ARR/SDF) and adds 1v1 against bots.
+
+Modes: 40 Lines, Blitz, Marathon, Endless. Six skins (Default, Liquid Glass, Mono, Outline, Neon, Paper), effects with Off/Subtle/Full intensity, and synthesized sound with five packs — all in Settings. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design.
 
 ## Develop
 

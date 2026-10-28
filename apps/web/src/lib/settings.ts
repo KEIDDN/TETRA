@@ -1,5 +1,7 @@
 import { DEFAULT_HANDLING, type Action, type Handling } from '@tetra/engine';
 import { useSyncExternalStore } from 'react';
+import type { FxLevel } from '../game/fx';
+import type { SkinId, SoundPackId } from '../game/skins';
 import { load, save } from './storage';
 
 export type Command = Action | 'retry' | 'pause';
@@ -29,7 +31,28 @@ export interface DeviceSettings<K> {
   bindings: Record<Command, K[]>;
 }
 
+export interface AppearanceSettings {
+  skin: SkinId;
+  fx: FxLevel;
+  /** Interpolate the falling piece between rows instead of stepping. */
+  smoothFall: boolean;
+  ghost: boolean;
+  grid: boolean;
+  /** "T-SPIN DOUBLE", "B2B ×3"… next to the board. */
+  actionText: boolean;
+}
+
+export interface AudioSettings {
+  enabled: boolean;
+  /** 0–1 */
+  volume: number;
+  /** 'match' follows the skin's own sound pack. */
+  pack: 'match' | SoundPackId;
+}
+
 export interface Settings {
+  appearance: AppearanceSettings;
+  audio: AudioSettings;
   keyboard: DeviceSettings<string>;
   gamepad: DeviceSettings<number> & {
     /** Use the left stick as a d-pad. */
@@ -42,6 +65,8 @@ export interface Settings {
 export const MAX_BINDINGS = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
+  appearance: { skin: 'default', fx: 'subtle', smoothFall: false, ghost: true, grid: true, actionText: true },
+  audio: { enabled: true, volume: 0.7, pack: 'match' },
   keyboard: {
     handling: DEFAULT_HANDLING,
     bindings: {
@@ -80,6 +105,8 @@ function merge(saved: Partial<Settings> | null): Settings {
   const d = DEFAULT_SETTINGS;
   if (!saved) return d;
   return {
+    appearance: { ...d.appearance, ...saved.appearance },
+    audio: { ...d.audio, ...saved.audio },
     keyboard: {
       handling: { ...d.keyboard.handling, ...saved.keyboard?.handling },
       bindings: { ...d.keyboard.bindings, ...saved.keyboard?.bindings },

@@ -51,8 +51,15 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
       </header>
 
       <main className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col justify-center py-10">
-        <h1 className="animate-rise -ml-[0.06em] text-[clamp(84px,21vw,272px)] font-[480] leading-[0.82] tracking-[-0.06em]">
-          TETRA
+        <h1
+          aria-label="TETRA"
+          className="wordmark -ml-[0.06em] text-[clamp(84px,21vw,272px)] font-[480] leading-[0.82] tracking-[-0.06em]"
+        >
+          {[...'TETRA'].map((letter, i) => (
+            <span key={i} aria-hidden style={{ animationDelay: `${i * 55}ms` }}>
+              {letter}
+            </span>
+          ))}
         </h1>
         <p className="animate-rise mt-7 max-w-[34ch] text-[17px] leading-relaxed text-muted [animation-delay:60ms]">
           A minimal stacker built for practice. Fast, precise, quiet.
@@ -75,7 +82,7 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
               {PAD_NAMES[padKind]}
             </>
           ) : (
-            'v0.2'
+            'v0.3'
           )}
         </span>
       </footer>

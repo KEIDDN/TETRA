@@ -82,14 +82,21 @@ export interface ClearInfo {
   perfectClear: boolean;
 }
 
+export interface ClearedRow {
+  /** Row index before the clear (y-up). */
+  y: number;
+  /** Cell codes of the row, left to right. */
+  cells: number[];
+}
+
 export type GameEvent =
   | { type: 'spawn'; piece: PieceType }
   | { type: 'move' }
   | { type: 'rotate'; spin: boolean }
   | { type: 'hold' }
-  | { type: 'hardDrop'; distance: number }
-  | { type: 'lock'; piece: PieceType }
-  | { type: 'clear'; info: ClearInfo; score: number }
+  | { type: 'hardDrop'; piece: PieceType; distance: number; cells: Cell[] }
+  | { type: 'lock'; piece: PieceType; cells: Cell[] }
+  | { type: 'clear'; info: ClearInfo; score: number; rows: ClearedRow[] }
   | { type: 'levelUp'; level: number }
   | { type: 'topout' }
   | { type: 'finish' };
@@ -281,6 +288,11 @@ export class Game {
     return y;
   }
 
+  /** How far (0–1) the active piece has fallen toward the next row; for smooth rendering. */
+  get fallProgress(): number {
+    return this.piece && !this.isGrounded() && Number.isFinite(this.gravityRate()) ? Math.min(this.fall, 0.999) : 0;
+  }
+
   /** Elapsed play time in ms (frozen once the game ends). */
   get elapsed(): number {
     return this.finishedAt ?? this.time;
@@ -408,11 +420,12 @@ export class Game {
   }
 
   private hardDrop(): void {
-    if (!this.piece) return;
+    const p = this.piece;
+    if (!p) return;
     let distance = 0;
     while (this.moveDown()) distance++;
     this.stats.score += distance * HARD_DROP_POINTS;
-    this.events.push({ type: 'hardDrop', distance });
+    this.events.push({ type: 'hardDrop', piece: p.type, distance, cells: pieceCells(p) });
     this.lockPiece();
   }
 
@@ -500,12 +513,14 @@ export class Game {
     const p = this.piece;
     if (!p) return;
     const spin = this.detectSpin();
-    for (const [x, y] of pieceCells(p)) this.board.set(x, y, PIECE_CODE[p.type]);
+    const cells = pieceCells(p);
+    for (const [x, y] of cells) this.board.set(x, y, PIECE_CODE[p.type]);
     this.piece = null;
     this.holdUsed = false;
     this.stats.pieces++;
-    this.events.push({ type: 'lock', piece: p.type });
+    this.events.push({ type: 'lock', piece: p.type, cells });
 
+    const rows = this.board.fullRows().map((y) => ({ y, cells: this.board.row(y) }));
     const lines = this.board.clearLines();
     const s = this.stats;
     if (lines > 0) {
@@ -536,7 +551,7 @@ export class Game {
       // A clear that crosses into the next level scores at that level.
       const score = clearScore(info, s.level);
       s.score += score;
-      this.events.push({ type: 'clear', info, score });
+      this.events.push({ type: 'clear', info, score, rows });
     }
     this.version++;
 

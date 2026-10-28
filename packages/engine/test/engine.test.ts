@@ -165,6 +165,8 @@ describe('gravity and locking', () => {
     expect(board.isEmpty()).toBe(true);
     const clear = g.events.find((e) => e.type === 'clear');
     expect(clear).toMatchObject({ info: { lines: 4, perfectClear: true, b2b: 0 } });
+    expect(clear?.type === 'clear' && clear.rows.map((r) => r.y)).toEqual([0, 1, 2, 3]);
+    expect(clear?.type === 'clear' && clear.rows[0].cells.every((c) => c !== 0)).toBe(true);
   });
 });
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { sfx } from '../audio/sfx';
 import { gamepads } from '../game/gamepad';
 import { STICK_DOWN, STICK_LEFT, STICK_RIGHT, STICK_UP } from './settings';
 
@@ -20,6 +21,7 @@ function moveFocus(step: 1 | -1): void {
   if (items.length === 0) return;
   const index = items.indexOf(document.activeElement as HTMLElement);
   const next = index === -1 ? (step === 1 ? 0 : items.length - 1) : (index + step + items.length) % items.length;
+  if (items[next] !== document.activeElement) sfx.ui('move');
   items[next].focus({ focusVisible: true } as FocusOptions);
   items[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
@@ -57,7 +59,10 @@ export function useMenuNav(onBack?: () => void, enabled = true): void {
         const el = document.activeElement as HTMLElement | null;
         if (el?.hasAttribute('data-nav')) el.click();
         else moveFocus(1);
-      } else if (e.button === BACK) backRef.current?.();
+      } else if (e.button === BACK && backRef.current) {
+        sfx.ui('back');
+        backRef.current();
+      }
     });
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
@@ -65,13 +70,20 @@ export function useMenuNav(onBack?: () => void, enabled = true): void {
         moveFocus(e.code === 'ArrowDown' ? 1 : -1);
       } else if (e.code === 'Escape' && backRef.current) {
         e.preventDefault();
+        sfx.ui('back');
         backRef.current();
       }
     };
+    // Every activated menu control clicks, whether by mouse, keyboard or controller.
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as Element | null)?.closest?.('[data-nav]')) sfx.ui('select');
+    };
     window.addEventListener('keydown', onKey);
+    window.addEventListener('click', onClick, true);
     return () => {
       unsubscribe();
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('click', onClick, true);
     };
   }, [enabled]);
 }

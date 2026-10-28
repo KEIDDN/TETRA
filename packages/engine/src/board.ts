@@ -20,6 +20,19 @@ export class Board {
     return this.get(x, y) !== 0;
   }
 
+  /** Indices of full rows, bottom to top. */
+  fullRows(): number[] {
+    const rows: number[] = [];
+    for (let y = 0; y < BOARD_HEIGHT; y++) {
+      if (this.cells.subarray(y * BOARD_WIDTH, (y + 1) * BOARD_WIDTH).every((c) => c !== 0)) rows.push(y);
+    }
+    return rows;
+  }
+
+  row(y: number): number[] {
+    return Array.from(this.cells.subarray(y * BOARD_WIDTH, (y + 1) * BOARD_WIDTH));
+  }
+
   /** Removes full rows and returns how many were cleared. */
   clearLines(): number {
     let write = 0;
