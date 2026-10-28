@@ -22,7 +22,7 @@ Decisiones tomadas en la sesión de grilling (Q1–Q34).
 ## 2. Motor
 
 - **Determinista**: RNG con semilla, partida reconstruible a partir de inputs → replays y multijugador futuro (no prioritario, pero la arquitectura lo permite desde el día 1).
-- **Bucle**: lógica a 60 ticks/s fijos con **inputs con timestamp subframe** (como TETR.IO); render desacoplado. Teclado por eventos, no por polling.
+- **Bucle**: la lógica corre en **tiempo continuo (ms)**: cada input se aplica en su timestamp exacto, que es aún más preciso que los ticks de 60 Hz con subframes de TETR.IO. La gravedad se sigue expresando en G (filas por frame a 60 Hz). Render desacoplado, a la frecuencia de la pantalla. Teclado por eventos, no por polling.
 - **Mecánicas = TETR.IO**:
   - Rotación **SRS+** con **giro 180°**.
   - 7-bag, hold, 5 piezas de next.
