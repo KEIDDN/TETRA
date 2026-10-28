@@ -2,6 +2,7 @@ import type { BotProfile } from '@tetra/bot';
 import { Match, type Action, type Game, type GameEvent } from '@tetra/engine';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
+import { awardXp, versusXp } from '../lib/profile';
 import { recordMatch } from '../lib/versus';
 import { InputRouter } from './input';
 import { botHandling, BotPilot } from './pilot';
@@ -86,6 +87,8 @@ export class VersusSession {
     private renderers: [GameRenderer, GameRenderer],
     private view: VersusView,
     private onExit: () => void,
+    /** Tournaments award their own XP. */
+    private awardXp = true,
   ) {
     this.router = new InputRouter(getSettings(), this.onCommand);
     this.startRound();
@@ -247,6 +250,7 @@ export class VersusSession {
     this.setPhase('done');
     const won = this.score[0] > this.score[1];
     recordMatch(this.bot.id, won, this.score[0], this.score[1]);
+    if (this.awardXp) awardXp(versusXp(won, this.bot.level, this.score[0]), `vs ${this.bot.name}`);
     const totals = [0, 1].map((i) =>
       this.past.games.reduce((acc, round) => ({
         attack: acc.attack + round[i].attack,

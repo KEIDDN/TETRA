@@ -2,11 +2,14 @@ import type { ModeId } from '@tetra/engine';
 import { useEffect, useState } from 'react';
 import { sfx } from './audio/sfx';
 import { gamepads } from './game/gamepad';
+import { Toasts } from './ui/toast';
 import { Home } from './screens/Home';
 import { Play } from './screens/Play';
 import { Settings } from './screens/Settings';
 import { VersusPlay } from './screens/VersusPlay';
 import { VersusSelect } from './screens/VersusSelect';
+import { BotEditor } from './screens/BotEditor';
+import { getCustomBots } from './lib/customBots';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 type Screen =
@@ -14,6 +17,7 @@ type Screen =
   | { name: 'play'; mode: ModeId }
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
+  | { name: 'editor'; id?: string }
   | { name: 'match'; botId: string; firstTo: number };
 
 export function App() {
@@ -42,7 +46,22 @@ export function App() {
       content = <Settings initialTab={screen.tab} onBack={home} />;
       break;
     case 'versus':
-      content = <VersusSelect onBack={home} onPlay={(botId, firstTo) => setScreen({ name: 'match', botId, firstTo })} />;
+      content = (
+        <VersusSelect
+          onBack={home}
+          onPlay={(botId, firstTo) => setScreen({ name: 'match', botId, firstTo })}
+          onEdit={(id) => setScreen({ name: 'editor', id })}
+        />
+      );
+      break;
+    case 'editor':
+      content = (
+        <BotEditor
+          spec={getCustomBots().find((s) => s.id === screen.id)}
+          onDone={() => setScreen({ name: 'versus' })}
+          onPlay={(botId) => setScreen({ name: 'match', botId, firstTo: 3 })}
+        />
+      );
       break;
     case 'match':
       content = (
@@ -66,8 +85,11 @@ export function App() {
   }
   // Opacity-only transition: a transform here would break the game's fixed layout.
   return (
-    <div key={screen.name} className="animate-fade min-h-full">
-      {content}
-    </div>
+    <>
+      <div key={screen.name} className="animate-fade min-h-full">
+        {content}
+      </div>
+      <Toasts />
+    </>
   );
 }

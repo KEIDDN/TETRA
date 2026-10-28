@@ -1,6 +1,7 @@
 import { Game, type Action, type GameEvent, type ModeId } from '@tetra/engine';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
+import { awardXp, soloXp } from '../lib/profile';
 import { loadBest, submitBest, type RunRecord } from '../lib/storage';
 import { InputRouter } from './input';
 import { MODE_CONFIGS } from './modes';
@@ -229,6 +230,7 @@ export class GameSession {
     const previousBest = loadBest(this.mode);
     const counts = (finished || !config.recordNeedsFinish) && stats.pieces > 0;
     const personalBest = counts && submitBest(this.mode, record, config.isBetter);
+    awardXp(soloXp(stats.pieces, stats.lines, personalBest), config.def.name);
     // Let the end animation play before the results card covers the board.
     this.resultTimer = window.setTimeout(
       () => this.view.result({ mode: this.mode, finished, record, personalBest, previousBest }),

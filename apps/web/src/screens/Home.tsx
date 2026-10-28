@@ -12,6 +12,9 @@ import { updateSettings, useSettings } from '../lib/settings';
 import { loadBest } from '../lib/storage';
 import { AmbientBackground } from '../ui/AmbientBackground';
 import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
+import { LevelChip } from '../ui/LevelChip';
+import { toast } from '../ui/toast';
+import { getSettings } from '../lib/settings';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 
@@ -99,7 +102,8 @@ export function Home({
       <div className="relative mx-auto flex min-h-full w-full max-w-[1320px] flex-col px-6 sm:px-10">
         <header className="flex h-24 shrink-0 items-center justify-between">
           <Logo large />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
+            <LevelChip />
             {padKind && (
               <span className="label hidden sm:inline">
                 <span className="mr-2 inline-block size-1.5 rounded-full bg-[#30d158] align-middle" />
@@ -234,10 +238,29 @@ export function Home({
               <span className="text-muted">↵</span> Play
             </span>
           </div>
-          <span className="label">v0.5</span>
+          <VersionTaps />
         </footer>
       </div>
     </div>
+  );
+}
+
+/** Five quick taps on the version toggle developer mode, Android style. */
+function VersionTaps() {
+  const taps = useRef<number[]>([]);
+  const onTap = () => {
+    const now = performance.now();
+    taps.current = [...taps.current.filter((t) => now - t < 2500), now];
+    if (taps.current.length < 5) return;
+    taps.current = [];
+    const developer = !getSettings().developer;
+    updateSettings((s) => ({ ...s, developer }));
+    toast(developer ? 'Developer mode on · everything unlocked' : 'Developer mode off');
+  };
+  return (
+    <button onClick={onTap} className="label select-none">
+      v0.6
+    </button>
   );
 }
 

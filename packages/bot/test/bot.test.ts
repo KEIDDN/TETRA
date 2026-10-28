@@ -51,3 +51,17 @@ describe('think', () => {
     expect(game.stats.lines).toBeGreaterThan(100);
   }, 60_000);
 });
+
+describe('simulate', () => {
+  it('lets the stronger bot win most of the time', async () => {
+    const { BOTS, simulateMatch } = await import('../src');
+    const weak = BOTS[0];
+    const strong = BOTS[6];
+    let strongWins = 0;
+    for (let seed = 1; seed <= 3; seed++) {
+      const [a, b] = simulateMatch(weak, strong, 1, seed);
+      if (b > a) strongWins++;
+    }
+    expect(strongWins).toBeGreaterThanOrEqual(2);
+  }, 120_000);
+});

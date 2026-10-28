@@ -58,6 +58,8 @@ export interface AudioSettings {
 }
 
 export interface Settings {
+  /** Unlocks every bot, cup and skin. Toggled by tapping the version five times. */
+  developer: boolean;
   appearance: AppearanceSettings;
   audio: AudioSettings;
   keyboard: DeviceSettings<string>;
@@ -72,6 +74,7 @@ export interface Settings {
 export const MAX_BINDINGS = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
+  developer: false,
   appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, actionText: true },
   audio: { enabled: true, volume: 0.7, movement: 0.8, pack: 'match' },
   keyboard: {
@@ -120,6 +123,7 @@ function merge(saved: Partial<Settings> | null): Settings {
   if (typeof grid === 'boolean') appearance.grid = grid ? 'auto' : 'off';
   if (audio.pack !== 'match' && !['studio', 'glass', 'wood', 'pure'].includes(audio.pack)) audio.pack = 'match';
   return {
+    developer: saved.developer ?? false,
     appearance,
     audio,
     keyboard: {

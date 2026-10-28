@@ -1,4 +1,5 @@
 import { BOTS, type BotProfile } from '@tetra/bot';
+import { getSettings } from './settings';
 import { load, save } from './storage';
 
 export interface BotRecord {
@@ -24,9 +25,9 @@ export function recordMatch(id: string, won: boolean, roundsWon: number, roundsL
   });
 }
 
-/** Developers see everything; add ?dev=1 to the URL anywhere else. */
+/** Developer mode (5 taps on the version) or ?dev=1 in the URL unlocks everything. */
 export function devUnlocked(): boolean {
-  return import.meta.env.DEV || new URLSearchParams(location.search).has('dev');
+  return getSettings().developer || new URLSearchParams(location.search).has('dev');
 }
 
 /** A bot is open once the one before it has been beaten. */

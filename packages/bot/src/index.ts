@@ -3,3 +3,4 @@ export * from './field';
 export * from './moves';
 export * from './plan';
 export * from './presets';
+export * from './simulate';

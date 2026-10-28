@@ -7,6 +7,7 @@ import { VersusSession, type SideStats, type VersusPhase, type VersusResult } fr
 import { formatRate } from '../lib/format';
 import { useMenuNav } from '../lib/nav';
 import { getSettings } from '../lib/settings';
+import { findBot } from '../lib/customBots';
 import { isUnlocked } from '../lib/versus';
 import { ActionText } from '../ui/actionText';
 import { BotEmblem } from '../ui/BotEmblem';
@@ -24,8 +25,8 @@ export function VersusPlay({
   onExit: () => void;
   onNext: (botId: string) => void;
 }) {
-  const bot = BOTS.find((b) => b.id === botId) ?? BOTS[0];
-  const next = BOTS.find((b) => b.level === bot.level + 1);
+  const bot = findBot(botId) ?? BOTS[0];
+  const next = botId.startsWith('custom-') ? undefined : BOTS.find((b) => b.level === bot.level + 1);
   const hosts = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)];
   const [layouts, setLayouts] = useState<[Layout | null, Layout | null]>([null, null]);
   const layoutRef = useRef<[Layout | null, Layout | null]>([null, null]);

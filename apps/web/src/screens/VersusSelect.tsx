@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { sfx } from '../audio/sfx';
 import { useMenuNav } from '../lib/nav';
 import { useSettings } from '../lib/settings';
+import { toProfile, useCustomBots } from '../lib/customBots';
 import { botRecord, isUnlocked } from '../lib/versus';
 import { BotEmblem } from '../ui/BotEmblem';
 import { DemoBoard } from '../ui/DemoBoard';
@@ -16,8 +17,19 @@ const TRAITS: [keyof BotProfile['traits'], string][] = [
   ['defense', 'Defense'],
 ];
 
-export function VersusSelect({ onPlay, onBack }: { onPlay: (botId: string, firstTo: number) => void; onBack: () => void }) {
+export function VersusSelect({
+  onPlay,
+  onBack,
+  onEdit,
+}: {
+  onPlay: (botId: string, firstTo: number) => void;
+  onBack: () => void;
+  /** Opens the editor; no id = a new bot. */
+  onEdit: (id?: string) => void;
+}) {
   const { appearance } = useSettings();
+  const custom = useCustomBots().map(toProfile);
+  const isCustom = (bot: BotProfile) => bot.id.startsWith('custom-');
   const firstOpen = [...BOTS].reverse().find(isUnlocked) ?? BOTS[0];
   const [selected, setSelected] = useState<BotProfile>(firstOpen);
   const [firstTo, setFirstTo] = useState(3);
@@ -33,7 +45,7 @@ export function VersusSelect({ onPlay, onBack }: { onPlay: (botId: string, first
   }, [firstOpen.id]);
 
   const record = botRecord(selected.id);
-  const open = isUnlocked(selected);
+  const open = isCustom(selected) || isUnlocked(selected);
   const tint = { '--bot': selected.color } as CSSProperties;
 
   return (
@@ -102,6 +114,38 @@ export function VersusSelect({ onPlay, onBack }: { onPlay: (botId: string, first
                 );
               })}
             </ol>
+
+            <div className="mt-12 flex items-end justify-between border-b border-line pb-3">
+              <span className="label">Your bots</span>
+              <button data-nav onClick={() => onEdit()} className={`rounded-full px-3 py-1 text-[13px] font-medium text-muted hover:text-fg ${focusRing}`}>
+                + New bot
+              </button>
+            </div>
+            <ol className="mt-2">
+              {custom.length === 0 && <li className="px-4 py-4 text-[14px] text-faint">Build your own opponent: speed, aggression, mistakes, strategy.</li>}
+              {custom.map((bot) => {
+                const active = bot.id === selected.id;
+                const r = botRecord(bot.id);
+                return (
+                  <li key={bot.id}>
+                    <button
+                      data-nav
+                      data-bot={bot.id}
+                      onFocus={() => setSelected(bot)}
+                      onMouseEnter={(e) => e.currentTarget.focus({ preventScroll: true })}
+                      onClick={() => onPlay(bot.id, firstTo)}
+                      className="group grid w-full grid-cols-[44px_40px_1fr_auto] items-center gap-4 rounded-[22px] px-4 py-3 text-left outline-none"
+                      style={{ background: active ? `linear-gradient(90deg, ${bot.color}1f, transparent 75%)` : undefined }}
+                    >
+                      <BotEmblem bot={bot} size={40} glow={active} />
+                      <span className="label">Custom</span>
+                      <span className={`text-[26px] font-medium tracking-[-0.03em] ${active ? 'text-fg' : 'text-white/40 group-hover:text-white/70'}`}>{bot.name}</span>
+                      <span className="label tabular text-right">{r.wins + r.losses > 0 ? `${r.wins}W · ${r.losses}L` : `${bot.pps.toFixed(1)} PPS`}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
 
           <aside
@@ -113,7 +157,7 @@ export function VersusSelect({ onPlay, onBack }: { onPlay: (botId: string, first
               <BotEmblem bot={selected} size={76} glow locked={!open} />
               <div className="min-w-0">
                 <div className="label">
-                  Level {selected.level} · {selected.pps.toFixed(1)} PPS
+                  {isCustom(selected) ? 'Custom' : `Level ${selected.level}`} · {selected.pps.toFixed(1)} PPS
                 </div>
                 <div className="mt-2 text-[44px] leading-none font-[480] tracking-[-0.045em]">{selected.name}</div>
               </div>
@@ -177,6 +221,15 @@ export function VersusSelect({ onPlay, onBack }: { onPlay: (botId: string, first
               {open && <span className="grid size-7 place-items-center rounded-full bg-black/15 font-mono text-[12px]">↵</span>}
             </button>
             <div className="label mt-3 text-center">First to {firstTo} · ←→ to change</div>
+            {isCustom(selected) && (
+              <button
+                data-nav
+                onClick={() => onEdit(selected.id)}
+                className={`mt-4 w-full rounded-full py-2.5 text-[14px] font-medium text-muted shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] hover:text-fg ${focusRing}`}
+              >
+                Edit {selected.name}
+              </button>
+            )}
           </aside>
         </main>
       </div>
