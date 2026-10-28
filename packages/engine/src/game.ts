@@ -1,7 +1,9 @@
 import { Board } from './board';
+import { levelForLines, levelGravity, type LevelCurve } from './levels';
 import { getKicks } from './kicks';
 import { PIECE_CODE, SHAPES, spawnPosition, type Cell, type PieceType, type Rotation } from './pieces';
 import { Bag } from './rng';
+import { clearScore, HARD_DROP_POINTS, SOFT_DROP_POINTS } from './scoring';
 
 /** One logic frame at 60 Hz, in ms. Gravity is expressed in G (rows per frame). */
 export const FRAME_MS = 1000 / 60;
@@ -29,11 +31,12 @@ export interface Handling {
   cancelDasOnDirectionChange: boolean;
 }
 
+/** TETR.IO defaults: DAS 10F, ARR 2F, SDF 6×, DCD 1F. */
 export const DEFAULT_HANDLING: Handling = {
-  das: 167,
-  arr: 33,
+  das: 10 * FRAME_MS,
+  arr: 2 * FRAME_MS,
   sdf: 6,
-  dcd: 17,
+  dcd: FRAME_MS,
   cancelDasOnDirectionChange: true,
 };
 
@@ -48,6 +51,10 @@ export interface Rules {
   allSpin: boolean;
   /** Game finishes once this many lines are cleared. */
   lineGoal: number | null;
+  /** Game finishes after this many ms. */
+  timeLimit: number | null;
+  /** When set, gravity follows the level curve instead of `gravity`. */
+  levelCurve: LevelCurve | null;
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -58,6 +65,8 @@ export const DEFAULT_RULES: Rules = {
   holdEnabled: true,
   allSpin: false,
   lineGoal: null,
+  timeLimit: null,
+  levelCurve: null,
 };
 
 export type SpinKind = 'none' | 'mini' | 'full';
@@ -80,7 +89,8 @@ export type GameEvent =
   | { type: 'hold' }
   | { type: 'hardDrop'; distance: number }
   | { type: 'lock'; piece: PieceType }
-  | { type: 'clear'; info: ClearInfo }
+  | { type: 'clear'; info: ClearInfo; score: number }
+  | { type: 'levelUp'; level: number }
   | { type: 'topout' }
   | { type: 'finish' };
 
@@ -103,6 +113,8 @@ export interface GameStats {
   combo: number;
   maxCombo: number;
   maxB2b: number;
+  score: number;
+  level: number;
 }
 
 export interface GameOptions {
@@ -129,10 +141,10 @@ export function pieceCells(p: ActivePiece): Cell[] {
 export class Game {
   readonly board: Board;
   readonly rules: Rules;
-  readonly handling: Handling;
+  handling: Handling;
   readonly queue: PieceType[] = [];
   readonly events: GameEvent[] = [];
-  readonly stats: GameStats = { pieces: 0, lines: 0, inputs: 0, holds: 0, b2b: -1, combo: -1, maxCombo: -1, maxB2b: -1 };
+  readonly stats: GameStats = { pieces: 0, lines: 0, inputs: 0, holds: 0, b2b: -1, combo: -1, maxCombo: -1, maxB2b: -1, score: 0, level: 1 };
 
   state: GameState = 'playing';
   time = 0;
@@ -172,6 +184,8 @@ export class Game {
 
   /** Advances the simulation to `t` ms. */
   update(t: number): void {
+    const limit = this.rules.timeLimit;
+    if (limit !== null) t = Math.min(t, limit);
     const { das, arr } = this.handling;
     let guard = 0;
     while (this.state === 'playing' && this.piece && guard++ < 100_000) {
@@ -220,7 +234,7 @@ export class Game {
           break;
         case 'fall':
           this.fall = Math.max(0, this.fall - 1);
-          this.moveDown();
+          if (this.moveDown() && this.softDrop) this.stats.score += SOFT_DROP_POINTS;
           break;
         case 'lock':
           this.lockPiece();
@@ -229,6 +243,12 @@ export class Game {
       this.settle();
     }
     this.time = Math.max(this.time, t);
+    if (limit !== null && this.time >= limit && this.state === 'playing') this.finish();
+  }
+
+  /** Swaps handling mid-game (e.g. when the player switches between keyboard and controller). */
+  setHandling(handling: Handling): void {
+    this.handling = handling;
   }
 
   /**
@@ -336,7 +356,8 @@ export class Game {
 
   /** Rows per ms; Infinity means pieces drop instantly. */
   private gravityRate(): number {
-    const g = this.rules.gravity;
+    const curve = this.rules.levelCurve;
+    const g = curve ? levelGravity(curve, this.stats.level) : this.rules.gravity;
     const sdf = this.handling.sdf;
     const soft = this.softDrop ? (Number.isFinite(sdf) ? sdf * Math.max(g, 0.05) : Infinity) : 0;
     const G = Math.max(g, soft);
@@ -390,6 +411,7 @@ export class Game {
     if (!this.piece) return;
     let distance = 0;
     while (this.moveDown()) distance++;
+    this.stats.score += distance * HARD_DROP_POINTS;
     this.events.push({ type: 'hardDrop', distance });
     this.lockPiece();
   }
@@ -434,7 +456,10 @@ export class Game {
         while (this.shift(this.dir)) moved = true;
       }
       if (this.gravityRate() === Infinity) {
-        while (this.moveDown()) moved = true;
+        while (this.moveDown()) {
+          moved = true;
+          if (this.softDrop) this.stats.score += SOFT_DROP_POINTS;
+        }
       }
     }
     if (this.piece && this.isGrounded()) {
@@ -492,21 +517,37 @@ export class Game {
     } else {
       s.combo = -1;
     }
+    if (this.rules.levelCurve) {
+      const level = levelForLines(this.rules.levelCurve, s.lines);
+      if (level > s.level) {
+        s.level = level;
+        this.events.push({ type: 'levelUp', level });
+      }
+    }
     if (lines > 0 || spin !== 'none') {
-      this.events.push({
-        type: 'clear',
-        info: { piece: p.type, lines, spin, b2b: s.b2b, combo: s.combo, perfectClear: lines > 0 && this.board.isEmpty() },
-      });
+      const info: ClearInfo = {
+        piece: p.type,
+        lines,
+        spin,
+        b2b: s.b2b,
+        combo: s.combo,
+        perfectClear: lines > 0 && this.board.isEmpty(),
+      };
+      // A clear that crosses into the next level scores at that level.
+      const score = clearScore(info, s.level);
+      s.score += score;
+      this.events.push({ type: 'clear', info, score });
     }
     this.version++;
 
-    if (this.rules.lineGoal !== null && s.lines >= this.rules.lineGoal) {
-      this.state = 'finished';
-      this.finishedAt = this.time;
-      this.events.push({ type: 'finish' });
-      return;
-    }
+    if (this.rules.lineGoal !== null && s.lines >= this.rules.lineGoal) return this.finish();
     this.spawnNext();
+  }
+
+  private finish(): void {
+    this.state = 'finished';
+    this.finishedAt = this.time;
+    this.events.push({ type: 'finish' });
   }
 
   private refillQueue(): void {

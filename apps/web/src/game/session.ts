@@ -1,83 +1,146 @@
-import { DEFAULT_HANDLING, Game, SPRINT, type Action } from '@tetra/engine';
-import { submitSprint, loadSprintBest } from '../lib/storage';
-import { DEFAULT_BINDINGS, Keyboard } from './input';
+import { Game, type Action, type ModeId } from '@tetra/engine';
+import { getSettings, type Command, type Device } from '../lib/settings';
+import { loadBest, submitBest, type RunRecord } from '../lib/storage';
+import { InputRouter } from './input';
+import { MODE_CONFIGS } from './modes';
 import type { GameRenderer } from './renderer';
 
 const COUNTDOWN_STEP_MS = 500;
 const COUNTDOWN_STEPS = 3;
 
+export type Phase = 'countdown' | 'playing' | 'paused' | 'done';
+
 export interface LiveStats {
-  time: number;
+  /** What the clock shows: elapsed time, or time left in timed modes. */
+  clock: number;
   lines: number;
   pieces: number;
   pps: number;
+  score: number;
+  level: number;
 }
 
 export interface SessionResult {
+  mode: ModeId;
   finished: boolean;
-  time: number;
-  lines: number;
-  lineGoal: number;
-  pieces: number;
-  inputs: number;
+  record: RunRecord;
   personalBest: boolean;
-  previousBest: number | null;
+  previousBest: RunRecord | null;
 }
 
 export interface SessionView {
   countdown(step: number | null): void;
+  phase(phase: Phase): void;
   stats(stats: LiveStats): void;
   result(result: SessionResult | null): void;
 }
 
+function isAction(command: Command): command is Action {
+  return command !== 'retry' && command !== 'pause';
+}
+
 /**
- * Runs 40 Lines: owns the game, the countdown and keyboard routing. Game time 0
- * is the moment the countdown ends; keys held during the countdown carry over
- * (with their DAS charge) into the first piece.
+ * Runs one mode: owns the game, countdowns, pause and input routing.
+ * `startAt` maps game time to performance.now(): game time = now - startAt.
+ * Keys held during a countdown carry over (with their DAS charge) when play starts.
  */
-export class SprintSession {
+export class GameSession {
   private game!: Game;
   private startAt = 0;
-  private phase: 'countdown' | 'playing' | 'done' = 'countdown';
+  private goAt = 0;
+  private goGameTime = 0;
+  private phase: Phase = 'countdown';
   private shownStep = -1;
-  private keyboard: Keyboard;
+  private router: InputRouter;
 
   constructor(
+    private mode: ModeId,
     private renderer: GameRenderer,
     private view: SessionView,
-    onExit: () => void,
+    private onExit: () => void,
   ) {
-    this.keyboard = new Keyboard(DEFAULT_BINDINGS, {
-      onAction: (action, pressed, time) => this.onAction(action, pressed, time),
-      onCommand: (command) => (command === 'retry' ? this.restart() : onExit()),
-    });
+    this.router = new InputRouter(getSettings(), this.onCommand);
     renderer.ticker.add(this.tick);
     this.restart();
   }
 
   restart(): void {
-    this.game = new Game({ seed: (Math.random() * 2 ** 32) >>> 0, rules: SPRINT.rules, handling: DEFAULT_HANDLING });
-    this.startAt = performance.now() + COUNTDOWN_STEP_MS * COUNTDOWN_STEPS;
-    this.phase = 'countdown';
-    this.shownStep = -1;
+    const settings = getSettings();
+    this.game = new Game({
+      seed: (Math.random() * 2 ** 32) >>> 0,
+      rules: MODE_CONFIGS[this.mode].def.rules,
+      handling: settings.keyboard.handling,
+    });
     this.view.result(null);
+    this.beginCountdown(0);
+  }
+
+  pause(): void {
+    if (this.phase !== 'playing') return;
+    const t = performance.now() - this.startAt;
+    this.game.update(t);
+    for (const { action } of this.router.heldActions()) this.game.input(action, false, t);
+    this.goGameTime = this.game.time;
+    this.setPhase('paused');
+    this.afterStep();
+  }
+
+  resume(): void {
+    if (this.phase === 'paused') this.beginCountdown(this.goGameTime);
   }
 
   dispose(): void {
-    this.keyboard.dispose();
+    this.router.dispose();
     this.renderer.ticker.remove(this.tick);
   }
 
-  private onAction(action: Action, pressed: boolean, time: number): void {
-    if (this.phase !== 'playing') return;
-    this.game.input(action, pressed, time - this.startAt);
-    this.afterStep();
+  private beginCountdown(gameTime: number): void {
+    this.goGameTime = gameTime;
+    this.goAt = performance.now() + COUNTDOWN_STEP_MS * COUNTDOWN_STEPS;
+    this.startAt = this.goAt - gameTime;
+    this.shownStep = -1;
+    this.setPhase('countdown');
   }
+
+  private setPhase(phase: Phase): void {
+    this.phase = phase;
+    this.view.phase(phase);
+    if (phase !== 'countdown') this.view.countdown(null);
+  }
+
+  private useHandling(device: Device): void {
+    const handling = getSettings()[device].handling;
+    if (this.game.handling !== handling) this.game.setHandling(handling);
+  }
+
+  private onCommand = (command: Command, pressed: boolean, time: number, device: Device): void => {
+    if (isAction(command)) {
+      if (this.phase !== 'playing') return;
+      if (pressed) this.useHandling(device);
+      this.game.input(command, pressed, time - this.startAt);
+      this.afterStep();
+      return;
+    }
+    if (!pressed) return;
+    if (command === 'retry') return this.restart();
+    switch (this.phase) {
+      case 'playing':
+        return this.pause();
+      case 'paused':
+        return this.resume();
+      case 'countdown':
+        // Pausing during the opening countdown leaves; during a resume countdown it pauses again.
+        if (this.goGameTime === 0) return this.onExit();
+        return this.setPhase('paused');
+      case 'done':
+        return this.onExit();
+    }
+  };
 
   private tick = (): void => {
     const now = performance.now();
     if (this.phase === 'countdown') {
-      const remaining = this.startAt - now;
+      const remaining = this.goAt - now;
       if (remaining > 0) {
         const step = Math.ceil(remaining / COUNTDOWN_STEP_MS);
         if (step !== this.shownStep) {
@@ -85,10 +148,10 @@ export class SprintSession {
           this.view.countdown(step);
         }
       } else {
-        this.phase = 'playing';
-        this.view.countdown(null);
-        for (const { action, since } of this.keyboard.held()) {
-          this.game.input(action, true, 0, since - this.startAt);
+        this.setPhase('playing');
+        for (const { action, since, device } of this.router.heldActions()) {
+          this.useHandling(device);
+          this.game.input(action, true, this.goGameTime, since - this.startAt);
         }
       }
     }
@@ -98,30 +161,39 @@ export class SprintSession {
     }
     this.renderer.draw(this.game);
 
-    const { stats } = this.game;
-    const time = this.game.elapsed;
-    this.view.stats({ time, lines: stats.lines, pieces: stats.pieces, pps: time > 0 ? stats.pieces / (time / 1000) : 0 });
+    const { stats, rules } = this.game;
+    const elapsed = this.game.elapsed;
+    this.view.stats({
+      clock: rules.timeLimit !== null ? Math.max(0, rules.timeLimit - elapsed) : elapsed,
+      lines: stats.lines,
+      pieces: stats.pieces,
+      pps: elapsed > 0 ? stats.pieces / (elapsed / 1000) : 0,
+      score: stats.score,
+      level: stats.level,
+    });
   };
 
   private afterStep(): void {
     const game = this.game;
     game.events.length = 0;
-    if (this.phase !== 'playing' || game.state === 'playing') return;
+    if (game.state === 'playing' || this.phase === 'done') return;
 
-    this.phase = 'done';
+    this.setPhase('done');
+    const config = MODE_CONFIGS[this.mode];
     const finished = game.state === 'finished';
-    const previous = loadSprintBest();
-    const record = { time: game.elapsed, pieces: game.stats.pieces, inputs: game.stats.inputs, date: Date.now() };
-    const personalBest = finished && submitSprint(record);
-    this.view.result({
-      finished,
+    const { stats } = game;
+    const record: RunRecord = {
       time: game.elapsed,
-      lines: game.stats.lines,
-      lineGoal: game.rules.lineGoal ?? 0,
-      pieces: game.stats.pieces,
-      inputs: game.stats.inputs,
-      personalBest,
-      previousBest: previous?.time ?? null,
-    });
+      score: stats.score,
+      lines: stats.lines,
+      level: stats.level,
+      pieces: stats.pieces,
+      inputs: stats.inputs,
+      date: Date.now(),
+    };
+    const previousBest = loadBest(this.mode);
+    const counts = (finished || !config.recordNeedsFinish) && stats.pieces > 0;
+    const personalBest = counts && submitBest(this.mode, record, config.isBetter);
+    this.view.result({ mode: this.mode, finished, record, personalBest, previousBest });
   }
 }

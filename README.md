@@ -27,4 +27,6 @@ pnpm build
 | Rotate CW / CCW / 180 | X or ↑ / Z / A |
 | Hold | C or Shift |
 | Retry | R |
-| Menu | Esc |
+| Pause | Esc |
+
+Everything is rebindable in Settings, where handling (DAS, ARR, SDF, DCD) is set separately for keyboard and controller. Controllers work out of the box: d-pad to move, d-pad up to hard drop, A/B/Y to rotate, bumpers to hold, Start to pause, Select to retry.

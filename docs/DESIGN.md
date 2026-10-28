@@ -78,7 +78,7 @@ Decisiones tomadas en la sesión de grilling (Q1–Q34).
 | Modo | Reglas |
 |---|---|
 | **40 Lines** | 40 líneas lo más rápido posible (idéntico a TETR.IO). |
-| **Blitz** | 2 min, puntuación, gravedad sube por niveles (idéntico a TETR.IO). |
+| **Blitz** | 2 min, puntuación, gravedad sube por niveles. Tabla de TETR.IO: 3 líneas para el nivel 2 y +2 por nivel (24 a partir del nivel 11), gravedad de 1 s/fila hasta 20G en el nivel 14, puntos × nivel. |
 | **Marathon** | Guideline: 150 líneas, 15 niveles, curva oficial de gravedad. |
 | **Endless** | Variante de Marathon hasta 20G, termina al morir. |
 | **1v1 vs Bot** | First to N (FT3 por defecto; FT1/5/7/10). Marcador estilo TETR.IO League. Misma semilla de piezas para ambos. |
