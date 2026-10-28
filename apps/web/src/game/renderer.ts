@@ -11,7 +11,7 @@ import {
   type PieceType,
 } from '@tetra/engine';
 import { Application, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js';
-import { AmbientSim } from './ambient';
+import { Lattice, type Echo } from './ambient';
 import { easeOut, easeOutBack, Particles, SpritePool, spriteTween, Tweens, type FxLevel } from './fx';
 import type { Layout } from './layout';
 import { hexToNumber, paintBlock, SKINS, type BlockKind, type GridStyle, type Palette, type Skin } from './skins';
@@ -68,16 +68,18 @@ export class GameRenderer {
   private particles: Particles;
   private tweens = new Tweens();
   private ambientLayer = new Container();
-  private ambientMotes = new Container();
-  private ambientWaves = new Graphics();
-  private ambientSprites: Sprite[] = [];
-  private ambient: AmbientSim | null = null;
+  private ambientDots = new Container();
+  private ambientEchoes = new Container();
+  private dotSprites: Sprite[] = [];
+  private echoShapes = new Map<Echo, Graphics>();
+  private ambient: Lattice | null = null;
+  private latticeDrawn = false;
 
   /** Block textures by kind, link mask and ghost flag, painted on first use. */
   private textures = new Map<string, Texture>();
   private palette: Palette;
   private paletteLevel = 1;
-  private shared: { white: Texture; dot: Texture; square: Texture; trail: Texture } | null = null;
+  private shared: { white: Texture; dot: Texture; pip: Texture; square: Texture; trail: Texture } | null = null;
   private layout: Layout | null = null;
   private options: RenderOptions = { skin: SKINS.studio, fx: 'subtle', smoothFall: false, ghost: true, grid: 'lines', ambient: false };
   private drawn: { game: Game | null; version: number } = { game: null, version: -1 };
@@ -137,7 +139,7 @@ export class GameRenderer {
       this.nextC,
       particleLayer,
     );
-    this.ambientLayer.addChild(this.ambientMotes, this.ambientWaves);
+    this.ambientLayer.addChild(this.ambientDots, this.ambientEchoes);
     app.stage.addChild(this.ambientLayer, this.world);
     this.boardPool = new SpritePool(boardLayer);
     this.boardMask = new SpritePool(maskLayer);
@@ -169,7 +171,7 @@ export class GameRenderer {
     const sizeChanged = layout.cell !== this.layout?.cell;
     this.layout = layout;
     this.app.resize();
-    this.ambient?.resize(layout.width, layout.height);
+    this.layoutAmbient();
     if (sizeChanged) this.buildTextures();
     this.drawChrome();
     const { holdX, sideW, previewCell, boardY, cell } = layout;
@@ -275,26 +277,7 @@ export class GameRenderer {
         this.bump.v += Math.min(e.distance + 2, 14) * cell * (full ? 1.6 : 0.8);
         const lowest = Math.min(...e.cells.map(([, y]) => y));
         const xs = e.cells.map(([x]) => x);
-        this.ambient?.impulse(boardX + ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cell, rowY(lowest) + cell, 0.35 + Math.min(e.distance, 20) * 0.02);
-        if (full) {
-          const bottoms = e.cells.filter(([x, y]) => !e.cells.some(([x2, y2]) => x2 === x && y2 === y - 1));
-          for (const [x, y] of bottoms) {
-            this.particles.emit({
-              x: boardX + (x + 0.5) * cell,
-              y: rowY(y) + cell,
-              w: cell,
-              count: 2,
-              color: 0xffffff,
-              texture: this.shared.dot,
-              blend: 'add',
-              speed: cell * 3,
-              lift: cell * 2,
-              life: [0.2, 0.4],
-              size: [cell * 0.12, cell * 0.22],
-              gravity: cell * 12,
-            });
-          }
-        }
+        this.ambient?.ripple(boardX + ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cell, rowY(lowest) + cell, 0.5 + Math.min(e.distance, 20) * 0.02);
         break;
       }
       case 'lock': {
@@ -315,45 +298,59 @@ export class GameRenderer {
         const big = info.lines >= 4 || (info.spin === 'full' && info.lines > 0) || info.perfectClear;
         const power = info.lines + (info.spin === 'full' ? 2 : 0) + (info.b2b > 0 ? 1 : 0) + (info.perfectClear ? 4 : 0);
         const flashColor = hexToNumber(skin.flash);
+        const right = boardX + BOARD_WIDTH * cell;
+        const sweep = full ? 220 : 170;
         for (const row of rows) {
           const y = rowY(row.y) + cell / 2;
-          const sprite = new Sprite(Texture.WHITE);
-          sprite.anchor.set(0.5);
-          sprite.tint = flashColor;
-          sprite.blendMode = skin.fxBlend;
-          spriteTween(this.tweens, this.flashLayer, sprite, now, full ? 320 : 220, (s, p) => {
-            s.position.set(boardX + (BOARD_WIDTH * cell) / 2, y);
-            s.setSize(BOARD_WIDTH * cell * (1 + p * 0.04), cell * (1 - easeOut(p) * 0.85));
-            s.alpha = (full ? 0.9 : 0.6) * (1 - p);
+          // The lit row is cut away from left to right, with a bright edge leading the cut.
+          const bar = new Sprite(Texture.WHITE);
+          bar.anchor.set(1, 0.5);
+          bar.tint = flashColor;
+          bar.blendMode = skin.fxBlend;
+          spriteTween(this.tweens, this.flashLayer, bar, now, sweep, (sp, p) => {
+            const e = easeOut(p);
+            sp.position.set(right, y);
+            sp.setSize(Math.max(0, BOARD_WIDTH * cell * (1 - e)), cell * 0.92);
+            sp.alpha = 0.75 * (1 - p * 0.4);
           });
-          const perCell = full ? 2 + Math.min(power, 6) * 0.5 : 1;
+          const edge = new Sprite(Texture.WHITE);
+          edge.anchor.set(0.5);
+          edge.blendMode = 'add';
+          spriteTween(this.tweens, this.flashLayer, edge, now, sweep, (sp, p) => {
+            sp.position.set(boardX + BOARD_WIDTH * cell * easeOut(p), y);
+            sp.setSize(Math.max(1.5, cell * 0.06), cell * 1.1);
+            sp.alpha = 1 - p;
+          });
+          if (!full) continue;
+          // Full: a few mini-minos in the skin's own style float off the cut.
           row.cells.forEach((code, x) => {
+            if (Math.random() < 0.35) return;
             const kind: BlockKind = code === GARBAGE_CODE ? 'garbage' : (CODE_PIECE[code] ?? 'garbage');
-            const cx = boardX + (x + 0.5) * cell;
             this.particles.emit({
-              x: cx,
+              x: boardX + (x + 0.5) * cell,
               y,
-              w: cell,
-              h: cell,
-              count: Math.round(perCell + Math.random()),
-              color: hexToNumber(this.palette[kind]),
-              texture: skin.particle === 'square' ? this.shared!.square : this.shared!.dot,
-              blend: skin.fxBlend,
-              speed: cell * (full ? 7 + power : 4),
-              lift: cell * (full ? 5 : 2.5),
-              bias: (x - 4.5) / 4.5,
-              life: full ? [0.45, 1.0] : [0.3, 0.6],
-              size: skin.particle === 'square' ? [cell * 0.14, cell * 0.3] : [cell * 0.25, cell * 0.5],
-              gravity: cell * 9,
-              drag: 2.2,
-              spin: skin.particle === 'square' ? 12 : 0,
+              count: 1,
+              color: 0xffffff,
+              texture: this.texture(kind, 0, false),
+              blend: skin.blend,
+              speed: cell * (2.5 + power * 0.4),
+              lift: cell * 3.2,
+              bias: (x - 4.5) / 9,
+              life: [0.55, 1.0],
+              size: [cell * 0.3, cell * 0.42],
+              gravity: cell * 3,
+              drag: 1.6,
+              spin: 4,
             });
           });
         }
         const cx = boardX + (BOARD_WIDTH * cell) / 2;
         const cy = rowY(rows[0]?.y ?? 0);
-        if (big) this.ambient?.shockwave(cx, cy, power, hexToNumber(this.palette[info.piece]));
-        else this.ambient?.impulse(cx, cy, power);
+        const pieceColor = hexToNumber(this.palette[info.piece]);
+        if (big) {
+          const kinds = [...new Set(rows.flatMap((r) => r.cells.map((c) => CODE_PIECE[c]).filter((k): k is PieceType => !!k)))];
+          this.ambient?.celebrate(cx, cy, power, pieceColor, kinds.length ? kinds : [info.piece], (BOARD_WIDTH * cell) / 2);
+        } else this.ambient?.ripple(cx, cy, power, pieceColor);
         if (big) {
           this.flash = 1;
           this.shake = { amp: cell * (full ? 0.14 : 0.07) * (info.perfectClear ? 1.6 : 1), start: now, duration: full ? 320 : 220 };
@@ -378,7 +375,7 @@ export class GameRenderer {
       }
       case 'levelUp':
         this.flash = Math.max(this.flash, 0.8);
-        this.ambient?.shockwave(boardX + (BOARD_WIDTH * cell) / 2, this.layout.boardY + this.layout.boardH / 2, 3, ACCENT);
+        this.ambient?.ripple(boardX + (BOARD_WIDTH * cell) / 2, this.layout.boardY + this.layout.boardH / 2, 5, ACCENT);
         break;
     }
     void game;
@@ -403,20 +400,20 @@ export class GameRenderer {
     for (const kind of kinds) {
       this.particles.emit({
         x: boardX + boardW / 2,
-        y: boardY + boardH * 0.55,
+        y: boardY + boardH * 0.6,
         w: boardW,
-        h: boardH * 0.5,
-        count: this.options.fx === 'full' ? 14 : 6,
-        color: hexToNumber(this.palette[kind]),
-        texture: skin.particle === 'square' ? this.shared!.square : this.shared!.dot,
-        blend: skin.fxBlend,
-        speed: cell * 6,
-        lift: cell * 8,
-        life: [0.8, 1.6],
-        size: [cell * 0.2, cell * 0.45],
-        gravity: cell * 6,
-        drag: 1.6,
-        spin: 8,
+        h: boardH * 0.4,
+        count: this.options.fx === 'full' ? 4 : 2,
+        color: 0xffffff,
+        texture: this.texture(kind, 0, false),
+        blend: skin.blend,
+        speed: cell * 4,
+        lift: cell * 5,
+        life: [0.9, 1.6],
+        size: [cell * 0.3, cell * 0.45],
+        gravity: cell * 3,
+        drag: 1.4,
+        spin: 3,
       });
     }
     void now;
@@ -426,51 +423,79 @@ export class GameRenderer {
     const on = this.options.ambient && this.options.fx !== 'off';
     if (!on) {
       this.ambient = null;
-      this.ambientMotes.removeChildren().forEach((c) => c.destroy());
-      this.ambientSprites = [];
-      this.ambientWaves.clear();
+      this.ambientDots.removeChildren().forEach((c) => c.destroy());
+      this.ambientEchoes.removeChildren().forEach((c) => c.destroy());
+      this.dotSprites = [];
+      this.echoShapes.clear();
       return;
     }
-    const full = this.options.fx === 'full';
-    const colors = (['I', 'O', 'T', 'S', 'Z', 'J', 'L'] as const).map((k) => hexToNumber(this.palette[k]));
     if (!this.ambient) {
-      this.ambient = new AmbientSim(full ? 90 : 60, full ? 1 : 0.6, colors);
-      if (this.layout) this.ambient.resize(this.layout.width, this.layout.height);
-    } else this.ambient.palette = colors;
+      this.ambient = new Lattice(this.options.fx === 'full' ? 1 : 0.75);
+      this.layoutAmbient();
+    }
+    for (const k of ['I', 'O', 'T', 'S', 'Z', 'J', 'L'] as const) this.ambient.palette[k] = hexToNumber(this.palette[k]);
+  }
+
+  /** The lattice continues the board grid: same spacing, same origin. */
+  private layoutAmbient(): void {
+    if (!this.ambient || !this.layout) return;
+    const { width, height, cell, boardX, boardY, boardW, boardH } = this.layout;
+    this.ambient.layout(width, height, cell, boardX, boardY, { x: boardX, y: boardY, w: boardW, h: boardH });
+    this.latticeDrawn = false;
   }
 
   private drawAmbient(game: Game, dt: number): void {
-    const sim = this.ambient;
-    if (!sim || !this.shared) return;
+    const lattice = this.ambient;
+    if (!lattice || !this.shared || !this.layout) return;
     const { b2b, combo } = game.stats;
-    sim.setEnergy(Math.min(1, Math.max(0, b2b) * 0.15 + Math.max(0, combo) * 0.1));
-    sim.setDanger(this.dangerTarget);
-    sim.update(dt);
-    while (this.ambientSprites.length < sim.motes.length) {
-      const s = new Sprite(this.shared.dot);
-      s.anchor.set(0.5);
-      s.blendMode = 'add';
-      this.ambientMotes.addChild(s);
-      this.ambientSprites.push(s);
-    }
-    sim.motes.forEach((m, i) => {
-      const st = sim.style(m);
-      const s = this.ambientSprites[i];
-      s.position.set(st.x, st.y);
-      s.rotation = st.angle;
-      s.setSize(st.size * st.stretch, st.size);
-      s.alpha = st.alpha;
-      s.tint = st.color;
-    });
-    // Shockwave rings: a crisp front with a soft halo behind it.
-    const g = this.ambientWaves;
-    g.clear();
-    const strength = this.options.fx === 'full' ? 1 : 0.6;
-    for (const wave of sim.waves) {
-      g.circle(wave.x, wave.y, wave.radius).stroke({ width: 2, color: wave.color, alpha: 0.32 * wave.life * strength });
-      g.circle(wave.x, wave.y, Math.max(0, wave.radius - 14)).stroke({ width: 22, color: wave.color, alpha: 0.05 * wave.life * strength });
+    lattice.setEnergy(Math.min(1, Math.max(0, b2b) * 0.15 + Math.max(0, combo) * 0.1));
+    lattice.setDanger(this.dangerTarget);
+    lattice.update(dt);
+
+    // The lattice is static most of the time; only touch its sprites while it moves.
+    if (lattice.active || !this.latticeDrawn) {
+      let i = 0;
+      lattice.forEachDot((dot) => {
+        let sprite = this.dotSprites[i];
+        if (!sprite) {
+          sprite = new Sprite(this.shared!.pip);
+          sprite.anchor.set(0.5);
+          this.ambientDots.addChild(sprite);
+          this.dotSprites.push(sprite);
+        }
+        sprite.position.set(dot.x, dot.y);
+        sprite.setSize(dot.size * 2.4, dot.size * 2.4);
+        sprite.alpha = dot.alpha;
+        sprite.tint = dot.color;
+        sprite.visible = true;
+        i++;
+      });
+      for (; i < this.dotSprites.length; i++) this.dotSprites[i].visible = false;
+      this.latticeDrawn = true;
     }
 
+    const cell = this.layout.cell;
+    const alive = new Set(lattice.echoes);
+    for (const [echo, g] of this.echoShapes) {
+      if (!alive.has(echo)) {
+        g.destroy();
+        this.echoShapes.delete(echo);
+      }
+    }
+    for (const echo of lattice.echoes) {
+      let g = this.echoShapes.get(echo);
+      if (!g) {
+        g = new Graphics();
+        for (const [x0, y0, x1, y1] of Lattice.outline(echo.kind)) g.moveTo(x0 * cell, y0 * cell).lineTo(x1 * cell, y1 * cell);
+        g.stroke({ width: 1.5, color: echo.color, alpha: 1 });
+        this.ambientEchoes.addChild(g);
+        this.echoShapes.set(echo, g);
+      }
+      g.position.set(echo.x, echo.y);
+      g.rotation = echo.rotation;
+      g.scale.set(echo.scale);
+      g.alpha = lattice.echoAlpha(echo);
+    }
   }
 
   private updateDynamics(game: Game, now: number, dt: number): void {
@@ -666,6 +691,12 @@ export class GameRenderer {
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, 64, 64);
       }),
+      pip: canvasTexture(16, 16, (ctx) => {
+        ctx.beginPath();
+        ctx.arc(8, 8, 7, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+      }),
       square: canvasTexture(16, 16, (ctx) => {
         ctx.fillStyle = '#fff';
         ctx.fillRect(1, 1, 14, 14);
@@ -678,7 +709,7 @@ export class GameRenderer {
         ctx.fillRect(0, 0, 8, 128);
       }),
     };
-    for (const sprite of this.ambientSprites) sprite.texture = this.shared.dot;
+    for (const sprite of this.dotSprites) sprite.texture = this.shared.pip;
     if (old) for (const t of Object.values(old)) t.destroy(true);
   }
 

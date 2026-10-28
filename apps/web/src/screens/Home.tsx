@@ -1,7 +1,7 @@
-import type { GameStats, ModeId } from '@tetra/engine';
+import type { GameStats, ModeId, PieceType } from '@tetra/engine';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { sfx } from '../audio/sfx';
-import { AmbientSim } from '../game/ambient';
+import { Lattice } from '../game/ambient';
 import { gamepads } from '../game/gamepad';
 import { MODE_CONFIGS, MODE_ORDER } from '../game/modes';
 import { hexToNumber, SKIN_ORDER, SKINS } from '../game/skins';
@@ -15,6 +15,7 @@ import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 
 const ENTRIES: DemoMode[] = [...MODE_ORDER, 'versus'];
+const PIECES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
 const BOTS = ['Pebble', 'Drift', 'Stack', 'Tempo', 'Pivot', 'Rift', 'Vector', 'Prism', 'Apex', 'Zenith'];
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
@@ -53,17 +54,18 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
   const statValueRef = useRef<HTMLSpanElement>(null);
   const skin = SKINS[appearance.skin];
 
-  const sim = useMemo(() => new AmbientSim(70, 0.7), []);
+  const lattice = useMemo(() => new Lattice(0.9), []);
   useEffect(() => {
-    sim.palette = (['I', 'O', 'T', 'S', 'Z', 'J', 'L'] as const).map((k) => hexToNumber(skin.palette(1)[k]));
-  }, [sim, skin]);
+    for (const k of PIECES) lattice.palette[k] = hexToNumber(skin.palette(1)[k]);
+  }, [lattice, skin]);
 
   const cycleSkin = (direction: 1 | -1) => {
     const i = SKIN_ORDER.indexOf(appearance.skin);
     const next = SKIN_ORDER[(i + direction + SKIN_ORDER.length) % SKIN_ORDER.length];
     updateSettings((s) => ({ ...s, appearance: { ...s.appearance, skin: next } }));
     sfx.ui('move');
-    sim.flash(0.35);
+    const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
+    lattice.ripple(window.innerWidth / 2, window.innerHeight - 40, 4, lattice.palette[piece]);
   };
   useMenuNav(undefined, true, cycleSkin);
 
@@ -74,8 +76,9 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
   const select = (id: DemoMode) => {
     if (id === selected) return;
     setSelected(id);
-    // The field leans toward the list as the selection moves.
-    sim.impulse(window.innerWidth * 0.25, window.innerHeight * (0.3 + ENTRIES.indexOf(id) * 0.1), 0.8);
+    // A small ripple from the newly selected entry.
+    const el = document.activeElement?.getBoundingClientRect();
+    if (el) lattice.ripple(el.left, el.top + el.height / 2, 2.2);
   };
 
   const activate = (id: DemoMode) => {
@@ -87,7 +90,7 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
 
   return (
     <div className="fixed inset-0 overflow-x-hidden overflow-y-auto">
-      {appearance.ambient && appearance.fx !== 'off' && <AmbientBackground sim={sim} />}
+      {appearance.ambient && appearance.fx !== 'off' && <AmbientBackground lattice={lattice} />}
 
       <div className="relative mx-auto flex min-h-full w-full max-w-[1320px] flex-col px-6 sm:px-10">
         <header className="flex h-24 shrink-0 items-center justify-between">
@@ -183,8 +186,9 @@ export function Home({ onPlay, onSettings }: { onPlay: (mode: ModeId) => void; o
                   if (!rect) return;
                   const x = rect.left + rect.width * 0.4;
                   const at = rect.top + rect.height * y;
-                  if (power >= 4) sim.shockwave(x, at, power * 0.8, sim.palette[Math.floor(Math.random() * sim.palette.length)]);
-                  else sim.impulse(x, at, power * 0.7);
+                  const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
+                  if (power >= 4) lattice.celebrate(x, at, power, lattice.palette[piece] ?? 0xffffff, [piece]);
+                  else lattice.ripple(x, at, power, lattice.palette[piece]);
                 }}
                 onStats={(stats) => {
                   const [label, value] = liveStat(selected, stats);

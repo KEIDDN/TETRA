@@ -190,10 +190,12 @@ Decisiones tomadas en la sesión de grilling (Q1–Q34).
 
 ## 7d. Ambiente
 
-- Campo de partículas de luz y bokeh que deriva despacio con los colores de la skin, compartido entre la home (Canvas 2D) y la partida (Pixi).
-- En partida reacciona sin invadir: impulso al limpiar líneas según la jugada, más brillo y velocidad con combo/B2B, rojo y agitación en peligro, destello al subir de nivel.
-- Interruptor propio ("Ambient background"), independiente de la intensidad de efectos, para quien practique en competitivo.
-- Sonido de movimiento con volumen propio ("Movement sounds").
+- **Retícula viva**: la rejilla del tablero continúa por toda la pantalla como una matriz de puntos casi invisible, alineada con el tablero. Misma retícula en la home (Canvas 2D) y en la partida (Pixi).
+- Cada línea limpiada envía una onda por la retícula en el color de la pieza: un single apenas toca las celdas cercanas, un tetris cruza la pantalla. El hard drop deja una onda mínima donde aterriza; combo/B2B aclaran la zona del tablero; en peligro los puntos cercanos se tiñen de rojo.
+- **Ecos de minos** solo en momentos grandes (tetris, T-spin, all clear): contornos finos de tetrominós que nacen junto al tablero, se alejan girando y se desvanecen en profundidad.
+- Dentro del tablero, al limpiar: **barrido de luz** que corta la fila de izquierda a derecha (Subtle) más **mini-minos** pintados con la skin (Full). Nada de partículas genéricas.
+- Interruptor propio ("Ambient background"), independiente de la intensidad de efectos. Nunca invasivo: es una herramienta de práctica.
+- Sonido de movimiento y rotación: el mismo clic suave, con volumen propio ("Movement sounds").
 
 ## 8. Hitos
 
@@ -212,6 +214,10 @@ Cada hito es jugable y se revisa antes de pasar al siguiente.
    - Sistema de basura/ataque TETR.IO.
    - Bots nivel 1–10 (Rust/WASM).
    - 1v1 FT-N con stats y gráficas al terminar.
-5. **Práctica y móvil**:
+5. **Plataformas y pulido**:
+   - Móvil e iPad (gestos, layouts táctiles, PWA instalable), app de escritorio con Tauri.
    - Editor custom, desbloqueos, historial y progreso.
-   - Gestos en móvil y PWA.
+6. **Cuentas** (al final, con el juego pulido):
+   - Supabase: login con Google, email (enlace mágico) y Discord.
+   - Perfiles públicos, rankings por modo verificados re-simulando la partida (replays), página de stats potente a nivel diseño.
+   - Se juega sin cuenta; al iniciar sesión, lo local se sube y fusiona.
