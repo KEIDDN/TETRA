@@ -2,76 +2,111 @@ import type { ClearInfo, GameEvent } from '@tetra/engine';
 import { SKINS, type SoundPackId } from '../game/skins';
 import { getSettings } from '../lib/settings';
 
-/** Timbre of a sound pack. Every sound is synthesized; there are no samples. */
+/**
+ * Modal synthesis: a struck object rings at a few inharmonic frequencies
+ * (its modes), each decaying at its own rate. A handful of sine partials
+ * plus a tiny noise transient reads as a real material, which is what
+ * makes interface sounds feel crafted rather than synthetic.
+ */
+interface Material {
+  /** [frequency ratio, relative gain, decay seconds] */
+  modes: readonly (readonly [number, number, number])[];
+  /** Level of the click at the start of the strike. */
+  transient: number;
+}
+
+const WOOD: Material = {
+  modes: [
+    [1, 1, 0.045],
+    [2.57, 0.45, 0.022],
+    [4.21, 0.2, 0.012],
+  ],
+  transient: 0.9,
+};
+const CERAMIC: Material = {
+  modes: [
+    [1, 1, 0.09],
+    [2.32, 0.4, 0.05],
+    [4.25, 0.18, 0.03],
+    [6.63, 0.08, 0.02],
+  ],
+  transient: 0.6,
+};
+const GLASS: Material = {
+  modes: [
+    [1, 1, 0.55],
+    [2.76, 0.42, 0.3],
+    [5.4, 0.2, 0.15],
+    [8.93, 0.08, 0.08],
+  ],
+  transient: 0.35,
+};
+const MARIMBA: Material = {
+  modes: [
+    [1, 1, 0.42],
+    [3.93, 0.3, 0.12],
+    [9.24, 0.08, 0.04],
+  ],
+  transient: 0.5,
+};
+const PURE: Material = {
+  modes: [
+    [1, 1, 0.32],
+    [2, 0.12, 0.12],
+  ],
+  transient: 0.15,
+};
+
 interface Pack {
-  wave: OscillatorType;
-  /** Lowpass cutoff for tones, Hz. */
-  bright: number;
-  /** Inharmonic bell partial (0–1). */
-  bell: number;
-  /** Chorus detune between two oscillators, cents. */
-  detune: number;
-  /** Decay multiplier for tones. */
-  decay: number;
-  /** Level of the noise transient on movement sounds. */
-  click: number;
-  /** Reverb send (0–1). */
-  reverb: number;
-  /** Transposition, semitones. */
-  octave: number;
+  /** Movement detents. */
+  tick: Material;
+  /** Rotations, locks, menu taps. */
+  tap: Material;
+  /** Line clears and cues. */
+  chime: Material;
+  /** Transposition of the chimes, semitones. */
+  register: number;
+  /** Reverb send for chimes. */
+  room: number;
 }
 
 const PACKS: Record<SoundPackId, Pack> = {
-  soft: { wave: 'triangle', bright: 5200, bell: 0, detune: 0, decay: 1, click: 0.7, reverb: 0.22, octave: 0 },
-  glass: { wave: 'sine', bright: 14000, bell: 0.45, detune: 0, decay: 1.7, click: 0.45, reverb: 0.42, octave: 12 },
-  click: { wave: 'sine', bright: 9000, bell: 0, detune: 0, decay: 0.55, click: 1, reverb: 0.06, octave: 0 },
-  neon: { wave: 'sawtooth', bright: 2400, bell: 0, detune: 9, decay: 1.15, click: 0.55, reverb: 0.3, octave: 0 },
-  paper: { wave: 'triangle', bright: 2100, bell: 0, detune: 0, decay: 0.5, click: 0.9, reverb: 0.1, octave: -12 },
+  studio: { tick: WOOD, tap: CERAMIC, chime: GLASS, register: 0, room: 0.14 },
+  glass: { tick: CERAMIC, tap: CERAMIC, chime: GLASS, register: 12, room: 0.22 },
+  wood: { tick: WOOD, tap: WOOD, chime: MARIMBA, register: -12, room: 0.1 },
+  pure: { tick: PURE, tap: PURE, chime: PURE, register: 0, room: 0.08 },
 };
 
 export const SOUND_PACK_NAMES: Record<SoundPackId, string> = {
-  soft: 'Soft',
+  studio: 'Studio',
   glass: 'Glass',
-  click: 'Click',
-  neon: 'Neon',
-  paper: 'Paper',
+  wood: 'Wood',
+  pure: 'Pure',
 };
 
-/** Major pentatonic: every combo step lands on a note that sounds good with the last. */
+/** Major pentatonic: each combo step lands on a note that agrees with the last. */
 const PENTATONIC = [0, 2, 4, 7, 9];
-const ROOT = 72; // C5
-
+const ROOT = 76; // E5
 const midi = (m: number) => 440 * 2 ** ((m - 69) / 12);
+/** A little pitch scatter so repeated ticks don't sound machine-identical. */
+const humanize = (f: number) => f * (1 + (Math.random() - 0.5) * 0.03);
 
-interface ToneOptions {
+interface StrikeOptions {
   gain: number;
-  decay: number;
-  attack?: number;
-  /** Glide target, Hz. */
-  to?: number;
-  wave?: OscillatorType;
-  pan?: number;
-  /** Overrides the pack's reverb send. */
+  /** Decay multiplier. */
+  length?: number;
   send?: number;
-  cutoff?: number;
-}
-
-interface NoiseOptions {
-  gain: number;
-  decay: number;
-  freq: number;
-  to?: number;
-  q?: number;
-  type?: BiquadFilterType;
+  pan?: number;
 }
 
 class Sfx {
   private ctx: AudioContext | null = null;
   private out!: GainNode;
-  private reverb!: GainNode;
+  private room!: GainNode;
   private noiseBuffer!: AudioBuffer;
-  private lastMove = 0;
+  private lastTick = 0;
   private hardDropped = false;
+  private pack: Pack = PACKS.studio;
 
   /** Audio can only start after a user gesture; call from input handlers. */
   unlock(): void {
@@ -112,91 +147,80 @@ class Sfx {
 
   move(): void {
     const now = performance.now();
-    if (now - this.lastMove < 22) return;
-    this.lastMove = now;
-    this.play((t, p) => {
-      this.noise(t, { gain: 0.045 * p.click, decay: 0.014, freq: 3600, q: 1.4, type: 'bandpass' });
-      this.tone(t, 2600, { gain: 0.012, decay: 0.018, wave: 'sine', send: 0 });
-    });
+    if (now - this.lastTick < 24) return;
+    this.lastTick = now;
+    this.play((t, p) => this.strike(t, p.tick, humanize(2300), { gain: 0.05, length: 0.7 }));
   }
 
   rotate(spin: boolean): void {
     this.play((t, p) => {
-      this.noise(t, { gain: 0.035 * p.click, decay: 0.016, freq: 2600, q: 1.2, type: 'bandpass' });
-      this.tone(t, 1500, { gain: 0.03, decay: 0.035, to: 1850, wave: 'sine', send: 0.05 });
-      if (spin) this.tone(t + 0.02, midi(ROOT + 24 + p.octave), { gain: 0.035, decay: 0.12, send: 0.4 });
+      this.strike(t, p.tap, humanize(1550), { gain: 0.05, length: 0.6 });
+      if (spin) this.strike(t + 0.015, p.chime, midi(ROOT + 19 + p.register), { gain: 0.022, length: 0.4, send: p.room });
     });
   }
 
   hold(): void {
     this.play((t, p) => {
-      this.noise(t, { gain: 0.05 * p.click, decay: 0.09, freq: 900, to: 3200, q: 2, type: 'bandpass' });
-      this.tone(t + 0.01, midi(ROOT + 7 + p.octave), { gain: 0.03, decay: 0.09 });
+      this.noise(t, 0.03, 0.05, 2400, 5200, 'bandpass');
+      this.strike(t + 0.02, p.tick, humanize(1300), { gain: 0.035 });
     });
   }
 
   hardDrop(distance: number): void {
-    const weight = 0.7 + Math.min(distance, 20) / 40;
-    this.play((t, p) => {
-      this.tone(t, 170, { gain: 0.24 * weight, decay: 0.1, to: 46, wave: 'sine', send: 0.05 });
-      this.noise(t, { gain: 0.08 * weight * p.click, decay: 0.045, freq: 1100, type: 'lowpass' });
+    const weight = 0.75 + Math.min(distance, 20) / 50;
+    this.play((t) => {
+      this.strike(t, WOOD, 150, { gain: 0.22 * weight, length: 2.2 });
+      this.strike(t, CERAMIC, 520, { gain: 0.03 * weight, length: 0.5 });
+      this.noise(t, 0.06 * weight, 0.03, 700, 300, 'lowpass');
     });
   }
 
   lock(): void {
-    this.play((t, p) => {
-      this.tone(t, 300, { gain: 0.06, decay: 0.05, to: 170, wave: 'sine', send: 0 });
-      this.noise(t, { gain: 0.03 * p.click, decay: 0.02, freq: 1800, type: 'lowpass' });
-    });
+    this.play((t, p) => this.strike(t, p.tap, humanize(430), { gain: 0.06, length: 0.7 }));
   }
 
   clear(info: ClearInfo): void {
     this.play((t, p) => {
       const step = Math.max(0, info.combo);
-      const base = ROOT + p.octave + PENTATONIC[step % 5] + 12 * Math.min(2, Math.floor(step / 5));
-      const g = 0.075;
-      const decay = 0.55;
-      if (info.perfectClear) {
-        [0, 4, 7, 12, 16, 19, 24].forEach((n, i) => this.tone(t + i * 0.055, midi(base + n), { gain: g, decay: 1.4 }));
-        return;
-      }
+      const base = ROOT + p.register + PENTATONIC[step % 5] + 12 * Math.min(1, Math.floor(step / 5));
+      const chime = (notes: number[], gap: number, gain: number, length = 1) =>
+        notes.forEach((n, i) => this.strike(t + i * gap, p.chime, midi(base + n), { gain, length, send: p.room, pan: (i / Math.max(1, notes.length - 1) - 0.5) * 0.3 }));
+
+      if (info.perfectClear) return chime([0, 4, 7, 11, 14, 19, 24], 0.045, 0.045, 1.6);
       if (info.spin !== 'none') {
-        const notes = info.spin === 'full' ? [0, 4, 7, 11, 14] : [0, 7, 12];
-        notes.forEach((n, i) => this.tone(t + i * 0.03, midi(base + n), { gain: g * (info.lines ? 1 : 0.6), decay: decay * 1.3 }));
-        this.noise(t, { gain: 0.03, decay: 0.3, freq: 6000, to: 9000, q: 4, type: 'bandpass' });
+        const notes = info.lines === 0 ? [0, 12] : info.spin === 'mini' ? [0, 7, 12] : [0, 7, 14, 19].slice(0, info.lines + 1);
+        chime(notes, 0.03, info.lines ? 0.05 : 0.03, 1.2);
+        this.noise(t, 0.012, 0.25, 7000, 11000, 'bandpass');
       } else {
-        const chords = [[0], [0], [0, 7], [0, 4, 7], [0, 4, 7, 12]];
-        for (const n of chords[Math.min(info.lines, 4)]) this.tone(t, midi(base + n), { gain: g, decay: info.lines >= 4 ? decay * 1.6 : decay });
+        const notes = [[], [0], [0, 7], [0, 4, 7], [0, 4, 7, 12]][Math.min(info.lines, 4)];
+        chime(notes, 0.028, 0.055, info.lines >= 4 ? 1.4 : 1);
       }
-      if (info.lines > 0 && info.b2b >= 1) this.tone(t + 0.06, midi(base + 24), { gain: g * 0.5, decay: 0.7, send: 0.6 });
+      // Back-to-back adds weight underneath rather than more notes on top.
+      if (info.lines > 0 && info.b2b >= 1) this.strike(t, PURE, midi(base - 12), { gain: 0.035, length: 1.2 });
     });
   }
 
   levelUp(): void {
-    this.play((t, p) => {
-      [0, 7, 12].forEach((n, i) => this.tone(t + i * 0.07, midi(ROOT + 5 + n + p.octave), { gain: 0.06, decay: 0.4 }));
-    });
+    this.play((t, p) => [0, 7, 12].forEach((n, i) => this.strike(t + i * 0.06, p.chime, midi(ROOT + 5 + n + p.register), { gain: 0.04, send: p.room })));
   }
 
-  countdown(step: number): void {
-    this.play((t, p) => this.tone(t, midi(ROOT + 4 + p.octave), { gain: 0.06, decay: 0.12 * (step > 0 ? 1 : 2) }));
+  countdown(_step: number): void {
+    this.play((t, p) => this.strike(t, p.tap, midi(ROOT + 7), { gain: 0.06, length: 1.2 }));
   }
 
   go(): void {
     this.play((t, p) => {
-      this.tone(t, midi(ROOT + 16 + p.octave), { gain: 0.06, decay: 0.35 });
-      this.tone(t, midi(ROOT + 11 + p.octave), { gain: 0.04, decay: 0.35 });
+      this.strike(t, p.chime, midi(ROOT + 12 + p.register), { gain: 0.05, send: p.room });
+      this.strike(t + 0.03, p.chime, midi(ROOT + 19 + p.register), { gain: 0.035, send: p.room });
     });
   }
 
   end(kind: 'topout' | 'finished'): void {
     this.play((t, p) => {
       if (kind === 'finished') {
-        [0, 4, 7, 12, 16].forEach((n, i) => this.tone(t + i * 0.08, midi(ROOT + n + p.octave), { gain: 0.07, decay: 1.2 }));
+        [0, 4, 7, 12, 16].forEach((n, i) => this.strike(t + i * 0.07, p.chime, midi(ROOT + n + p.register), { gain: 0.05, length: 1.6, send: p.room }));
       } else {
-        [7, 3, 0, -5].forEach((n, i) =>
-          this.tone(t + i * 0.13, midi(ROOT - 5 + n + p.octave), { gain: 0.06, decay: 0.6, cutoff: 1400 }),
-        );
+        [7, 4, 0].forEach((n, i) => this.strike(t + i * 0.12, WOOD, midi(ROOT - 24 + n), { gain: 0.08, length: 3 }));
       }
     });
   }
@@ -204,23 +228,22 @@ class Sfx {
   // ── Menus ─────────────────────────────────────────────────────
 
   ui(kind: 'move' | 'select' | 'back'): void {
-    this.play((t) => {
-      if (kind === 'move') this.noise(t, { gain: 0.025, decay: 0.01, freq: 4200, q: 1.5, type: 'bandpass' });
-      else this.tone(t, kind === 'select' ? 1320 : 880, { gain: 0.035, decay: 0.06, wave: 'sine', send: 0.1 });
+    this.play((t, p) => {
+      if (kind === 'move') this.strike(t, p.tick, humanize(2600), { gain: 0.025, length: 0.6 });
+      else this.strike(t, p.tap, kind === 'select' ? 1760 : 1175, { gain: 0.04, length: 0.8 });
     });
   }
 
-  /** Plays a sample clear with a given pack, for the settings screen. */
+  /** A sample of a pack, for the settings screen. */
   preview(pack: SoundPackId): void {
-    this.play(
-      (t, p) => [0, 4, 7, 12].forEach((n, i) => this.tone(t + i * 0.06, midi(ROOT + n + p.octave), { gain: 0.07, decay: 0.6 })),
-      pack,
-    );
+    this.play((t, p) => {
+      this.strike(t, p.tick, 2300, { gain: 0.05, length: 0.7 });
+      this.strike(t + 0.08, p.tick, 2300, { gain: 0.05, length: 0.7 });
+      [0, 4, 7, 12].forEach((n, i) => this.strike(t + 0.22 + i * 0.028, p.chime, midi(ROOT + n + p.register), { gain: 0.05, length: 1.4, send: p.room }));
+    }, pack);
   }
 
   // ── Synthesis ─────────────────────────────────────────────────
-
-  private pack: Pack = PACKS.soft;
 
   private play(fn: (t: number, pack: Pack) => void, packId?: SoundPackId): void {
     const { audio, appearance } = getSettings();
@@ -230,52 +253,43 @@ class Sfx {
     if (!ctx || ctx.state !== 'running') return;
     this.out.gain.setTargetAtTime(audio.volume, ctx.currentTime, 0.01);
     const id = packId ?? (audio.pack === 'match' ? SKINS[appearance.skin].sound : audio.pack);
-    this.pack = PACKS[id];
+    this.pack = PACKS[id] ?? PACKS.studio;
     fn(ctx.currentTime + 0.002, this.pack);
   }
 
   private build(ctx: AudioContext): void {
-    const compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.value = -14;
-    compressor.ratio.value = 4;
-    compressor.attack.value = 0.002;
-    compressor.release.value = 0.12;
-    compressor.connect(ctx.destination);
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.ratio.value = 6;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.08;
+    limiter.connect(ctx.destination);
 
     this.out = ctx.createGain();
-    this.out.gain.value = 0.8;
-    this.out.connect(compressor);
+    this.out.gain.value = 0.7;
+    this.out.connect(limiter);
 
-    // Short airy room: decaying stereo noise.
-    const length = Math.floor(ctx.sampleRate * 1.8);
+    // A small, bright room: just enough air around the chimes.
+    const length = Math.floor(ctx.sampleRate * 0.7);
     const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
     for (let c = 0; c < 2; c++) {
       const data = impulse.getChannelData(c);
-      for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3.2;
+      for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 4;
     }
     const convolver = ctx.createConvolver();
     convolver.buffer = impulse;
-    const tone = ctx.createBiquadFilter();
-    tone.type = 'lowpass';
-    tone.frequency.value = 6500;
-    this.reverb = ctx.createGain();
-    this.reverb.connect(convolver).connect(tone).connect(this.out);
+    const damp = ctx.createBiquadFilter();
+    damp.type = 'lowpass';
+    damp.frequency.value = 7000;
+    this.room = ctx.createGain();
+    this.room.connect(convolver).connect(damp).connect(this.out);
 
     this.noiseBuffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const noise = this.noiseBuffer.getChannelData(0);
     for (let i = 0; i < noise.length; i++) noise[i] = Math.random() * 2 - 1;
   }
 
-  private envelope(t: number, gain: number, attack: number, decay: number): GainNode {
-    const ctx = this.ctx!;
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0.0001, t);
-    env.gain.exponentialRampToValueAtTime(gain, t + attack);
-    env.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
-    return env;
-  }
-
-  private route(node: AudioNode, send: number, pan = 0): void {
+  private output(node: AudioNode, send: number, pan: number): void {
     const ctx = this.ctx!;
     const panner = ctx.createStereoPanner();
     panner.pan.value = pan;
@@ -283,59 +297,52 @@ class Sfx {
     if (send > 0) {
       const wet = ctx.createGain();
       wet.gain.value = send;
-      node.connect(wet).connect(this.reverb);
+      node.connect(wet).connect(this.room);
     }
   }
 
-  private tone(t: number, freq: number, o: ToneOptions): void {
+  /** Strikes a material at `freq`. */
+  private strike(t: number, material: Material, freq: number, o: StrikeOptions): void {
     const ctx = this.ctx!;
-    const p = this.pack;
-    const attack = o.attack ?? 0.004;
-    const decay = o.decay * p.decay;
-    const env = this.envelope(t, o.gain, attack, decay);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = o.cutoff ?? p.bright;
-    filter.Q.value = p.wave === 'sawtooth' ? 4 : 0.7;
-    filter.connect(env);
-
-    const voices = p.detune && !o.wave ? [-p.detune, p.detune] : [0];
-    for (const cents of voices) {
+    const bus = ctx.createGain();
+    bus.gain.value = o.gain;
+    const length = o.length ?? 1;
+    for (const [ratio, gain, decay] of material.modes) {
+      const f = freq * ratio;
+      if (f > 18000) continue;
+      const d = decay * length;
       const osc = ctx.createOscillator();
-      osc.type = o.wave ?? p.wave;
-      osc.frequency.setValueAtTime(freq, t);
-      if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t + attack + decay * 0.8);
-      osc.detune.value = cents;
-      osc.connect(filter);
+      osc.frequency.value = f;
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(gain, t + 0.0015);
+      env.gain.setTargetAtTime(0, t + 0.0015, d / 4);
+      osc.connect(env).connect(bus);
       osc.start(t);
-      osc.stop(t + attack + decay + 0.05);
+      osc.stop(t + d * 1.5 + 0.02);
     }
-    if (p.bell > 0 && !o.wave) {
-      const bell = ctx.createOscillator();
-      bell.frequency.value = freq * 2.76;
-      const bellEnv = this.envelope(t, o.gain * p.bell, attack, decay * 0.45);
-      bell.connect(bellEnv);
-      this.route(bellEnv, o.send ?? p.reverb, o.pan);
-      bell.start(t);
-      bell.stop(t + decay);
-    }
-    this.route(env, o.send ?? p.reverb, o.pan ?? (Math.random() - 0.5) * 0.2);
+    if (material.transient > 0) this.noise(t, material.transient * 0.5, 0.004, Math.min(9000, freq * 3), 0, 'highpass', bus);
+    this.output(bus, o.send ?? 0, o.pan ?? 0);
   }
 
-  private noise(t: number, o: NoiseOptions): void {
+  /** Filtered noise burst; `to` sweeps the filter. Routed to `into` or the output. */
+  private noise(t: number, gain: number, decay: number, freq: number, to: number, type: BiquadFilterType, into?: AudioNode): void {
     const ctx = this.ctx!;
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer;
     const filter = ctx.createBiquadFilter();
-    filter.type = o.type ?? 'bandpass';
-    filter.frequency.setValueAtTime(o.freq, t);
-    if (o.to) filter.frequency.exponentialRampToValueAtTime(o.to, t + o.decay);
-    filter.Q.value = o.q ?? 1;
-    const env = this.envelope(t, Math.max(0.0002, o.gain), 0.001, o.decay);
+    filter.type = type;
+    filter.frequency.setValueAtTime(freq, t);
+    if (to > 0) filter.frequency.exponentialRampToValueAtTime(to, t + decay);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(gain, t + 0.001);
+    env.gain.setTargetAtTime(0, t + 0.001, decay / 3);
     src.connect(filter).connect(env);
-    this.route(env, this.pack.reverb * 0.3);
+    if (into) env.connect(into);
+    else this.output(env, 0, 0);
     src.start(t, Math.random() * 0.5);
-    src.stop(t + o.decay + 0.05);
+    src.stop(t + decay * 2 + 0.02);
   }
 }
 

@@ -2,7 +2,7 @@
 
 A minimal stacker built for practice. It plays like TETR.IO (SRS+, 180° spins, DAS/ARR/SDF) and adds 1v1 against bots.
 
-Modes: 40 Lines, Blitz, Marathon, Endless. Six skins (Default, Liquid Glass, Mono, Outline, Neon, Paper), effects with Off/Subtle/Full intensity, and synthesized sound with five packs — all in Settings. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design.
+Modes: 40 Lines, Blitz, Marathon, Endless. Seven skins (Studio, Clay, Gem, Neon, Bevel, NES, Mono), most drawing each piece as one continuous shape; effects with Off/Subtle/Full intensity; and modal-synthesis sound with four packs — all in Settings. The home screen shows a live, self-playing board in your skin. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design.
 
 ## Develop
 

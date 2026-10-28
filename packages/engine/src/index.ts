@@ -2,6 +2,7 @@ export * from './board';
 export * from './game';
 export * from './kicks';
 export * from './levels';
+export * from './links';
 export * from './modes';
 export * from './pieces';
 export * from './rng';

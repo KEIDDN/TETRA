@@ -2,16 +2,26 @@ export const BOARD_WIDTH = 10;
 export const BOARD_HEIGHT = 40;
 export const VISIBLE_HEIGHT = 20;
 
+const LINKS_TOWARD_UP = 1 | 16 | 128; // up, up-right, up-left
+const LINKS_TOWARD_DOWN = 4 | 32 | 64; // down, down-right, down-left
+
 /** Row-major cell grid, y-up. Out-of-bounds cells count as filled, except above the top. */
 export class Board {
   readonly cells = new Uint8Array(BOARD_WIDTH * BOARD_HEIGHT);
+  /** Per-cell connectivity masks (see links.ts); purely visual. */
+  readonly links = new Uint8Array(BOARD_WIDTH * BOARD_HEIGHT);
 
   get(x: number, y: number): number {
     return this.cells[y * BOARD_WIDTH + x];
   }
 
-  set(x: number, y: number, code: number): void {
+  set(x: number, y: number, code: number, links = 0): void {
     this.cells[y * BOARD_WIDTH + x] = code;
+    this.links[y * BOARD_WIDTH + x] = links;
+  }
+
+  getLinks(x: number, y: number): number {
+    return this.links[y * BOARD_WIDTH + x];
   }
 
   isFilled(x: number, y: number): boolean {
@@ -35,18 +45,29 @@ export class Board {
 
   /** Removes full rows and returns how many were cleared. */
   clearLines(): number {
+    const full = this.fullRows();
+    // Pieces split by a clear lose their links across the removed row.
+    for (const y of full) {
+      for (let x = 0; x < BOARD_WIDTH; x++) {
+        if (y > 0) this.links[(y - 1) * BOARD_WIDTH + x] &= ~LINKS_TOWARD_UP;
+        if (y < BOARD_HEIGHT - 1) this.links[(y + 1) * BOARD_WIDTH + x] &= ~LINKS_TOWARD_DOWN;
+      }
+    }
     let write = 0;
     let cleared = 0;
     for (let y = 0; y < BOARD_HEIGHT; y++) {
-      const row = this.cells.subarray(y * BOARD_WIDTH, (y + 1) * BOARD_WIDTH);
-      if (row.every((c) => c !== 0)) {
+      if (full[cleared] === y) {
         cleared++;
         continue;
       }
-      if (write !== y) this.cells.copyWithin(write * BOARD_WIDTH, y * BOARD_WIDTH, (y + 1) * BOARD_WIDTH);
+      if (write !== y) {
+        this.cells.copyWithin(write * BOARD_WIDTH, y * BOARD_WIDTH, (y + 1) * BOARD_WIDTH);
+        this.links.copyWithin(write * BOARD_WIDTH, y * BOARD_WIDTH, (y + 1) * BOARD_WIDTH);
+      }
       write++;
     }
     this.cells.fill(0, write * BOARD_WIDTH);
+    this.links.fill(0, write * BOARD_WIDTH);
     return cleared;
   }
 

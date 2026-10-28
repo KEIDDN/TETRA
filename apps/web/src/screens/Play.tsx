@@ -83,8 +83,8 @@ export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
         r,
         {
           reset: () => callouts()?.reset(),
-          event: (e) => {
-            if (e.type === 'clear') callouts()?.clear(e.info, skin.colors[e.info.piece]);
+          event: (e, game) => {
+            if (e.type === 'clear') callouts()?.clear(e.info, skin.palette(game.stats.level)[e.info.piece]);
             else if (e.type === 'levelUp') callouts()?.levelUp(e.level);
           },
           countdown: setCountdown,

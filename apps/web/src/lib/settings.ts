@@ -1,7 +1,7 @@
 import { DEFAULT_HANDLING, type Action, type Handling } from '@tetra/engine';
 import { useSyncExternalStore } from 'react';
 import type { FxLevel } from '../game/fx';
-import type { SkinId, SoundPackId } from '../game/skins';
+import { SKINS, type SkinId, type SoundPackId } from '../game/skins';
 import { load, save } from './storage';
 
 export type Command = Action | 'retry' | 'pause';
@@ -65,7 +65,7 @@ export interface Settings {
 export const MAX_BINDINGS = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
-  appearance: { skin: 'default', fx: 'subtle', smoothFall: false, ghost: true, grid: true, actionText: true },
+  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: true, actionText: true },
   audio: { enabled: true, volume: 0.7, pack: 'match' },
   keyboard: {
     handling: DEFAULT_HANDLING,
@@ -104,9 +104,14 @@ export const DEFAULT_SETTINGS: Settings = {
 function merge(saved: Partial<Settings> | null): Settings {
   const d = DEFAULT_SETTINGS;
   if (!saved) return d;
+  const appearance = { ...d.appearance, ...saved.appearance };
+  const audio = { ...d.audio, ...saved.audio };
+  // Skins and packs get renamed between versions; fall back instead of crashing.
+  if (!(appearance.skin in SKINS)) appearance.skin = d.appearance.skin;
+  if (audio.pack !== 'match' && !['studio', 'glass', 'wood', 'pure'].includes(audio.pack)) audio.pack = 'match';
   return {
-    appearance: { ...d.appearance, ...saved.appearance },
-    audio: { ...d.audio, ...saved.audio },
+    appearance,
+    audio,
     keyboard: {
       handling: { ...d.keyboard.handling, ...saved.keyboard?.handling },
       bindings: { ...d.keyboard.bindings, ...saved.keyboard?.bindings },

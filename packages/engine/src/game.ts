@@ -1,5 +1,6 @@
 import { Board } from './board';
 import { levelForLines, levelGravity, type LevelCurve } from './levels';
+import { linkMasks } from './links';
 import { getKicks } from './kicks';
 import { PIECE_CODE, SHAPES, spawnPosition, type Cell, type PieceType, type Rotation } from './pieces';
 import { Bag } from './rng';
@@ -514,7 +515,8 @@ export class Game {
     if (!p) return;
     const spin = this.detectSpin();
     const cells = pieceCells(p);
-    for (const [x, y] of cells) this.board.set(x, y, PIECE_CODE[p.type]);
+    const masks = linkMasks(cells);
+    cells.forEach(([x, y], i) => this.board.set(x, y, PIECE_CODE[p.type], masks[i]));
     this.piece = null;
     this.holdUsed = false;
     this.stats.pieces++;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Bag, Board, Game, getKicks, pieceCells, PIECE_TYPES, SHAPES, type Action, type GameOptions } from '../src';
+import { Bag, Board, Game, getKicks, LINK_DOWN, LINK_DOWN_LEFT, LINK_DOWN_RIGHT, LINK_LEFT, LINK_RIGHT, LINK_UP, LINK_UP_RIGHT, pieceCells, PIECE_TYPES, SHAPES, type Action, type GameOptions } from '../src';
 
 const instant = { das: 167, arr: 33, sdf: Infinity, dcd: 0 };
 
@@ -211,6 +211,30 @@ describe('spins', () => {
     const g = game({ pieces: ['T'] });
     tap(g, 'rotate180', 0);
     expect(g.piece!.rotation).toBe(2);
+  });
+});
+
+describe('links', () => {
+  it('connects the cells of a locked piece', () => {
+    const g = game({ pieces: ['T', 'O'] });
+    tap(g, 'hardDrop', 0);
+    // T at rest: row 0 = x 3..5, nub at (4,1)
+    expect(g.board.getLinks(3, 0)).toBe(LINK_RIGHT | LINK_UP_RIGHT);
+    expect(g.board.getLinks(4, 0)).toBe(LINK_LEFT | LINK_RIGHT | LINK_UP);
+    expect(g.board.getLinks(4, 1)).toBe(LINK_DOWN | LINK_DOWN_LEFT | LINK_DOWN_RIGHT);
+  });
+
+  it('cuts links across cleared rows', () => {
+    const board = Board.fromRows(['#########.']);
+    const g = game({ pieces: ['J', 'O'] }, board);
+    // J flat with its nub hanging into the gap: rotate 180 so the corner points down-right
+    tap(g, 'rotate180', 0);
+    g.input('moveRight', true, 0);
+    g.update(1000);
+    tap(g, 'hardDrop', 1000);
+    expect(g.stats.lines).toBe(1);
+    for (let x = 7; x < 10; x++) expect(g.board.getLinks(x, 0) & LINK_DOWN).toBe(0);
+    expect(g.board.getLinks(9, 0)).toBe(LINK_LEFT);
   });
 });
 

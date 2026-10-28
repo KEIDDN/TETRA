@@ -1,4 +1,4 @@
-import { FRAME_MS, type Handling } from '@tetra/engine';
+import { FRAME_MS, linkMasks, type Handling } from '@tetra/engine';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { SOUND_PACK_NAMES, sfx } from '../audio/sfx';
 import type { FxLevel } from '../game/fx';
@@ -32,8 +32,8 @@ function usePadKind() {
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
-export function Settings({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<Tab>('appearance');
+export function Settings({ onBack, initialTab = 'appearance' }: { onBack: () => void; initialTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [capture, setCapture] = useState<Capture>(null);
   useMenuNav(onBack, capture === null);
 
@@ -124,13 +124,14 @@ function AppearancePanel() {
   );
 }
 
-const PREVIEW: [number, number, BlockKind][] = [
-  [0, 1, 'J'], [0, 2, 'J'], [1, 2, 'J'], [2, 2, 'J'],
-  [3, 2, 'T'], [4, 2, 'T'], [5, 2, 'T'], [4, 1, 'T'],
-  [6, 1, 'O'], [7, 1, 'O'], [6, 2, 'O'], [7, 2, 'O'],
-  [8, 2, 'L'], [9, 2, 'L'], [9, 1, 'L'], [9, 0, 'L'],
-  [1, 0, 'S'], [2, 0, 'S'], [2, 1, 'Z'], [3, 1, 'Z'],
-  [5, 0, 'I'], [6, 0, 'I'], [7, 0, 'I'], [8, 0, 'I'],
+/** A small stack for the gallery, piece by piece (y-up, 3 rows). */
+const PREVIEW: { kind: BlockKind; cells: [number, number][] }[] = [
+  { kind: 'J', cells: [[0, 1], [0, 0], [1, 0], [2, 0]] },
+  { kind: 'T', cells: [[3, 0], [4, 0], [5, 0], [4, 1]] },
+  { kind: 'O', cells: [[6, 0], [7, 0], [6, 1], [7, 1]] },
+  { kind: 'L', cells: [[8, 0], [9, 0], [9, 1], [9, 2]] },
+  { kind: 'S', cells: [[1, 2], [2, 2], [2, 1], [3, 1]] },
+  { kind: 'I', cells: [[4, 2], [5, 2], [6, 2], [7, 2]] },
 ];
 
 function SkinCard({ skin, selected, onSelect }: { skin: Skin; selected: boolean; onSelect: () => void }) {
@@ -144,11 +145,11 @@ function SkinCard({ skin, selected, onSelect }: { skin: Skin; selected: boolean;
     canvas.height = 3 * px;
     const ctx = canvas.getContext('2d')!;
     ctx.globalCompositeOperation = skin.blend === 'add' ? 'lighter' : 'source-over';
-    const cache = new Map<BlockKind, HTMLCanvasElement>();
+    const palette = skin.palette(1);
     const bleed = Math.ceil(px * skin.bleed);
-    for (const [x, y, kind] of PREVIEW) {
-      if (!cache.has(kind)) cache.set(kind, paintBlock(skin, px, skin.colors[kind]));
-      ctx.drawImage(cache.get(kind)!, x * px - bleed, y * px - bleed);
+    for (const { kind, cells } of PREVIEW) {
+      const masks = linkMasks(cells);
+      cells.forEach(([x, y], i) => ctx.drawImage(paintBlock(skin, px, palette[kind], kind, masks[i]), x * px - bleed, (2 - y) * px - bleed));
     }
   }, [skin]);
 

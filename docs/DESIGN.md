@@ -158,16 +158,28 @@ Decisiones tomadas en la sesión de grilling (Q1–Q34).
 
 ## 7. Skins
 
-- Una skin es un paquete completo: piezas, ghost, partículas y sonidos. Se pueden mezclar partes de skins distintas.
-- El sistema es ampliable: se añadirán más skins.
-- Skins de lanzamiento:
-  1. **Default**: plana, colores de sistema de Apple (I cian, O amarillo, T morado, S verde, Z rojo, J azul, L naranja), esquinas suaves.
-  2. **Liquid Glass**: translúcida, refracción, brillo especular.
-  3. **Mono**: blanco/gris por luminosidad, brutalista.
-  4. **Outline**: solo contorno de 1,5px, estilo plano técnico.
-  5. **Neon**: bloques de luz con glow (homenaje a Tetris Effect).
-  6. **Paper**: pastel mate con textura sutil.
-- **Desbloqueo** ganando a bots (p. ej. Liquid Glass al ganar a Tempo, Neon al ganar a Zenith). **Flag de desarrollador** (`?dev=1` / por defecto en local) que desbloquea todo.
+- Una skin es un paquete completo: piezas, ghost, partículas y pack de sonido (el sonido se puede elegir aparte).
+- **Piezas conectadas**: el motor guarda qué celdas pertenecen a la misma pieza (máscara de 8 bits por celda, que se corta al limpiar líneas). Las skins conectadas dibujan cada pieza como una sola forma, con esquinas redondeadas solo en el exterior, cortes limpios en las esquinas cóncavas y luz en los bordes expuestos. El ghost es un contorno continuo.
+- Skins (v0.4):
+  1. **Studio** (por defecto): conectada, colores tipo Apple afinados, luz desde arriba.
+  2. **Clay**: conectada, pastel mate soft-touch con grano.
+  3. **Gem**: piedras facetadas con destello.
+  4. **Neon**: conectada, un tubo de luz por pieza (homenaje a Tetris Effect).
+  5. **Bevel**: biselado clásico de los stackers online.
+  6. **NES**: pixel art 8×8 con la paleta de la NES, que cambia con el nivel.
+  7. **Mono**: conectada, solo luminancia.
+- **Desbloqueo** ganando a bots (pendiente del hito 4); flag de desarrollador que desbloquea todo.
+
+## 7b. Sonido
+
+- Síntesis modal (sin samples): cada sonido son los modos de vibración de un material (madera, cerámica, cristal, marimba) más un transitorio corto.
+- Mover = tick de detent; rotar = toque cerámico; hard drop = "thock" grave con peso según la distancia; líneas = toques de cristal (1 a 4 notas según las líneas), con la nota base subiendo por la escala pentatónica con el combo; B2B añade cuerpo grave.
+- Packs: Studio, Glass, Wood, Pure.
+
+## 7c. Home
+
+- Hero al estilo offsuit: wordmark gigante, CTA en píldora "Play 40 Lines", y una **partida en directo** jugada por un autoplayer (heurística El-Tetris) con la skin elegida.
+- Tarjetas de modo con numerales como ilustración (40, 2:00, 150, ∞), sección Versus con la escalera de bots y footer con columnas.
 
 ## 8. Hitos
 

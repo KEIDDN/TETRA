@@ -4,6 +4,7 @@ import {
   GARBAGE_CODE,
   SHAPES,
   VISIBLE_HEIGHT,
+  linkMasks,
   pieceCells,
   type Game,
   type GameEvent,
@@ -12,7 +13,7 @@ import {
 import { Application, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js';
 import { easeOut, easeOutBack, Particles, SpritePool, spriteTween, Tweens, type FxLevel } from './fx';
 import type { Layout } from './layout';
-import { hexToNumber, paintBlock, SKINS, type BlockKind, type Skin } from './skins';
+import { hexToNumber, paintBlock, SKINS, type BlockKind, type Palette, type Skin } from './skins';
 
 export interface RenderOptions {
   skin: Skin;
@@ -60,11 +61,13 @@ export class GameRenderer {
   private particles: Particles;
   private tweens = new Tweens();
 
-  private textures = new Map<BlockKind, Texture>();
-  private ghostTextures = new Map<BlockKind, Texture>();
+  /** Block textures by kind, link mask and ghost flag, painted on first use. */
+  private textures = new Map<string, Texture>();
+  private palette: Palette;
+  private paletteLevel = 1;
   private shared: { white: Texture; dot: Texture; square: Texture; trail: Texture } | null = null;
   private layout: Layout | null = null;
-  private options: RenderOptions = { skin: SKINS.default, fx: 'subtle', smoothFall: false, ghost: true, grid: true };
+  private options: RenderOptions = { skin: SKINS.studio, fx: 'subtle', smoothFall: false, ghost: true, grid: true };
   private drawn: { game: Game | null; version: number } = { game: null, version: -1 };
   private last = 0;
 
@@ -76,11 +79,12 @@ export class GameRenderer {
   private dangerTarget = 0;
   private end: { kind: 'topout' | 'finished'; at: number } | null = null;
 
-  static async create(host: HTMLElement): Promise<GameRenderer> {
+  static async create(host: HTMLElement, { transparent = false } = {}): Promise<GameRenderer> {
     const app = new Application();
     await app.init({
       resizeTo: host,
       background: '#000000',
+      backgroundAlpha: transparent ? 0 : 1,
       antialias: true,
       autoDensity: true,
       resolution: Math.min(window.devicePixelRatio || 1, 3),
@@ -120,6 +124,7 @@ export class GameRenderer {
     this.holdPool = new SpritePool(this.holdC);
     this.nextPool = new SpritePool(this.nextC);
     this.particles = new Particles(particleLayer);
+    this.palette = this.options.skin.palette(1);
   }
 
   // ── Configuration ─────────────────────────────────────────────
@@ -127,6 +132,7 @@ export class GameRenderer {
   setOptions(options: RenderOptions): void {
     const skinChanged = options.skin !== this.options.skin;
     this.options = options;
+    this.palette = options.skin.palette(this.paletteLevel);
     if (this.layout) {
       if (skinChanged) this.buildTextures();
       this.drawChrome();
@@ -163,7 +169,7 @@ export class GameRenderer {
   }
 
   destroy(): void {
-    for (const t of [...this.textures.values(), ...this.ghostTextures.values()]) t.destroy(true);
+    for (const t of this.textures.values()) t.destroy(true);
     if (this.shared) for (const t of Object.values(this.shared)) t.destroy(true);
     this.app.destroy({ removeView: true }, { children: true });
   }
@@ -179,6 +185,14 @@ export class GameRenderer {
     this.tweens.update(now);
     this.particles.update(dt);
     this.updateDynamics(game, now, dt);
+
+    const skin = this.options.skin;
+    if (skin.leveled && game.stats.level !== this.paletteLevel) {
+      this.paletteLevel = game.stats.level;
+      this.palette = skin.palette(this.paletteLevel);
+      this.clearTextures();
+      this.drawn.version = -1;
+    }
 
     const ending = this.end !== null && now - this.end.at < 1200;
     if (this.drawn.game !== game || this.drawn.version !== game.version || ending) {
@@ -203,7 +217,7 @@ export class GameRenderer {
 
     switch (e.type) {
       case 'hardDrop': {
-        const color = hexToNumber(skin.colors[e.piece]);
+        const color = hexToNumber(this.palette[e.piece]);
         if (e.distance > 0) {
           const columns = new Map<number, number>();
           for (const [x, y] of e.cells) columns.set(x, Math.max(columns.get(x) ?? -1, y));
@@ -283,7 +297,7 @@ export class GameRenderer {
               w: cell,
               h: cell,
               count: Math.round(perCell + Math.random()),
-              color: hexToNumber(skin.colors[kind]),
+              color: hexToNumber(this.palette[kind]),
               texture: skin.particle === 'square' ? this.shared!.square : this.shared!.dot,
               blend: skin.fxBlend,
               speed: cell * (full ? 7 + power : 4),
@@ -349,7 +363,7 @@ export class GameRenderer {
         w: boardW,
         h: boardH * 0.5,
         count: this.options.fx === 'full' ? 14 : 6,
-        color: hexToNumber(skin.colors[kind]),
+        color: hexToNumber(this.palette[kind]),
         texture: skin.particle === 'square' ? this.shared!.square : this.shared!.dot,
         blend: skin.fxBlend,
         speed: cell * 6,
@@ -400,11 +414,25 @@ export class GameRenderer {
     return this.layout!.boardY + (VISIBLE_HEIGHT - 1 - y) * this.layout!.cell;
   }
 
-  private block(pool: SpritePool, kind: BlockKind, x: number, y: number, size: number, alpha = 1, tint = 0xffffff, ghost = false): void {
+  private texture(kind: BlockKind, mask: number, ghost: boolean): Texture {
     const skin = this.options.skin;
-    const texture = (ghost && this.ghostTextures.get(kind)) || this.textures.get(kind)!;
+    const m = skin.connected ? mask : 0;
+    const g = ghost && !!skin.paintGhost;
+    const key = `${kind}:${m}:${g ? 1 : 0}`;
+    let texture = this.textures.get(key);
+    if (!texture) {
+      const px = Math.round(this.layout!.cell * this.app.renderer.resolution);
+      texture = Texture.from(paintBlock(skin, px, this.palette[kind], kind, m, g));
+      this.textures.set(key, texture);
+    }
+    return texture;
+  }
+
+  private block(pool: SpritePool, kind: BlockKind, x: number, y: number, size: number, mask = 0, alpha = 1, tint = 0xffffff, ghost = false): void {
+    const skin = this.options.skin;
     const bleed = skin.bleed * size;
-    pool.draw(texture, x - bleed, y - bleed, size + bleed * 2, size + bleed * 2, alpha, tint, skin.blend);
+    const a = ghost && !skin.paintGhost ? alpha * skin.ghostAlpha : alpha;
+    pool.draw(this.texture(kind, mask, ghost), x - bleed, y - bleed, size + bleed * 2, size + bleed * 2, a, tint, skin.blend);
   }
 
   private drawBoard(game: Game, now: number): void {
@@ -435,7 +463,7 @@ export class GameRenderer {
         if (code === 0) continue;
         if (y < VISIBLE_HEIGHT) top = Math.max(top, y);
         const kind: BlockKind = code === GARBAGE_CODE ? 'garbage' : CODE_PIECE[code]!;
-        this.block(pool, kind, boardX + x * cell, this.rowY(y) + dy, cell, alpha, tint);
+        this.block(pool, kind, boardX + x * cell, this.rowY(y) + dy, cell, board.getLinks(x, y), alpha, tint);
       }
     }
     pool.end();
@@ -446,10 +474,9 @@ export class GameRenderer {
     if (piece && this.options.ghost) {
       const ghostY = game.ghostY();
       if (ghostY !== piece.y) {
-        const alpha = this.ghostTextures.has(piece.type) ? 1 : this.options.skin.ghostAlpha;
-        for (const [x, y] of pieceCells({ ...piece, y: ghostY })) {
-          this.block(this.ghostPool, piece.type, boardX + x * cell, this.rowY(y), cell, alpha, 0xffffff, true);
-        }
+        const cells = pieceCells({ ...piece, y: ghostY });
+        const masks = linkMasks(cells);
+        cells.forEach(([x, y], i) => this.block(this.ghostPool, piece.type, boardX + x * cell, this.rowY(y), cell, masks[i], 1, 0xffffff, true));
       }
     }
     this.ghostPool.end();
@@ -461,7 +488,9 @@ export class GameRenderer {
     const piece = game.piece;
     if (piece) {
       const offset = this.options.smoothFall ? game.fallProgress * cell : 0;
-      for (const [x, y] of pieceCells(piece)) this.block(this.piecePool, piece.type, boardX + x * cell, this.rowY(y) + offset, cell);
+      const cells = pieceCells(piece);
+      const masks = linkMasks(cells);
+      cells.forEach(([x, y], i) => this.block(this.piecePool, piece.type, boardX + x * cell, this.rowY(y) + offset, cell, masks[i]));
     }
     this.piecePool.end();
   }
@@ -491,20 +520,18 @@ export class GameRenderer {
     const maxY = Math.max(...ys);
     const left = cx - ((maxX - minX + 1) * size) / 2;
     const top = cy - ((maxY - minY + 1) * size) / 2;
-    for (const [x, y] of cells) this.block(pool, type, left + (x - minX) * size, top + (maxY - y) * size, size, alpha);
+    const masks = linkMasks(cells);
+    cells.forEach(([x, y], i) => this.block(pool, type, left + (x - minX) * size, top + (maxY - y) * size, size, masks[i], alpha));
+  }
+
+  private clearTextures(): void {
+    for (const t of this.textures.values()) t.destroy(true);
+    this.textures.clear();
   }
 
   private buildTextures(): void {
-    for (const t of [...this.textures.values(), ...this.ghostTextures.values()]) t.destroy(true);
-    this.textures.clear();
-    this.ghostTextures.clear();
-    const res = this.app.renderer.resolution;
-    const px = Math.round(this.layout!.cell * res);
-    const skin = this.options.skin;
-    for (const [kind, color] of Object.entries(skin.colors) as [BlockKind, string][]) {
-      this.textures.set(kind, Texture.from(paintBlock(skin, px, color)));
-      if (skin.drawGhost) this.ghostTextures.set(kind, Texture.from(paintBlock(skin, px, color, true)));
-    }
+    this.clearTextures();
+    const px = Math.round(this.layout!.cell * this.app.renderer.resolution);
 
     if (this.shared) for (const t of Object.values(this.shared)) t.destroy(true);
     this.shared = {
@@ -546,7 +573,7 @@ export class GameRenderer {
     this.bg.rect(boardX, boardY, boardW, boardH).fill({ color: 0xffffff, alpha: 0.018 });
 
     this.grid.clear();
-    if (this.options.grid) {
+    if (this.options.grid && this.options.skin.grid) {
       for (let i = 1; i < 10; i++) this.grid.moveTo(boardX + i * cell + 0.5, boardY).lineTo(boardX + i * cell + 0.5, boardY + boardH);
       for (let i = 1; i < 20; i++) this.grid.moveTo(boardX, boardY + i * cell + 0.5).lineTo(boardX + boardW, boardY + i * cell + 0.5);
       this.grid.stroke({ width: 1, color: 0xffffff, alpha: 0.035 });

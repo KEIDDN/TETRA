@@ -37,3 +37,30 @@ export function computeLayout(width: number, height: number): Layout {
     previewCell: Math.round(cell * 0.8),
   };
 }
+
+/** Board plus a three-piece queue, filling a showcase tile (no hold, no stats). */
+export function computeDemoLayout(width: number, height: number): Layout {
+  const pad = 28;
+  // 20 rows plus room above for the spawning piece and below for the captions.
+  const cell = Math.max(8, Math.floor(Math.min((height - pad * 2) / 22.5, (width - pad * 2) / 15)));
+  const boardW = cell * 10;
+  const boardH = cell * 20;
+  const previewCell = Math.round(cell * 0.7);
+  const sideW = cell * 3.6;
+  const total = boardW + cell * 0.8 + sideW;
+  const boardX = Math.round((width - total) / 2);
+  const boardY = Math.round((height - boardH) / 2 + cell * 0.6);
+  return {
+    width,
+    height,
+    cell,
+    boardX,
+    boardY,
+    boardW,
+    boardH,
+    sideW,
+    holdX: -10_000,
+    nextX: boardX + boardW + cell * 0.8,
+    previewCell,
+  };
+}

@@ -6,7 +6,8 @@ import { Home } from './screens/Home';
 import { Play } from './screens/Play';
 import { Settings } from './screens/Settings';
 
-type Screen = { name: 'home' } | { name: 'play'; mode: ModeId } | { name: 'settings' };
+type SettingsTab = 'appearance' | 'sound' | 'controls';
+type Screen = { name: 'home' } | { name: 'play'; mode: ModeId } | { name: 'settings'; tab?: SettingsTab };
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
@@ -31,10 +32,10 @@ export function App() {
       content = <Play key={screen.mode} mode={screen.mode} onExit={home} />;
       break;
     case 'settings':
-      content = <Settings onBack={home} />;
+      content = <Settings initialTab={screen.tab} onBack={home} />;
       break;
     default:
-      content = <Home onPlay={(mode) => setScreen({ name: 'play', mode })} onSettings={() => setScreen({ name: 'settings' })} />;
+      content = <Home onPlay={(mode) => setScreen({ name: 'play', mode })} onSettings={(tab) => setScreen({ name: 'settings', tab })} />;
   }
   // Opacity-only transition: a transform here would break the game's fixed layout.
   return (
