@@ -73,7 +73,7 @@ export function VersusSelect({
 
         <main className="grid flex-1 items-start gap-12 pb-16 lg:grid-cols-[minmax(0,1fr)_440px]">
           <div>
-            <h1 className="animate-rise text-[clamp(48px,7vw,96px)] leading-[0.95] font-[480] tracking-[-0.045em]">Choose an opponent</h1>
+            <h1 className="animate-rise text-[clamp(48px,7vw,96px)] leading-[1.04] font-[480] tracking-[-0.045em]">Choose an opponent</h1>
             <ol ref={listRef} className="mt-10">
               {BOTS.map((bot, i) => {
                 const unlocked = isUnlocked(bot);

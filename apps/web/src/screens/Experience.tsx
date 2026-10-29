@@ -28,9 +28,9 @@ const CHAPTERS: Chapter[] = [
   {
     id: 'sound',
     name: 'Sound',
-    teaser: 'The music is half the game.',
+    teaser: 'Where TETRA begins: the music.',
     title: ['You play', 'the music.'],
-    body: 'In TETRA the music is not in the background. It is half of the game. Every session plays its own set of hypnotic, minimal techno, and you play it as much as it plays you: stack high and the mix sinks under a filter, chain combos and it opens up, land a quad and the room throws it back at you. Put on headphones and you are standing in the middle of the club.',
+    body: 'TETRA began with one idea: falling blocks and music speak the same language. Tension, release, the drop. So the music is not in the background here, it is half of the game. Every session plays its own set of hypnotic, minimal techno, and the mix follows you: stack high and it sinks under a filter, chain combos and it opens up, land a quad and the room throws it back. Put on headphones and you are standing in the middle of the club.',
     facts: [
       ['Binaural', 'On headphones'],
       ['Club', 'Master chain'],
@@ -78,7 +78,7 @@ const CHAPTERS: Chapter[] = [
     name: 'Focus',
     teaser: 'Here to train? One switch.',
     title: ['Here to train?', 'Focus.'],
-    body: 'The Experience is how we play TETRA, and we think it is the best way to feel it. But some days you are here to train: to shave tenths off your 40 lines or drill openers against the bots. Focus strips everything back for that. No rooms, no club, no intro, instant restarts. Flip the switch and feel the difference.',
+    body: 'We built TETRA around sound: the music, the light and your game moving as one. That is the Experience, and it is how we want you to feel TETRA. Some days, though, you are here to train, shaving tenths off your 40 lines or drilling openers against the bots. For those days there is Focus: no rooms, no club, no intro, instant restarts. Flip it, hear what disappears, and flip it back when you want the music again.',
   },
   {
     id: 'design',
@@ -332,7 +332,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
                   <span>{c.name}</span>
                 </div>
               </Reveal>
-              <h2 className="mt-7 text-[clamp(52px,7.4vw,128px)] leading-[0.92] font-[560] tracking-[-0.05em]">
+              <h2 className="mt-7 text-[clamp(52px,7.4vw,128px)] leading-[1.06] font-[560] tracking-[-0.05em]">
                 {c.title.map((line, k) => (
                   <Line key={line} show={view === c.id} delay={90 + k * 90}>
                     {line}

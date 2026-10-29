@@ -265,16 +265,16 @@ export class GameRenderer {
     const p = t / this.introLen;
     // The room comes up across the whole intro; the well and previews in its first half.
     this.ambientLayer.alpha = easeOut(Math.min(1, p * 1.1));
-    const well = easeOut(Math.min(1, Math.max(0, (t - 120) / 520)));
+    const well = easeOut(Math.min(1, Math.max(0, (t - 700) / 600)));
     this.grid.alpha = this.frame.alpha = well;
-    this.holdC.alpha = this.nextC.alpha = easeOut(Math.min(1, Math.max(0, (t - 380) / 420)));
+    this.holdC.alpha = this.nextC.alpha = easeOut(Math.min(1, Math.max(0, (t - 1100) / 500)));
     const pool = this.introPool;
     pool.begin();
     const kinds: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
     for (let y = 0; y < VISIBLE_HEIGHT; y++) {
       for (let x = 0; x < BOARD_WIDTH; x++) {
         // Bottom-centre first, rising outward: ~650 ms to cross the board.
-        const start = y * 26 + Math.abs(x - 4.5) * 18;
+        const start = 650 + y * 30 + Math.abs(x - 4.5) * 20;
         const local = (t - start) / 360;
         if (local <= 0 || local >= 1) continue;
         const alpha = local < 0.25 ? local / 0.25 : 1 - (local - 0.25) / 0.75;

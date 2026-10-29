@@ -12,7 +12,7 @@ import type { GameRenderer } from './renderer';
 const COUNTDOWN_STEP_MS = 500;
 const COUNTDOWN_STEPS = 3;
 /** The board-assembly wave that opens a game started from a menu. */
-const INTRO_MS = 900;
+const INTRO_MS = 1900;
 
 export type Phase = 'countdown' | 'playing' | 'paused' | 'done';
 
@@ -42,6 +42,8 @@ export interface SessionView {
   reset(): void;
   event(event: GameEvent, game: Game): void;
   countdown(step: number | null): void;
+  /** The opening title card: on while the board assembles, off when the count begins. */
+  intro?(on: boolean): void;
   phase(phase: Phase): void;
   stats(stats: LiveStats): void;
   result(result: SessionResult | null): void;
@@ -170,10 +172,12 @@ export class GameSession {
     this.setPhase('countdown');
     this.renderer.intro(go);
     music.club?.sweep(go / 1000);
+    this.view.intro?.(true);
   }
 
   /** Any key during the wave cuts straight to the countdown. */
   private skipIntro(): void {
+    this.view.intro?.(false);
     this.renderer.skipIntro();
     music.club?.endSweep();
     this.beginCountdown(0);
@@ -224,6 +228,7 @@ export class GameSession {
       if (remaining > 0) {
         const step = Math.ceil(remaining / this.stepMs);
         if (step !== this.shownStep && step <= COUNTDOWN_STEPS) {
+          if (this.shownStep === -1) this.view.intro?.(false);
           this.shownStep = step;
           this.view.countdown(step);
           sfx.countdown(step);

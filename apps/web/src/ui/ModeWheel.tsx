@@ -119,12 +119,12 @@ export function ModeWheel<T extends string>({
   return (
     <div
       ref={box}
-      className="relative pl-[0.45em] text-[clamp(30px,min(5.2vw,6.6vh),80px)] [transform-style:preserve-3d]"
+      className="relative isolate pl-[0.45em] text-[clamp(30px,min(5.2vw,6.6vh),80px)]"
       style={{ height: 'min(5.4em, 44vh)', perspective: '1100px', perspectiveOrigin: '25% 50%' }}
     >
       <div
         ref={lens}
-        className="glass-lens pointer-events-none absolute top-1/2 left-0 h-[1.22em] -translate-y-1/2 rounded-[0.36em] transition-[width] duration-300 ease-out"
+        className="glass-lens pointer-events-none absolute top-1/2 left-0 -z-10 h-[1.22em] -translate-y-1/2 rounded-[0.36em] transition-[width] duration-300 ease-out"
       />
       {items.map((id, i) => (
         <button

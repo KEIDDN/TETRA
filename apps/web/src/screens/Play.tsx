@@ -10,6 +10,7 @@ import { GameSession, type LiveStats, type Phase, type SessionResult } from '../
 import { formatRate, formatTime } from '../lib/format';
 import { useMenuNav } from '../lib/nav';
 import { NowPlaying } from '../ui/NowPlaying';
+import { music } from '../audio/music';
 import { LevelRing } from '../ui/LevelRing';
 import { Sparkline } from '../ui/Sparkline';
 import { levelFor } from '../lib/profile';
@@ -36,6 +37,7 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
   const [countdown, setCountdown] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>('countdown');
   const [result, setResult] = useState<SessionResult | null>(null);
+  const [introCard, setIntroCard] = useState(false);
   const sessionRef = useRef<GameSession | null>(null);
   const clockRef = useRef<HTMLDivElement>(null);
   const statRefs = useRef<Partial<Record<StatKey, HTMLSpanElement | null>>>({});
@@ -103,6 +105,7 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
             else if (e.type === 'levelUp') callouts()?.levelUp(e.level);
           },
           countdown: setCountdown,
+          intro: setIntroCard,
           phase: setPhase,
           stats: showStats,
           result: setResult,
@@ -228,7 +231,62 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
         </Overlay>
       )}
 
+      <IntroCard title={config.def.name} on={introCard} />
       {result && <Result result={result} onRetry={retry} onExit={onExit} />}
+    </div>
+  );
+}
+
+/**
+ * The opening of a game: the mode's name and the set about to drop, centred
+ * over the board as it assembles, breathing with the kick.
+ */
+function IntroCard({ title, on }: { title: string; on: boolean }) {
+  const [shown, setShown] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (on) {
+      setShown(true);
+      setLeaving(false);
+      return;
+    }
+    if (!shown) return;
+    setLeaving(true);
+    const t = setTimeout(() => setShown(false), 420);
+    return () => clearTimeout(t);
+    // Only on/off edges matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on]);
+  useEffect(() => {
+    if (!shown) return;
+    let raf = 0;
+    const tick = () => {
+      ref.current?.style.setProperty('--kick', music.analyse().kick.toFixed(3));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [shown]);
+  if (!shown) return null;
+  const track = music.current;
+  return (
+    <div className={`intro-card pointer-events-none absolute inset-0 z-10 grid place-items-center ${leaving ? 'intro-card-out' : ''}`}>
+      <div ref={ref} className="intro-card-body text-center">
+        <div className="intro-kicker label">Now entering</div>
+        <div className="intro-title mt-3 text-[clamp(56px,8vw,128px)] leading-[1.02] font-[560] tracking-[-0.05em]">{title}</div>
+        {track && (
+          <div className="intro-track glass-panel mt-8 inline-flex items-center gap-3 rounded-full px-5 py-2.5">
+            <span className="now-playing-bars" aria-hidden>
+              <i />
+              <i />
+              <i />
+            </span>
+            <span className="text-[14px] font-medium tracking-[-0.01em]">{track.title}</span>
+            <span className="text-[13px] text-faint">{track.artist}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

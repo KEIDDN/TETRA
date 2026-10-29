@@ -757,3 +757,39 @@ body {
     display: none;
   }
 }
+
+/* ── Game intro card: the mode's name and the set, landing before the count. */
+.intro-card {
+  background: radial-gradient(60% 45% at 50% 50%, rgb(0 0 0 / 0.72), transparent 75%);
+  animation: fade 0.5s ease-out both;
+}
+.intro-card-out {
+  animation: intro-out 0.42s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+.intro-card-body {
+  transform: scale(calc(1 + var(--kick, 0) * 0.03));
+}
+.intro-kicker {
+  animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+.intro-title {
+  animation: intro-title 0.95s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+}
+.intro-track {
+  animation: rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+}
+@keyframes intro-title {
+  from {
+    opacity: 0;
+    letter-spacing: 0.06em;
+    filter: blur(10px);
+    transform: translateY(14px);
+  }
+}
+@keyframes intro-out {
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+    filter: blur(6px);
+  }
+}

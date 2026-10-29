@@ -71,7 +71,7 @@ export function Bracket({ onBack, onBout }: { onBack: () => void; onBout: (r: nu
         <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div>
             <div className="label">{status(t, !!mine)}</div>
-            <h1 className="mt-3 text-[clamp(44px,6vw,84px)] leading-[0.95] font-[480] tracking-[-0.045em]">
+            <h1 className="mt-3 text-[clamp(44px,6vw,84px)] leading-[1.04] font-[480] tracking-[-0.045em]">
               {winner ? (winner.bot === null ? 'Champion.' : `${winner.name} takes it.`) : t.name}
             </h1>
             {t.place !== null && t.place > 0 && (

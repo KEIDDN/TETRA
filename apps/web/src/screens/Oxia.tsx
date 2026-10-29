@@ -58,7 +58,7 @@ export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperienc
         <Rise show={shown} delay={0}>
           <span className="label">Why TETRA</span>
         </Rise>
-        <h1 className="mt-6 max-w-[900px] text-[clamp(48px,6.6vw,112px)] leading-[0.94] font-[560] tracking-[-0.05em]">
+        <h1 className="mt-6 max-w-[900px] text-[clamp(48px,6.6vw,112px)] leading-[1.06] font-[560] tracking-[-0.05em]">
           <Rise show={shown} delay={80}>
             We wanted to
           </Rise>
@@ -70,15 +70,14 @@ export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperienc
         <div className="mt-12 grid max-w-[880px] gap-x-12 gap-y-6 text-[clamp(16px,1.2vw,18px)] leading-relaxed text-white/65 md:grid-cols-2">
           <Rise show={shown} delay={300}>
             <p>
-              The falling-block game has been played for forty years. Somewhere along the way it turned into a spreadsheet: pieces per second,
-              finesse, frames. We love that side of it. But we also remember nights when the music and the stack moved as one, and nothing else
-              existed.
+              The falling-block game has been played for forty years, and it still deserves better. Most places to play it today feel rough around the edges:
+              cluttered, noisy, unconsidered. We wanted a version designed with the care of a premium product, where every pixel and every sound is deliberate.
             </p>
           </Rise>
           <Rise show={shown} delay={380}>
             <p>
-              TETRA is our answer: a precise, competitive game that is also a room you walk into. Sound, light and play, designed as one thing. That
-              is the Experience, and it is how we play. When you are here to train, Focus is one switch away.
+              And we wanted music at its heart. We remember nights when the stack and the track moved as one and nothing else existed. TETRA is built around
+              that feeling: sound, light and play designed as one thing. That is the Experience. When you are here to train, Focus is one switch away.
             </p>
           </Rise>
         </div>

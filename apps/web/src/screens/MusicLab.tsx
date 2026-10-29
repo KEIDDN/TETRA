@@ -60,7 +60,7 @@ export function MusicLab({ onBack, onTry }: { onBack: () => void; onTry: (skin: 
 
         <div className="grid items-end gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div>
-            <h1 className="text-[clamp(44px,6vw,84px)] leading-[0.95] font-[480] tracking-[-0.045em]">Music lab</h1>
+            <h1 className="text-[clamp(44px,6vw,84px)] leading-[1.04] font-[480] tracking-[-0.045em]">Music lab</h1>
             <p className="mt-4 max-w-[620px] text-[16px] leading-relaxed text-muted">
               {TRACKS.length} tracks with checked licenses. Play one, try it in a game with any skin, and assign it to the menu or a skin. When you are
               done, export and send me the result.

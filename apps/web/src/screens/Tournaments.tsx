@@ -56,7 +56,7 @@ export function Tournaments({ onBack, onBracket, onCustom }: { onBack: () => voi
         </header>
 
         <main className="pb-16">
-          <h1 className="animate-rise text-[clamp(48px,7vw,96px)] leading-[0.95] font-[480] tracking-[-0.045em]">Eight enter.</h1>
+          <h1 className="animate-rise text-[clamp(48px,7vw,96px)] leading-[1.04] font-[480] tracking-[-0.045em]">Eight enter.</h1>
           <p className="animate-rise mt-4 max-w-[560px] text-[17px] leading-relaxed text-muted" style={{ animationDelay: '40ms' }}>
             Single elimination against seven bots. Quarterfinals first to two, semifinals first to three, the final first to four.
           </p>

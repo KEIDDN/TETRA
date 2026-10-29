@@ -24,16 +24,29 @@ interface Piece {
   glow: number;
   /** Each cell's offset within the piece, easing between its own shape and a square. */
   offsets: THREE.Vector2[];
+  /** Where its current move started, and when (scene clock, s). */
+  from: THREE.Vector3;
+  fromQuat: THREE.Quaternion;
+  fromScale: number;
+  fromOffsets: THREE.Vector2[];
+  start: number;
 }
 
 interface Pose {
   pos: THREE.Vector3;
-  rot: THREE.Euler;
+  quat: THREE.Quaternion;
   scale: number;
   glow: number;
   /** Draw the piece as a 2×2 block (for the mark), not its own shape. */
   square?: boolean;
 }
+
+/** How long one piece takes to travel between formations, s. */
+const MOVE = 1.15;
+/** Depth between layers: neighbours in a formation sit on different layers, so they can never touch. */
+const LAYER = 1.15;
+
+const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 
 const SQUARE: [number, number][] = [
   [-0.5, 0.5],
@@ -87,10 +100,22 @@ export class ExperienceScene {
   private fill: THREE.DirectionalLight;
   private pieces: Piece[] = [];
   private dummy = new THREE.Object3D();
-  private target = new THREE.Quaternion();
   private color = new THREE.Color();
   private scratchPos = new THREE.Vector3();
-  private scratchRot = new THREE.Euler();
+  private scratchQuat = new THREE.Quaternion();
+  private scratchGroup = new THREE.Quaternion();
+  private scratchLocal = new THREE.Vector3();
+  private scratchEuler = new THREE.Euler();
+  private zAxis = new THREE.Vector3(0, 0, 1);
+  private yAxis = new THREE.Vector3(0, 1, 0);
+  /** Real seconds since the stage opened (transitions never slow down). */
+  private clock = 0;
+  /** The formation the pieces were last sent to. */
+  private shown = '';
+  /** The T's four cells as solid blocks; the pieces merge into them. */
+  private markCells: THREE.Mesh[] = [];
+  private markLevel = 0;
+  private arrivedAt = 0;
   private time = 0;
   private raf = 0;
   private last = performance.now();
@@ -131,6 +156,11 @@ export class ExperienceScene {
         scale: 1,
         glow: 0,
         offsets: SHAPES[TYPES[i % TYPES.length]][0].map(([x, y]) => new THREE.Vector2(x - 1, -y + 1)),
+        from: new THREE.Vector3(),
+        fromQuat: new THREE.Quaternion(),
+        fromScale: 1,
+        fromOffsets: [0, 1, 2, 3].map(() => new THREE.Vector2()),
+        start: 0,
       });
     }
     // Generous bevels with enough segments that highlights stay smooth.
@@ -142,6 +172,14 @@ export class ExperienceScene {
       for (let i = 0; i < mesh.count; i++) mesh.setColorAt(i, this.color.setScalar(0));
       mesh.frustumCulled = false;
       this.scene.add(mesh);
+    }
+
+    const slab = new RoundedBoxGeometry(1, 1, 0.55, 5, 0.1);
+    for (let c = 0; c < MARK.length; c++) {
+      const cell = new THREE.Mesh(slab, new THREE.MeshStandardMaterial({ color: 0xd9d9de, roughness: 0.42, metalness: 0, emissive: 0xffffff, emissiveIntensity: 0 }));
+      cell.visible = false;
+      this.markCells.push(cell);
+      this.scene.add(cell);
     }
 
     // Multisampled target: the composer would otherwise lose antialiasing and the edges would stair-step.
@@ -165,6 +203,8 @@ export class ExperienceScene {
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.resize);
     this.graphite.geometry.dispose();
+    this.markCells[0]?.geometry.dispose();
+    for (const cell of this.markCells) (cell.material as THREE.Material).dispose();
     (this.graphite.material as THREE.Material).dispose();
     (this.porcelain.material as THREE.Material).dispose();
     this.composer.renderTarget1.dispose();
@@ -184,112 +224,124 @@ export class ExperienceScene {
     this.camera.updateProjectionMatrix();
   };
 
+  /** Geometry of the T: unit is one mino, a macro cell is 3×3 two-mino blocks. */
+  private markLayout() {
+    const page = this.formation === 'mark';
+    const side = this.camera.aspect >= 1.2 ? 7 : 0;
+    const unit = page ? 0.3 : 0.34;
+    const block = 2 * unit;
+    const macro = 3 * block + unit * 1.2;
+    const [cx, cy, cz] = page ? [side ? 10 : 0, -0.5, -12] : [0, 4.2, -8];
+    return { unit, block, macro, cx, cy, cz };
+  }
+
   /** Where piece i wants to be in the current formation, and how much light it gives. */
   private pose(i: number, p: Piece, t: number): Pose {
-    const r = rand(i * 97 + 1);
-    const a = r();
-    const b = r();
-    const d = r();
-    // Scratch objects: the pose is read at once, so nothing is allocated per frame.
     const pos = this.scratchPos.set(0, 0, 0);
-    const rot = this.scratchRot.set(0, 0, 0);
+    const quat = this.scratchQuat.identity();
+    let angle = 0;
+    let layer = i % 4;
     let scale = 1;
     let glow = 0;
     const kick = this.reactive ? (this.bands?.kick ?? 0) : 0;
     const low = this.reactive ? (this.bands?.low ?? 0) : 0;
     // Text sits left on wide screens, so compositions take the right.
     const side = this.camera.aspect >= 1.2 ? 7 : 0;
+    // A grid of pieces in their spawn orientation; neighbours alternate layers.
+    const grid = (cols: number, dx: number, dy: number, cx: number, cy: number, z: number) => {
+      const x = i % cols;
+      const y = Math.floor(i / cols);
+      const rows = Math.ceil(PIECES / cols);
+      pos.set(cx + (x - (cols - 1) / 2) * dx, cy + ((rows - 1) / 2 - y) * dy, z);
+      return { x, y };
+    };
     switch (this.formation) {
       case 'welcome': {
-        // A slow shell of pieces far behind the words, opening a clear centre.
-        const ang = a * Math.PI * 2 + t * 0.035 * (0.6 + b);
-        const rad = 11 + b * 8;
-        pos.set(Math.cos(ang) * rad * 1.35, Math.sin(ang) * rad * 0.75, -14 - d * 10);
-        rot.set(a * 6 + t * 0.08 * (a - 0.5), b * 6 + t * 0.06 * (b - 0.5), d * 6);
-        glow = p.porcelain ? 0.05 + kick * 0.25 : 0;
+        // A slow halo around the words, every piece riding the ring tangentially.
+        const ang = (i / PIECES) * Math.PI * 2 + t * 0.03;
+        pos.set(Math.cos(ang) * 14, Math.sin(ang) * 7.6, -13);
+        angle = ang + Math.PI / 2;
+        glow = p.porcelain ? 0.05 + kick * 0.3 : 0;
         break;
       }
       case 'index': {
-        // A loose, drifting column on the right, like the wheel's echo.
-        const y = ((i / PIECES) * 2 - 1) * 9;
-        pos.set(side + 2 + Math.sin(t * 0.3 + i) * 1.5 + (a - 0.5) * 6, y + Math.sin(t * 0.2 + d * 6) * 0.6, -6 - b * 8);
-        rot.set(t * 0.1 + a * 6, t * 0.07 + b * 6, d * 6);
+        // A conveyor on the right: three columns drifting up, endlessly.
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        const span = 12 * 2.7;
+        const y = ((row * 2.7 + t * 0.55) % span) - span / 2;
+        pos.set(side + 2 + (col - 1) * 3.7, y, -10);
         glow = p.porcelain ? 0.04 : 0;
         break;
       }
-      case 'sound': {
-        // A speaker cone: two rings facing you, pumping with the bass.
-        const inner = i % 4 === 0;
-        const k = inner ? i / 4 : i - Math.floor(i / 4) - 1;
-        const n = inner ? PIECES / 4 : PIECES - PIECES / 4;
-        const ang = (k / n) * Math.PI * 2 + t * (inner ? -0.18 : 0.1);
-        const rad = (inner ? 3.6 : 7) + low * 0.8 + kick * (inner ? 0.6 : 0.3);
-        pos.set(side + Math.cos(ang) * rad, Math.sin(ang) * rad, -10 - (inner ? 0 : 2) + kick * (inner ? 0.8 : 0.3));
-        rot.set(0, 0, ang + Math.PI / 2);
-        glow = inner ? 0.05 + kick * 0.7 : 0;
+      case 'sound':
+      case 'focus': {
+        if (this.formation === 'focus' && !this.reactive) {
+          // Focus: a quiet, ordered stack. Nothing moves, nothing glows.
+          grid(6, 3.0, 2.3, side, 0, -12);
+          break;
+        }
+        // A speaker cone: an inner ring that pumps with the kick, an outer one with the bass.
+        const inner = i < 8;
+        const k = inner ? i : i - 8;
+        const n = inner ? 8 : PIECES - 8;
+        const spin = this.formation === 'focus' ? 0.18 : 0.1;
+        const ang = (k / n) * Math.PI * 2 + t * (inner ? -spin * 1.6 : spin);
+        const rad = (inner ? 4.3 : 8.4) + low * 0.7 + kick * (inner ? 0.55 : 0.25);
+        layer = inner ? k % 2 : 2 + (k % 2) + ((k >> 1) % 2) * 2;
+        pos.set(side + Math.cos(ang) * rad, Math.sin(ang) * rad, -10);
+        angle = ang + Math.PI / 2;
+        glow = inner ? 0.05 + kick * 0.8 : p.porcelain ? 0.05 + kick * 0.2 : 0;
         break;
       }
       case 'rooms': {
-        // An LED wall: pieces locked in a grid, light sweeping across on the beat.
-        const cols = 6;
-        const x = i % cols;
-        const y = Math.floor(i / cols);
-        pos.set(side + (x - (cols - 1) / 2) * 3.05, (y - 2.5) * 2.2, -11);
-        rot.set(0, 0, (i % 2) * Math.PI);
-        const sweep = this.reactive ? (this.beats + x) % cols : -1;
-        glow = sweep === 0 ? 1.1 + kick * 0.8 : sweep === 1 ? 0.25 : 0;
+        // An LED wall: light sweeps across the columns on the beat.
+        const { x } = grid(6, 3.0, 2.3, side, 0, -12);
+        const sweep = this.reactive ? (this.beats + x) % 6 : -1;
+        glow = sweep === 0 ? 0.5 + kick * 0.4 : sweep === 1 ? 0.12 : 0;
         break;
       }
       case 'play': {
-        // Pieces falling in columns, endlessly; each lands with a flash.
-        const col = (i % 6) - 2.5;
-        const speed = 1.2 + a * 0.6;
-        const fall = ((t * speed + b * 28) % 28) - 14;
-        pos.set(side + col * 2.6, -fall, -10 - d * 4);
-        rot.set(0, 0, Math.floor(b * 4) * (Math.PI / 2));
-        glow = fall > 9 && this.reactive ? 0.9 : 0;
+        // Rain: six columns, evenly spaced pieces falling at each column's own pace.
+        const col = i % 6;
+        const k = Math.floor(i / 6);
+        const span = 30;
+        const fall = ((t * (1.2 + col * 0.11) + k * (span / 6)) % span) - span / 2;
+        pos.set(side + (col - 2.5) * 3.1, -fall, -11);
+        layer = col % 4;
+        glow = this.reactive && fall > span / 2 - 3 ? 0.7 : 0;
         break;
       }
       case 'versus': {
-        // Two stacks face off; attacks fly across on the beat.
+        // Two stacks face each other, each turned toward the other as one rigid block.
         const sideOf = i % 2 === 0 ? -1 : 1;
         const k = Math.floor(i / 2);
         const col = k % 3;
         const row = Math.floor(k / 3);
-        const lean = sideOf * (0.35 + Math.sin(t * 0.4) * 0.05);
-        pos.set(side + sideOf * 4.2 + (col - 1) * 2.6 * 0.9, (row - 2.5) * 2.1, -11);
-        rot.set(0, lean, 0);
+        layer = (col + row) % 4;
+        this.scratchLocal.set((col - 1) * 3.1, (2.5 - row) * 2.2, -layer * LAYER);
+        this.scratchGroup.setFromAxisAngle(this.yAxis, -sideOf * 0.42);
+        this.scratchLocal.applyQuaternion(this.scratchGroup);
+        pos.set(side + sideOf * 5.4, 0, -12).add(this.scratchLocal);
+        quat.copy(this.scratchGroup);
         const turn = this.reactive ? this.beats % 2 : -1;
-        glow = (turn === 0 && sideOf < 0) || (turn === 1 && sideOf > 0) ? (row === 5 - (this.beats % 6) ? 1 + kick * 0.6 : 0.08) : 0;
-        break;
+        const attacker = (turn === 0 && sideOf < 0) || (turn === 1 && sideOf > 0);
+        glow = attacker && row === this.beats % 6 ? 0.5 + kick * 0.35 : 0;
+        return { pos, quat, scale, glow };
       }
       case 'design': {
-        // A precise, slowly turning lattice: every piece in its place.
+        // A precise lattice, turning slowly as one body: every piece in its place.
         const cols = 6;
         const x = i % cols;
         const y = Math.floor(i / cols);
-        pos.set(side + (x - (cols - 1) / 2) * 3.2, (y - 2.5) * 2.3, -12);
-        rot.set(0.25 + Math.sin(t * 0.2) * 0.1, -0.5 + Math.sin(t * 0.15) * 0.12, 0);
+        this.scratchLocal.set((x - 2.5) * 3.0, (2.5 - y) * 2.3, -layer * LAYER);
+        this.scratchEuler.set(0.28 + Math.sin(t * 0.2) * 0.08, -0.55 + Math.sin(t * 0.15) * 0.1, 0);
+        this.scratchGroup.setFromEuler(this.scratchEuler);
+        this.scratchLocal.applyQuaternion(this.scratchGroup);
+        pos.set(side, 0, -12).add(this.scratchLocal);
+        quat.copy(this.scratchGroup);
         glow = p.porcelain ? 0.06 + kick * 0.3 : 0;
-        break;
-      }
-      case 'focus': {
-        if (this.reactive) {
-          // Experience: the pieces orbit and breathe with the music.
-          const ang = (i / PIECES) * Math.PI * 2 + t * 0.25;
-          const rad = 5.5 + low * 1.5 + Math.sin(t * 0.7 + i) * 0.6;
-          pos.set(side + Math.cos(ang) * rad, Math.sin(ang * 2) * 3.2, -9 + Math.sin(ang) * rad * 0.6);
-          rot.set(ang + t * 0.3, ang * 0.5, t * 0.2 * (a - 0.5));
-          glow = p.porcelain ? 0.1 + kick * 0.7 : 0;
-        } else {
-          // Focus: a quiet, ordered stack. Nothing moves, nothing glows.
-          const cols = 6;
-          const x = i % cols;
-          const y = Math.floor(i / cols);
-          pos.set(side + (x - (cols - 1) / 2) * 3.05, (y - 2.5) * 2.2, -12);
-          rot.set(0, 0, (i % 2) * Math.PI);
-        }
-        break;
+        return { pos, quat, scale, glow };
       }
       default: {
         // The mark: the TETRA T built from minos. Every piece folds into a 2×2 block;
@@ -297,25 +349,20 @@ export class ExperienceScene {
         // to the right of them on the OXIA page.
         const cell = MARK[Math.floor(i / 9)];
         const k = i % 9;
-        const page = this.formation === 'mark';
-        const unit = page ? 0.36 : 0.34;
-        const block = 2 * unit;
-        const macro = 3 * block + unit * 1.2;
-        const [cx, cy, cz] = page ? [side ? 11.5 : 0, -0.5, -12] : [0, 4.2, -8];
+        const { unit, block, macro, cx, cy, cz } = this.markLayout();
         pos.set(cx + cell[0] * macro + ((k % 3) - 1) * block, cy + (cell[1] - 0.5) * macro + (Math.floor(k / 3) - 1) * block, cz);
-        rot.set(0, 0, 0);
         scale = unit;
         // Each of the T's four cells reads as one solid square of light: all its
         // minos glow together. The cells take the beat in turn, the bass breathes through all.
         const lit = this.reactive && (this.beats + Math.floor(i / 9)) % 4 === 0;
         // Graphite gets extra light so it matches porcelain: one even surface per cell.
         glow = (p.porcelain ? 0.04 : 0.3) + low * 0.12 + (lit ? 0.22 + kick * 0.45 : kick * 0.06);
-        return { pos, rot, scale, glow, square: true };
+        return { pos, quat, scale, glow, square: true };
       }
     }
-    // Pieces live on four depth layers, so neighbours can never cut through each other.
-    pos.z -= (i % 4) * 1.05;
-    return { pos, rot, scale, glow };
+    pos.z -= layer * LAYER;
+    quat.setFromAxisAngle(this.zAxis, angle);
+    return { pos, quat, scale, glow };
   }
 
   private frame = (now: number): void => {
@@ -328,29 +375,50 @@ export class ExperienceScene {
     }
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
-    // Time slows almost to a stop in Focus.
+    this.clock += dt;
+    // Formations keep moving slowly; in Focus time nearly stops.
     this.time += dt * (this.reactive ? 1 : 0.15);
     const t = this.time;
     if (this.bands?.beat && this.bands.beat > 0.9 && now - this.lastBeat > 200) {
       this.lastBeat = now;
       this.beats++;
     }
-    // Critically damped approach: a fixed fraction per second, never overshooting.
-    const follow = 1 - Math.exp(-dt * 3.2);
+
+    // A new formation: every piece starts its own move, in a staggered cascade.
+    const key = this.formation === 'focus' ? `focus-${this.reactive}` : this.formation;
+    if (key !== this.shown) {
+      this.shown = key;
+      this.pieces.forEach((p) => {
+        p.from.copy(p.pos);
+        p.fromQuat.copy(p.quat);
+        p.fromScale = p.scale;
+        p.offsets.forEach((o, k) => p.fromOffsets[k].copy(o));
+        p.start = this.clock + p.seed * 0.5;
+      });
+      this.arrivedAt = this.clock + 0.5 + MOVE;
+    }
+
+    // The T: once the pieces have landed in its cells, solid blocks rise through them and take over.
+    const marking = this.formation === 'mark' || this.formation === 'oxia';
+    const markTarget = marking && this.clock > this.arrivedAt - 0.15 ? 1 : 0;
+    this.markLevel += (markTarget - this.markLevel) * (1 - Math.exp(-dt * (markTarget ? 7 : 12)));
+
     const glowFollow = 1 - Math.exp(-dt * 14);
     let gi = 0;
     let pi = 0;
     this.pieces.forEach((p, i) => {
       const pose = this.pose(i, p, t);
-      p.pos.lerp(pose.pos, follow);
-      this.target.setFromEuler(pose.rot);
-      p.quat.slerp(this.target, follow);
-      p.scale += (pose.scale - p.scale) * follow;
-      p.glow += (pose.glow - p.glow) * glowFollow;
-      p.cells.forEach(([cx, cy], k) => {
-        const [sx, sy] = pose.square ? SQUARE[k] : [cx - 1, -cy + 1];
-        p.offsets[k].x += (sx - p.offsets[k].x) * follow;
-        p.offsets[k].y += (sy - p.offsets[k].y) * follow;
+      const e = Math.min(1, Math.max(0, (this.clock - p.start) / MOVE));
+      const k = easeInOut(e);
+      // On the way, pieces dip back into the room: movers pass behind the pieces at rest, never through them.
+      p.pos.copy(p.from).lerp(pose.pos, k);
+      p.pos.z -= Math.sin(Math.PI * e) * 7;
+      p.quat.copy(p.fromQuat).slerp(pose.quat, k);
+      p.scale = p.fromScale + (pose.scale - p.fromScale) * k;
+      p.glow += (pose.glow * (e < 1 ? e * e : 1) - p.glow) * glowFollow;
+      p.cells.forEach(([cx, cy], c) => {
+        const [sx, sy] = pose.square ? SQUARE[c] : [cx - 1, -cy + 1];
+        p.offsets[c].set(p.fromOffsets[c].x + (sx - p.fromOffsets[c].x) * k, p.fromOffsets[c].y + (sy - p.fromOffsets[c].y) * k);
       });
       const mesh = p.porcelain ? this.porcelain : this.graphite;
       this.color.setScalar(p.glow);
@@ -358,7 +426,7 @@ export class ExperienceScene {
         this.dummy.position.set(o.x, o.y, 0).applyQuaternion(p.quat).multiplyScalar(p.scale).add(p.pos);
         this.dummy.quaternion.copy(p.quat);
         // In the mark the minos close up into solid squares.
-        this.dummy.scale.setScalar(p.scale * (pose.square ? 1.1 : 1));
+        this.dummy.scale.setScalar(p.scale * (pose.square ? 1.1 * (1 - this.markLevel) : 1));
         this.dummy.updateMatrix();
         const index = p.porcelain ? pi++ : gi++;
         mesh.setMatrixAt(index, this.dummy.matrix);
@@ -370,11 +438,25 @@ export class ExperienceScene {
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
     const kick = this.reactive ? (this.bands?.kick ?? 0) : 0;
+    const low = this.reactive ? (this.bands?.low ?? 0) : 0;
+    const m = this.markLayout();
+    this.markCells.forEach((cell, c) => {
+      cell.visible = this.markLevel > 0.01;
+      if (!cell.visible) return;
+      const [mx, my] = MARK[c];
+      // Each cell takes the beat in turn; the bass breathes through the whole mark.
+      const lit = this.reactive && (this.beats + c) % 4 === 0;
+      const size = 3 * m.block * (0.92 + 0.08 * this.markLevel) * (1 + (lit ? kick * 0.035 : 0));
+      cell.position.set(m.cx + mx * m.macro, m.cy + (my - 0.5) * m.macro, m.cz);
+      cell.scale.set(size, size, m.unit * 1.6 * this.markLevel);
+      const material = cell.material as THREE.MeshStandardMaterial;
+      material.emissiveIntensity = 0.08 + low * 0.1 + (lit ? 0.16 + kick * 0.3 : 0);
+    });
     this.key.intensity = 2 + kick * 0.6;
-    this.bloom.strength = this.reactive ? 0.5 + kick * 0.3 : 0.25;
+    this.bloom.strength = this.reactive ? 0.45 + kick * 0.25 : 0.2;
 
     // The camera floats a little, never still, never far.
-    this.camera.position.set(Math.sin(t * 0.13) * 0.5, Math.cos(t * 0.11) * 0.35, 16);
+    this.camera.position.set(Math.sin(this.clock * 0.13) * 0.5, Math.cos(this.clock * 0.11) * 0.35, 16);
     this.camera.lookAt(0, 0, -6);
     this.composer.render(dt);
     this.raf = requestAnimationFrame(this.frame);
