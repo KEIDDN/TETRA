@@ -62,6 +62,12 @@ export class InputRouter {
     this.unsubscribePad();
   }
 
+  /** Touch gestures arrive here: they share the keyboard's handling. */
+  touch(command: Command, pressed: boolean, time: number): void {
+    if (pressed) this.press(`touch:${command}`, command, time, 'keyboard');
+    else this.release(`touch:${command}`, time);
+  }
+
   /** Game actions currently held, with when (and on which device) each was first pressed. */
   heldActions(): { action: Action; since: number; device: Device }[] {
     return [...this.since]

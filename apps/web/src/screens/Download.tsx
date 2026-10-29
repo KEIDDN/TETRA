@@ -59,7 +59,7 @@ export function Download({ onBack, onLegal }: { onBack: () => void; onLegal?: (d
             Put TETRA on your home screen.
           </h2>
           <p className="mt-6 max-w-[48ch] text-[clamp(16px,1.2vw,19px)] leading-relaxed text-white/55">
-            No store needed. It opens fullscreen like any app and keeps working offline. Pair a controller or a keyboard to play.
+            No store needed. It opens fullscreen like any app and keeps working offline. Play with touch: drag to move, tap to rotate, swipe down to drop, swipe up to hold. A controller works too.
           </p>
           <PhoneGuide initial={os === 'android' ? 'android' : 'ios'} />
         </div>

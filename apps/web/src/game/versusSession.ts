@@ -1,5 +1,6 @@
 import type { BotProfile } from '@tetra/bot';
 import { Match, type Action, type Game, type GameEvent } from '@tetra/engine';
+import { TouchControls } from './touch';
 import { dj } from '../audio/dj';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
@@ -131,6 +132,12 @@ export class VersusSession {
 
   resume(): void {
     if (this.phase === 'paused') this.beginCountdown(this.goGameTime);
+  }
+
+  /** Lets the player's board take touch: drag, tap and flick. */
+  attachTouch(el: HTMLElement, cell: () => number): () => void {
+    const touch = new TouchControls(el, (command, pressed, time) => this.router.touch(command, pressed, time), cell);
+    return () => touch.dispose();
   }
 
   dispose(): void {

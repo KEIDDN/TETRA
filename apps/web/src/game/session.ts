@@ -1,5 +1,6 @@
 import { Game, type Action, type GameEvent, type ModeId } from '@tetra/engine';
 import { dj } from '../audio/dj';
+import { TouchControls } from './touch';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
@@ -123,6 +124,12 @@ export class GameSession {
 
   resume(): void {
     if (this.phase === 'paused') this.beginCountdown(this.goGameTime);
+  }
+
+  /** Lets the board take touch: drag, tap and flick. */
+  attachTouch(el: HTMLElement, cell: () => number): () => void {
+    const touch = new TouchControls(el, (command, pressed, time) => this.router.touch(command, pressed, time), cell);
+    return () => touch.dispose();
   }
 
   dispose(): void {

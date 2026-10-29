@@ -67,6 +67,7 @@ export function VersusPlay({
 
   useEffect(() => {
     let disposed = false;
+    let detachTouch: (() => void) | undefined;
     const renderers: GameRenderer[] = [];
     const observers: ResizeObserver[] = [];
     const { appearance } = getSettings();
@@ -143,6 +144,7 @@ export function VersusPlay({
         () => exitRef.current(),
         { left, tournament: !!bout },
       );
+      if (!left && hosts[0].current) detachTouch = sessionRef.current.attachTouch(hosts[0].current, () => layoutRef.current[0]?.cell ?? 24);
     });
 
     // Each attack is a comet: it arcs from the sender's stack to the receiver's meter and lands with a ring.
@@ -211,6 +213,7 @@ export function VersusPlay({
 
     return () => {
       disposed = true;
+      detachTouch?.();
       observers.forEach((o) => o.disconnect());
       sessionRef.current?.dispose();
       sessionRef.current = null;

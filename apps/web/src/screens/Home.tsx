@@ -18,6 +18,7 @@ import { useAccount } from '../lib/account';
 import { Icon } from '../ui/Icon';
 import { Logo } from '../ui/Logo';
 import { Glyph } from '../ui/Glyph';
+import { touchDevice } from '../game/touch';
 import { openBugReport, useBugReportOpen } from '../lib/feedback';
 import { SkinPicker } from '../ui/SkinPicker';
 import { toast } from '../ui/toast';
@@ -84,6 +85,14 @@ export function Home({
   const firstRef = useRef<HTMLButtonElement>(null);
   // Picking a mode opens its setup: the wheel steps aside, the board and the rooms come in.
   const [setup, setSetup] = useState(false);
+  const narrow = useSyncExternalStore(
+    (l) => {
+      const q = matchMedia('(max-width: 1023px)');
+      q.addEventListener('change', l);
+      return () => q.removeEventListener('change', l);
+    },
+    () => matchMedia('(max-width: 1023px)').matches,
+  );
   const boardRef = useRef<HTMLDivElement>(null);
   const skin = SKINS[appearance.skin];
 
@@ -126,6 +135,8 @@ export function Home({
     if (id === 'multiplayer') return toast('Multiplayer is coming soon');
     // In the setup only Play (or Enter) starts: a stray click on the wheel never does.
     if (setup) return pointer ? undefined : start(id);
+    // On a phone or a narrow window there's no room beside the wheel: go straight in.
+    if (narrow) return start(id);
     setSetup(true);
     sfx.ui('select');
   };
@@ -145,8 +156,8 @@ export function Home({
 
       <div className="relative mx-auto flex min-h-full w-full max-w-[1320px] flex-col px-6 sm:px-10">
         <header className="flex h-[min(96px,12vh)] shrink-0 items-center justify-between">
-          <Logo large className="animate-rise" />
-          <div className="flex items-center gap-5">
+          <Logo large className="animate-rise max-sm:[&>span]:text-[20px]" />
+          <div className="flex items-center gap-2.5 sm:gap-5">
             <button
               data-nav
               onClick={onOxia}
@@ -166,7 +177,7 @@ export function Home({
               Experience
             </button>
             {account.mode === 'guest' && (
-              <button data-nav onClick={onSignIn} className={`glass rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`} title="Guests don't keep progress">
+              <button data-nav onClick={onSignIn} className={`glass rounded-full px-4 py-2 text-[13px] font-medium whitespace-nowrap ${focusRing}`} title="Guests don't keep progress">
                 Sign in
               </button>
             )}
@@ -188,19 +199,21 @@ export function Home({
               <button
                 data-nav
                 onClick={onDownload}
-                className={`glass-light flex items-center gap-2 rounded-full px-5 py-2 text-[14px] font-semibold ${focusRing}`}
+                className={`glass-light flex items-center gap-2 rounded-full px-3 py-2 text-[14px] font-semibold whitespace-nowrap sm:px-5 ${focusRing}`}
+                aria-label="Get the app"
               >
                 <Icon name="download" size={12} />
-                Get the app
+                <span className="hidden sm:inline">Get the app</span>
               </button>
             )}
             <button
               data-nav
               onClick={() => onSettings()}
-              className={`glass flex items-center gap-2 rounded-full px-5 py-2 text-[14px] font-medium ${focusRing}`}
+              className={`glass flex items-center gap-2 rounded-full px-3 py-2 text-[14px] font-medium sm:px-5 ${focusRing}`}
+              aria-label="Settings"
             >
               <Icon name="settings" size={12} />
-              Settings
+              <span className="hidden sm:inline">Settings</span>
             </button>
           </div>
         </header>
@@ -250,9 +263,9 @@ export function Home({
                     onClick={() => activate(selected)}
                     className={`glass-light group flex h-12 items-center gap-3 rounded-full pr-2.5 pl-6 text-[16px] font-semibold ${focusRing}`}
                   >
-                    Choose
+                    {narrow ? 'Play' : 'Choose'}
                     <span className="grid size-8 place-items-center rounded-full bg-black/10 text-black/60">
-                      <Glyph k="confirm" />
+                      {touchDevice ? <Icon name="play" size={10} /> : <Glyph k="confirm" />}
                     </span>
                   </button>
                 )}
@@ -404,7 +417,7 @@ function PlayButton({ onClick }: { onClick: () => void }) {
     >
       Play
       <span className="grid size-7 place-items-center rounded-full bg-black/10">
-        <Glyph k="confirm" />
+        {touchDevice ? <Icon name="play" size={10} /> : <Glyph k="confirm" />}
       </span>
     </button>
   );

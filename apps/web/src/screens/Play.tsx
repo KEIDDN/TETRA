@@ -1,6 +1,7 @@
 import type { ModeId } from '@tetra/engine';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { computeLayout, type Layout } from '../game/layout';
+import { touchDevice } from '../game/touch';
 import { MODE_CONFIGS, type StatKey } from '../game/modes';
 import { GameRenderer } from '../game/renderer';
 import { resolveGrid, SKINS } from '../game/skins';
@@ -34,6 +35,7 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
   const config = MODE_CONFIGS[mode];
   const lineGoal = config.def.rules.lineGoal ?? null;
   const hostRef = useRef<HTMLDivElement>(null);
+  const cellRef = useRef(24);
   const [layout, setLayout] = useState<Layout | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>('countdown');
@@ -52,6 +54,7 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
   useEffect(() => {
     const host = hostRef.current!;
     let disposed = false;
+    let detachTouch: (() => void) | undefined;
     let renderer: GameRenderer | null = null;
     let observer: ResizeObserver | null = null;
 
@@ -83,6 +86,7 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
       });
       const relayout = () => {
         const next = computeLayout(host.clientWidth, host.clientHeight);
+        cellRef.current = next.cell;
         r.setLayout(next);
         setLayout(next);
       };
@@ -114,10 +118,12 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
         () => exitRef.current(),
         intro,
       );
+      detachTouch = sessionRef.current.attachTouch(host, () => cellRef.current);
     });
 
     return () => {
       disposed = true;
+      detachTouch?.();
       observer?.disconnect();
       sessionRef.current?.dispose();
       sessionRef.current = null;
@@ -134,6 +140,7 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
     return () => window.removeEventListener('keydown', onKey);
   }, [phase, onExit]);
 
+  const portrait = !!layout && layout.height > layout.width && layout.width < 720;
   const retry = () => sessionRef.current?.restart();
 
   return (
@@ -150,12 +157,16 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
           </div>
 
           <div
-            className="absolute flex flex-col items-end gap-5 text-right"
-            style={{
-              right: layout.width - layout.holdX - layout.sideW,
-              bottom: layout.height - layout.boardY - layout.boardH,
-              width: layout.sideW * 1.8,
-            }}
+            className={`absolute flex ${portrait ? 'flex-row items-start justify-between gap-3 text-left [&_.tabular]:text-[16px]' : 'flex-col items-end gap-5 text-right'}`}
+            style={
+              portrait
+                ? { left: layout.boardX, top: layout.boardY + layout.boardH + layout.cell * 0.7, width: layout.boardW }
+                : {
+                    right: layout.width - layout.holdX - layout.sideW,
+                    bottom: layout.height - layout.boardY - layout.boardH,
+                    width: layout.sideW * 1.8,
+                  }
+            }
           >
             {config.stats.map((key) => (
               <Stat key={key} label={STAT_LABELS[key]}>
@@ -165,7 +176,7 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
             ))}
             <div>
               <div className="label mb-1">{config.clock === 'down' ? 'Time left' : 'Time'}</div>
-              <div ref={clockRef} className="tabular text-[clamp(22px,2.4vw,34px)] font-medium leading-none tracking-[-0.03em]">
+              <div ref={clockRef} className="tabular text-[clamp(16px,2.4vw,34px)] font-medium leading-none tracking-[-0.03em]">
                 0:00.000
               </div>
             </div>
@@ -206,12 +217,12 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
           onClick={() => (phase === 'playing' ? sessionRef.current?.pause() : onExit())}
           className="rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors duration-150 hover:text-fg"
         >
-          {phase === 'playing' ? 'Pause' : '← Menu'} <Glyph k="pause" className="label ml-2" />
+          {phase === 'playing' ? 'Pause' : '← Menu'} {!touchDevice && <Glyph k="pause" className="label ml-2" />}
         </button>
         <span className="label">{config.def.name}</span>
-        <span className="label">
-          Retry <Glyph k="retry" className="text-muted" />
-        </span>
+        <button tabIndex={-1} onClick={retry} className="label rounded-full px-2 py-2 transition-colors hover:text-fg">
+          Retry {!touchDevice && <Glyph k="retry" className="text-muted" />}
+        </button>
       </header>
 
       {phase === 'paused' && (
@@ -233,6 +244,7 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
       )}
 
       <IntroCard title={config.def.name} on={introCard} />
+      {touchDevice && <TouchTips show={phase === 'countdown'} />}
       {result && <Result result={result} onRetry={retry} onExit={onExit} />}
     </div>
   );
@@ -287,6 +299,33 @@ function IntroCard({ title, on }: { title: string; on: boolean }) {
             <span className="text-[13px] text-faint">{track.artist}</span>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** The gestures, shown over the countdown of a player's first few touch games. */
+function TouchTips({ show }: { show: boolean }) {
+  const [seen] = useState(() => Number(localStorage.getItem('tetra.touchTips') ?? 0));
+  useEffect(() => {
+    if (show) localStorage.setItem('tetra.touchTips', String(seen + 1));
+  }, [show, seen]);
+  if (!show || seen >= 3) return null;
+  const tips: [string, string][] = [
+    ['Drag', 'Move'],
+    ['Tap', 'Rotate'],
+    ['Swipe down', 'Drop'],
+    ['Swipe up', 'Hold'],
+  ];
+  return (
+    <div className="animate-fade pointer-events-none absolute inset-x-0 bottom-8 flex justify-center px-4">
+      <div className="glass-panel grid grid-cols-4 gap-1 rounded-[22px] px-3 py-3 text-center">
+        {tips.map(([gesture, action]) => (
+          <div key={gesture} className="px-2">
+            <div className="text-[13px] font-semibold">{action}</div>
+            <div className="mt-0.5 text-[11px] text-white/50">{gesture}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
