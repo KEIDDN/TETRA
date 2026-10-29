@@ -12,8 +12,11 @@ export interface DesktopBridge {
   quit?(): void;
 }
 
-/** A newer TETRA: ready to restart into (Windows), or to download (macOS). */
-export type DesktopUpdate = { state: 'ready'; version: string } | { state: 'download'; version: string; url: string };
+/** A newer TETRA: on its way, ready to restart into, or (from a .dmg that can't replace itself) to download. */
+export type DesktopUpdate =
+  | { state: 'downloading'; version: string; percent: number }
+  | { state: 'ready'; version: string }
+  | { state: 'download'; version: string; url: string };
 
 declare global {
   interface Window {

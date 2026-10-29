@@ -10,6 +10,20 @@ export interface Release {
 
 export const PATCH_NOTES: Release[] = [
   {
+    version: '1.1.2',
+    date: 'November 2026',
+    title: 'Seamless',
+    intro: 'Updates now install themselves on Mac too. This is the last one you download by hand.',
+    sections: [
+      {
+        heading: 'Improved',
+        notes: [
+          'macOS: new versions download in the background and install with one tap on Restart, or the next time you quit. No more reinstalling.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.1.1',
     date: 'November 2026',
     title: 'Hotfix',

@@ -7,7 +7,8 @@ const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/7
 export function UpdateBanner() {
   const [update, setUpdate] = useState<DesktopUpdate | null>(null);
   useEffect(() => desktop?.onUpdate?.(setUpdate), []);
-  if (!update) return null;
+  // It downloads quietly; the player only hears about it once it's ready.
+  if (!update || update.state === 'downloading') return null;
 
   return (
     <div className="animate-rise fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">

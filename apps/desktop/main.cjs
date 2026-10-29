@@ -145,10 +145,11 @@ app.whenReady().then(() => {
 });
 
 // ── Updates ──────────────────────────────────────────────────
-// Windows: the new version downloads quietly and installs on the next quit,
-// or straight away if the player taps Restart. macOS: until the app is signed
-// with a Developer ID it can't replace itself, so the player is offered the
-// new download instead.
+// Windows: electron-updater downloads the new version quietly and installs it
+// on the next quit, or at once if the player taps Restart.
+// macOS: Apple's updater only takes Developer ID-signed apps, so TETRA updates
+// itself: it downloads the new .app (zipped) in the background, and on Restart
+// (or the next quit) a small script swaps it in and opens it again.
 const RELEASES = 'https://github.com/keiddn/tetra/releases/latest/download';
 const UPDATE_EVERY = 4 * 60 * 60 * 1000;
 
@@ -161,6 +162,79 @@ function newer(a, b) {
   const pb = b.split('.').map(Number);
   for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
   return false;
+}
+
+/** The running TETRA.app, if it lives somewhere it can be replaced (not the mounted .dmg). */
+function appBundle() {
+  const bundle = path.resolve(process.execPath, '../../..');
+  if (!bundle.endsWith('.app') || bundle.startsWith('/Volumes/')) return null;
+  try {
+    require('node:fs').accessSync(path.dirname(bundle), require('node:fs').constants.W_OK);
+    return bundle;
+  } catch {
+    return null;
+  }
+}
+
+let macReady = null; // { version, app } once the new .app is unpacked and waiting
+let macBusy = false;
+
+async function downloadMac(version) {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const { Readable } = require('node:stream');
+  const { pipeline } = require('node:stream/promises');
+  const { execFile } = require('node:child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tetra-update-'));
+  const zip = path.join(dir, 'TETRA-mac.zip');
+  const res = await net.fetch(`${RELEASES}/TETRA-mac.zip`);
+  if (!res.ok || !res.body) throw new Error(`download ${res.status}`);
+  const total = Number(res.headers.get('content-length')) || 0;
+  let got = 0;
+  let shown = -1;
+  const body = Readable.fromWeb(res.body);
+  body.on('data', (chunk) => {
+    got += chunk.length;
+    const percent = total ? Math.floor((got / total) * 100) : 0;
+    if (percent !== shown && percent % 5 === 0) {
+      shown = percent;
+      tellWindow({ state: 'downloading', version, percent });
+    }
+  });
+  await pipeline(body, fs.createWriteStream(zip));
+  const out = path.join(dir, 'unpacked');
+  await new Promise((resolve, reject) => execFile('/usr/bin/ditto', ['-x', '-k', zip, out], (e) => (e ? reject(e) : resolve())));
+  const name = fs.readdirSync(out).find((f) => f.endsWith('.app'));
+  if (!name) throw new Error('no app in update');
+  fs.rmSync(zip, { force: true });
+  return path.join(out, name);
+}
+
+/** Swaps the waiting update in once TETRA has quit, then opens it. */
+function installMac(relaunch) {
+  const target = appBundle();
+  if (!macReady || !target) return false;
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const { spawn } = require('node:child_process');
+  const script = path.join(os.tmpdir(), `tetra-update-${Date.now()}.sh`);
+  const q = (p) => `'${p.replace(/'/g, `'\\''`)}'`;
+  fs.writeFileSync(
+    script,
+    [
+      '#!/bin/sh',
+      `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.2; done`,
+      `rm -rf ${q(target)}`,
+      `/usr/bin/ditto ${q(macReady.app)} ${q(target)}`,
+      `/usr/bin/xattr -cr ${q(target)} 2>/dev/null`,
+      relaunch ? `/usr/bin/open ${q(target)}` : '',
+      `rm -rf ${q(path.dirname(path.dirname(macReady.app)))} ${q(script)}`,
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  spawn('/bin/sh', [script], { detached: true, stdio: 'ignore' }).unref();
+  macReady = null;
+  return true;
 }
 
 function checkForUpdates() {
@@ -177,13 +251,22 @@ function checkForUpdates() {
     return;
   }
   const check = async () => {
+    if (macBusy || macReady) return;
     try {
       const res = await net.fetch(`${RELEASES}/latest-mac.yml`);
       if (!res.ok) return;
       const version = /^version:\s*([\d.]+)/m.exec(await res.text())?.[1];
-      if (version && newer(version, app.getVersion())) tellWindow({ state: 'download', version, url: `${RELEASES}/TETRA-mac.dmg` });
+      if (!version || !newer(version, app.getVersion())) return;
+      // Somewhere it can't replace itself (still on the .dmg): offer the download instead.
+      if (!appBundle()) return tellWindow({ state: 'download', version, url: `${RELEASES}/TETRA-mac.dmg` });
+      macBusy = true;
+      const unpacked = await downloadMac(version);
+      macReady = { version, app: unpacked };
+      tellWindow({ state: 'ready', version });
     } catch {
-      // Offline: try again later.
+      // Offline or interrupted: try again later.
+    } finally {
+      macBusy = false;
     }
   };
   void check();
@@ -191,8 +274,13 @@ function checkForUpdates() {
 }
 
 ipcMain.on('install-update', () => {
-  if (process.platform !== 'win32') return;
-  require('electron-updater').autoUpdater.quitAndInstall(true, true);
+  if (process.platform === 'win32') return require('electron-updater').autoUpdater.quitAndInstall(true, true);
+  if (installMac(true)) app.quit();
+});
+
+// Quitting with an update waiting installs it, like on Windows.
+app.on('before-quit', () => {
+  if (process.platform === 'darwin' && macReady) installMac(false);
 });
 
 app.on('window-all-closed', () => {
