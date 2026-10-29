@@ -2,7 +2,8 @@ import { TRACKS, type Track } from '../audio/catalog';
 import { SKINS, type SkinId } from '../game/skins';
 import { getProfile, levelFor, subscribeProfile } from './profile';
 import { getSettings } from './settings';
-import { CUPS, skinLocked } from './tournament';
+import { skinLocked } from './tournament';
+import { skinUnlockHint } from './achievements';
 import { toast } from '../ui/toast';
 
 /** Menu tracks after the first open up with profile levels, in catalog order. */
@@ -18,8 +19,7 @@ export function trackAccess(t: Track): { unlocked: boolean; hint: string } {
     return { unlocked: levelFor(getProfile().xp).level >= level, hint: `Reach level ${level}` };
   }
   const skin = t.suggest as SkinId;
-  const cup = CUPS.find((c) => c.reward === skin);
-  return { unlocked: !skinLocked(skin), hint: cup ? `Win ${cup.name} for ${SKINS[skin].name}` : '' };
+  return { unlocked: !skinLocked(skin), hint: skinLocked(skin) ? `${SKINS[skin].name} skin · ${skinUnlockHint(skin)}` : '' };
 }
 
 export function trackUnlocked(t: Track): boolean {

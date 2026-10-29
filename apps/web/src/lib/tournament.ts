@@ -1,11 +1,11 @@
 import { BOTS, type BotProfile } from '@tetra/bot';
 import { useSyncExternalStore } from 'react';
+import { skinUnlocked } from './achievements';
 import type { SimRequest, SimResponse } from '../game/sim.worker';
 import { findBot } from './customBots';
 import { addTrophy, awardXp, getProfile, tournamentXp } from './profile';
 import { load, save } from './storage';
 import { devUnlocked } from './versus';
-import { toast } from '../ui/toast';
 
 export type CupId = 'foundations' | 'contenders' | 'summit';
 export type Seeding = 'level' | 'random';
@@ -244,8 +244,6 @@ export function report(r: number, i: number, score: [number, number]): void {
 function reward(t: Tournament, place: number): void {
   awardXp(tournamentXp(place, t.tier), `${t.name} · ${placeName(place)}`);
   if (place <= 2) addTrophy({ cup: t.cup ?? 'custom', name: t.name, place, date: Date.now() });
-  const cup = CUPS.find((c) => c.id === t.cup);
-  if (cup && place === 1 && !cupWon(cup.id)) setTimeout(() => toast(`New skin unlocked · ${cup.reward[0].toUpperCase()}${cup.reward.slice(1)}`), 1600);
 }
 
 export function placeName(place: number): string {
@@ -267,10 +265,9 @@ export function customUnlocked(): boolean {
   return devUnlocked() || CUPS.some((c) => cupWon(c.id));
 }
 
-/** Skins that come with a cup title. */
+/** Skins are won through achievements (cup titles among them). */
 export function skinLocked(skin: string): boolean {
-  const cup = CUPS.find((c) => c.reward === skin);
-  return !!cup && !devUnlocked() && !cupWon(cup.id);
+  return !skinUnlocked(skin);
 }
 
 export function cupBots(cup: Cup): BotProfile[] {

@@ -18,6 +18,7 @@ import {
 import { SKINS, type SkinId } from '../game/skins';
 import { Icon } from '../ui/Icon';
 import { BotEmblem } from '../ui/BotEmblem';
+import { Glyph } from '../ui/Glyph';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 const TIER_TINT = ['#5ac8f5', '#c86bff', '#ffb84a'];
@@ -49,7 +50,7 @@ export function Tournaments({ onBack, onBracket, onCustom }: { onBack: () => voi
             className={`-ml-4 rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors hover:text-fg focus-visible:text-fg ${focusRing}`}
           >
             <span className="flex items-center gap-2">
-              <Icon name="back" size={11} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+              <Icon name="back" size={11} /> Back <Glyph k="back" className="text-white/40" />
             </span>
           </button>
           <span className="label">Tournaments</span>

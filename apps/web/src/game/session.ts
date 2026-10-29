@@ -4,6 +4,7 @@ import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
 import { addPlay, awardXp, getProfile, soloXp } from '../lib/profile';
+import { onGameEvent, onGamePlayed, onSoloEnd } from '../lib/achievements';
 import { loadBest, recordRun, submitBest, type RunRecord } from '../lib/storage';
 import { InputRouter } from './input';
 import { MODE_CONFIGS } from './modes';
@@ -135,6 +136,7 @@ export class GameSession {
     if (this.logged || !this.game) return;
     this.logged = true;
     addPlay(this.game.elapsed, getSettings().appearance.skin);
+    if (this.game.stats.pieces > 0) onGamePlayed(getSettings().appearance.skin);
   }
 
   private beginCountdown(gameTime: number): void {
@@ -276,6 +278,7 @@ export class GameSession {
         sfx.onEvent(e);
         dj.event(e);
         this.view.event(e, game);
+        onGameEvent(e);
       }
       game.events.length = 0;
     }
@@ -305,6 +308,7 @@ export class GameSession {
     const xpBefore = getProfile().xp;
     const xp = Math.round(soloXp(stats.pieces, stats.lines, personalBest));
     awardXp(xp, config.def.name);
+    if (counts) onSoloEnd(this.mode, record, finished, stats);
     // Let the end animation play before the results card covers the board.
     this.resultTimer = window.setTimeout(
       () => {

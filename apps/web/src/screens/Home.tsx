@@ -17,10 +17,12 @@ import { installed } from '../lib/platform';
 import { useAccount } from '../lib/account';
 import { Icon } from '../ui/Icon';
 import { Logo } from '../ui/Logo';
+import { Glyph } from '../ui/Glyph';
 import { SkinPicker } from '../ui/SkinPicker';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
-import { CUPS, skinLocked } from '../lib/tournament';
+import { skinLocked } from '../lib/tournament';
+import { skinUnlockHint } from '../lib/achievements';
 import type { ProfileSection } from './Profile';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
@@ -95,7 +97,8 @@ export function Home({
     const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
     lattice.ripple(window.innerWidth / 2, window.innerHeight - 40, 4, lattice.palette[piece]);
   };
-  useMenuNav(setup ? () => leaveSetup() : undefined, true, cycleSkin);
+  // ←→ change the skin only once the skins are on screen.
+  useMenuNav(setup ? () => leaveSetup() : undefined, true, setup ? cycleSkin : undefined);
 
   useEffect(() => {
     firstRef.current?.focus({ preventScroll: true });
@@ -243,7 +246,9 @@ export function Home({
                     className={`glass-light group flex h-12 items-center gap-3 rounded-full pr-2.5 pl-6 text-[16px] font-semibold ${focusRing}`}
                   >
                     Choose
-                    <span className="grid size-8 place-items-center rounded-full bg-black/10 font-mono text-[11px] text-black/60">↵</span>
+                    <span className="grid size-8 place-items-center rounded-full bg-black/10 text-black/60">
+                      <Glyph k="confirm" />
+                    </span>
                   </button>
                 )}
               </div>
@@ -289,7 +294,7 @@ export function Home({
               ) : null}
               <PlayButton onClick={() => start(selected)} />
               <button data-nav onClick={leaveSetup} className={`rounded-sm text-[13px] text-muted transition-colors hover:text-fg ${focusRing}`}>
-                Back <span className="ml-1 font-mono text-[11px] text-faint">Esc</span>
+                Back <Glyph k="back" className="ml-1 text-faint" />
               </button>
             </div>
           </div>
@@ -313,10 +318,7 @@ export function Home({
                 skins={SKIN_ORDER}
                 value={appearance.skin}
                 locked={skinLocked}
-                onLocked={(id) => {
-                  const cup = CUPS.find((c) => c.reward === id);
-                  toast(cup ? `Win the ${cup.name} cup to unlock ${SKINS[id].name}` : `${SKINS[id].name} is locked`);
-                }}
+                onLocked={(id) => toast(`${SKINS[id].name} · ${skinUnlockHint(id)}`)}
                 onChange={(next) => {
                   if (next === appearance.skin) return;
                   updateSettings((st) => ({ ...st, appearance: { ...st.appearance, skin: next } }));
@@ -326,41 +328,29 @@ export function Home({
             </div>
             <p className="mt-5 text-[13px] text-faint">
               Every skin plays its own set.
-              {SKIN_ORDER.length - openRooms().length > 0 ? ` ${SKIN_ORDER.length - openRooms().length} more are won in Cups.` : ''}
+              {SKIN_ORDER.length - openRooms().length > 0 ? ` ${SKIN_ORDER.length - openRooms().length} more are won through achievements.` : ''}
             </p>
           </div>
         </main>
 
         <footer className="flex h-16 shrink-0 items-center justify-between gap-6 border-t border-line">
-          <div className="flex items-center gap-1">
-            <SkinArrow label="Previous skin" onClick={() => cycleSkin(-1)}>
-              ‹
-            </SkinArrow>
-            <button
-              onClick={() => (setup ? leaveSetup() : activate(selected === 'multiplayer' ? 'sprint' : selected))}
-              className={`group min-w-[120px] rounded-full px-3 py-1.5 text-center transition-colors hover:bg-white/[0.06] ${focusRing}`}
-              title="All rooms"
-            >
-              <span className="label mr-2">Skin</span>
-              <span key={skin.id} className="animate-fade text-[14px] font-medium">
-                {skin.name}
+          <div className="label hidden items-center gap-6 md:flex">
+            <span className="flex items-center gap-2">
+              <Glyph k="vertical" className="text-muted" /> Mode
+            </span>
+            {setup && (
+              <span className="animate-fade flex items-center gap-2">
+                <Glyph k="horizontal" className="text-muted" /> Skin
               </span>
-              <span className="ml-2 text-[12px] text-faint transition-colors group-hover:text-fg">{setup ? 'Done' : 'All'}</span>
-            </button>
-            <SkinArrow label="Next skin" onClick={() => cycleSkin(1)}>
-              ›
-            </SkinArrow>
-          </div>
-          <div className="label hidden items-center gap-5 md:flex">
-            <span>
-              <span className="text-muted">↑↓</span> Mode
+            )}
+            <span className="flex items-center gap-2">
+              <Glyph k="confirm" className="text-muted" /> {setup ? 'Play' : 'Choose'}
             </span>
-            <span>
-              <span className="text-muted">←→</span> Skin
-            </span>
-            <span>
-              <span className="text-muted">↵</span> Play
-            </span>
+            {setup && (
+              <span className="animate-fade flex items-center gap-2">
+                <Glyph k="back" className="text-muted" /> Back
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-5">
             <button onClick={() => onLegal('terms')} className={`label rounded-sm transition-colors hover:text-fg ${focusRing}`}>
@@ -374,11 +364,9 @@ export function Home({
           </div>
         </footer>
       </div>
-
     </div>
   );
 }
-
 
 /** Five quick taps on the version toggle developer mode, Android style. */
 function VersionTaps() {
@@ -407,19 +395,10 @@ function PlayButton({ onClick }: { onClick: () => void }) {
       className={`glass-light flex items-center gap-3 rounded-full py-3 pr-3 pl-6 text-[16px] font-semibold ${focusRing}`}
     >
       Play
-      <span className="grid size-7 place-items-center rounded-full bg-black/10 font-mono text-[12px]">↵</span>
+      <span className="grid size-7 place-items-center rounded-full bg-black/10">
+        <Glyph k="confirm" />
+      </span>
     </button>
   );
 }
 
-function SkinArrow({ children, label, onClick }: { children: string; label: string; onClick: () => void }) {
-  return (
-    <button
-      aria-label={label}
-      onClick={onClick}
-      className={`grid size-8 place-items-center rounded-full text-[18px] text-muted transition-colors hover:bg-white/[0.06] hover:text-fg ${focusRing}`}
-    >
-      {children}
-    </button>
-  );
-}

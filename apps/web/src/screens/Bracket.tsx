@@ -18,6 +18,7 @@ import {
   type Tournament,
 } from '../lib/tournament';
 import { BotEmblem } from '../ui/BotEmblem';
+import { Glyph } from '../ui/Glyph';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 const CARD_W = 248;
@@ -63,7 +64,7 @@ export function Bracket({ onBack, onBout }: { onBack: () => void; onBout: (r: nu
       <div className="relative mx-auto w-full max-w-[1320px] px-6 pb-20 sm:px-10">
         <header className="flex h-24 items-center justify-between">
           <button data-nav onClick={onBack} className={`-ml-4 rounded-full px-4 py-2 text-[14px] font-medium text-muted hover:text-fg ${focusRing}`}>
-            ← Tournaments <span className="label ml-2">Esc</span>
+            ← Tournaments <Glyph k="back" className="label ml-2" />
           </button>
           <span className="label">{t.name}</span>
         </header>

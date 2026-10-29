@@ -134,6 +134,7 @@ export function ModeWheel<T extends string>({
   return (
     <div
       ref={box}
+      data-nav-group
       className={`relative isolate ${center ? 'w-full' : 'pl-[0.45em]'} ${size}`}
       style={{ height: 'min(5.4em, 44vh)', perspective: '1100px', perspectiveOrigin: center ? '50% 50%' : '25% 50%' }}
     >
@@ -153,6 +154,7 @@ export function ModeWheel<T extends string>({
           }}
           data-nav
           data-wheel-row
+          data-nav-current={id === selected || undefined}
           onFocus={() => onSelect(id)}
           onPointerDown={() => (pressedSelected.current = id === selected)}
           onClick={(e) => {

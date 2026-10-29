@@ -7,6 +7,7 @@ import { BotEmblem } from '../ui/BotEmblem';
 import { Section, SliderRow, ToggleRow } from '../ui/controls';
 import { Icon } from '../ui/Icon';
 import { DemoBoard } from '../ui/DemoBoard';
+import { Glyph } from '../ui/Glyph';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
@@ -38,7 +39,7 @@ export function BotEditor({ spec: initial, onDone, onPlay }: { spec?: CustomBotS
         <header className="flex h-24 items-center justify-between">
           <button data-nav onClick={onDone} className={`-ml-4 rounded-full px-4 py-2 text-[14px] font-medium text-muted hover:text-fg ${focusRing}`}>
             <span className="flex items-center gap-2">
-              <Icon name="back" size={11} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+              <Icon name="back" size={11} /> Back <Glyph k="back" className="text-white/40" />
             </span>
           </button>
           <span className="label">Custom bot</span>

@@ -15,6 +15,7 @@ import { LevelRing } from '../ui/LevelRing';
 import { Sparkline } from '../ui/Sparkline';
 import { levelFor } from '../lib/profile';
 import { loadHistory } from '../lib/storage';
+import { Glyph } from '../ui/Glyph';
 
 const STAT_LABELS: Record<StatKey, string> = { lines: 'Lines', pieces: 'Pieces', pps: 'PPS', score: 'Score', level: 'Level' };
 
@@ -205,11 +206,11 @@ export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () 
           onClick={() => (phase === 'playing' ? sessionRef.current?.pause() : onExit())}
           className="rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors duration-150 hover:text-fg"
         >
-          {phase === 'playing' ? 'Pause' : '← Menu'} <span className="label ml-2">Esc</span>
+          {phase === 'playing' ? 'Pause' : '← Menu'} <Glyph k="pause" className="label ml-2" />
         </button>
         <span className="label">{config.def.name}</span>
         <span className="label">
-          Retry <span className="text-muted">R</span>
+          Retry <Glyph k="retry" className="text-muted" />
         </span>
       </header>
 

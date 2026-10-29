@@ -1,5 +1,5 @@
 import { BOTS } from '@tetra/bot';
-import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import { SOUND_PACK_NAMES, sfx } from '../audio/sfx';
 import { MODE_CONFIGS, MODE_ORDER } from '../game/modes';
 import { hexToNumber, SKIN_ORDER, SKINS, type SkinId } from '../game/skins';
@@ -19,17 +19,20 @@ import { TRACKS } from '../audio/catalog';
 import { assignTrack, getMusicPrefs, subscribeMusicPrefs } from '../lib/musicPrefs';
 import { trackAccess, trackUnlocked } from '../lib/library';
 import { director } from '../audio/director';
+import { ACHIEVEMENTS, CATEGORIES, skinUnlockHint, useAchievements, type Achievement, type Tier } from '../lib/achievements';
 import { deleteAccount, downloadMyData, signOut, useAccount } from '../lib/account';
+import { Glyph } from '../ui/Glyph';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 const CUP_TINT: Record<string, string> = { foundations: '#5ac8f5', contenders: '#c86bff', summit: '#ffb84a', custom: '#edebfa' };
 
 export type ProfileSection = 'skins';
-type Tab = 'overview' | 'records' | 'locker' | 'music' | 'trophies' | 'leaderboards';
+type Tab = 'overview' | 'records' | 'achievements' | 'locker' | 'music' | 'trophies' | 'leaderboards';
 
 const TABS: [Tab, string][] = [
   ['overview', 'Overview'],
   ['records', 'Records'],
+  ['achievements', 'Achievements'],
   ['locker', 'Locker'],
   ['music', 'Music'],
   ['trophies', 'Trophies'],
@@ -67,7 +70,7 @@ export function Profile({
         <header className="flex h-24 items-center justify-between">
           <button data-nav onClick={onBack} className={`glass rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
             <span className="flex items-center gap-2">
-              <Icon name="back" size={11} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+              <Icon name="back" size={11} /> Back <Glyph k="back" className="text-white/40" />
             </span>
           </button>
           <span className="label">Profile</span>
@@ -116,6 +119,7 @@ export function Profile({
         <div key={tab} className="animate-fade">
           {tab === 'overview' && <Overview />}
           {tab === 'records' && <Records />}
+          {tab === 'achievements' && <Achievements />}
           {tab === 'locker' && <Locker />}
           {tab === 'music' && <Library />}
           {tab === 'trophies' && <Trophies trophies={trophies} />}
@@ -327,66 +331,223 @@ function Library() {
     setPreview(next);
     director.pin(next);
   };
-  const slotsOf = (id: string) =>
-    Object.entries(prefs.assign)
-      .filter(([slot, t]) => t === id && slot !== 'menu')
-      .map(([slot]) => SKINS[slot as SkinId]?.name ?? slot);
   const unlocked = TRACKS.filter(trackUnlocked).length;
+  const menu = TRACKS.filter((t) => t.suggest === 'menu');
+  const sets = TRACKS.filter((t) => t.suggest !== 'menu').sort(
+    (a, b) => SKIN_ORDER.indexOf(a.suggest as SkinId) - SKIN_ORDER.indexOf(b.suggest as SkinId),
+  );
+  const card = (t: (typeof TRACKS)[number]) => {
+    const access = trackAccess(t);
+    const skin = SKINS[t.suggest as SkinId];
+    const isMenu = t.suggest === 'menu';
+    return (
+      <TrackCard
+        key={t.id}
+        title={t.title}
+        artist={t.artist}
+        tint={skin ? `#${hexToNumber(skin.palette(1).T).toString(16).padStart(6, '0')}` : '#edebfa'}
+        note={!access.unlocked ? access.hint : isMenu ? '' : `${skin?.name ?? ''} skin`}
+        locked={!access.unlocked}
+        playing={preview === t.id}
+        onListen={() => listen(t.id)}
+        action={
+          access.unlocked && isMenu ? (
+            <button
+              data-nav
+              disabled={prefs.assign.menu === t.id}
+              onClick={() => assignTrack('menu', t.id)}
+              className={`rounded-full px-3 py-1 text-[12px] font-medium whitespace-nowrap ${prefs.assign.menu === t.id ? 'glass-light' : 'glass'} disabled:cursor-default ${focusRing}`}
+            >
+              {prefs.assign.menu === t.id ? 'Menu track' : 'Set as menu'}
+            </button>
+          ) : null
+        }
+      />
+    );
+  };
   return (
-    <>
-      <div className="label mb-4 px-1">
-        {unlocked} / {TRACKS.length} unlocked · skins bring their tracks, levels open the menu set
+    <div className="space-y-12">
+      <div className="label px-1">
+        {unlocked} / {TRACKS.length} unlocked · levels open the menu set, every skin brings its own
       </div>
-      <div className="glass-panel overflow-hidden rounded-[28px]">
-        {TRACKS.map((t) => {
-          const access = trackAccess(t);
-          const slots = slotsOf(t.id);
-          const isMenu = prefs.assign.menu === t.id;
-          const playing = preview === t.id;
-          return (
-            <div key={t.id} className={`flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line px-5 py-3.5 first:border-t-0 ${access.unlocked ? '' : 'opacity-45'}`}>
-              <button
-                data-nav
-                disabled={!access.unlocked}
-                onClick={() => listen(t.id)}
-                aria-label={playing ? 'Stop' : `Listen to ${t.title}`}
-                className={`grid size-10 shrink-0 place-items-center rounded-full ${playing ? 'glass-light' : 'glass'} disabled:cursor-default ${focusRing}`}
-              >
-                <Icon name={!access.unlocked ? 'lock' : playing ? 'pause' : 'play'} size={11} />
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[16px] font-medium tracking-[-0.01em]">{t.title}</div>
-                <div className="truncate text-[13px] text-faint">
-                  {t.artist}
-                  {t.album ? ` · ${t.album}` : ''}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {!access.unlocked && <span className="label">{access.hint}</span>}
-                {access.unlocked && slots.length > 0 && <span className="label text-muted">{slots.join(', ')}</span>}
-                {access.unlocked && t.suggest === 'menu' && (
-                  <button
-                    data-nav
-                    disabled={isMenu}
-                    onClick={() => assignTrack('menu', t.id)}
-                    className={`rounded-full px-3 py-1 text-[12px] font-medium ${isMenu ? 'glass-light' : 'glass'} disabled:cursor-default ${focusRing}`}
-                  >
-                    {isMenu ? 'Menu track' : 'Set as menu'}
-                  </button>
-                )}
-                {t.licenseUrl ? (
-                  <a href={t.licenseUrl} target="_blank" rel="noreferrer" className="label transition-colors hover:text-fg">
-                    {t.license}
-                  </a>
-                ) : (
-                  <span className="label">{t.license}</span>
-                )}
-              </div>
+      <section>
+        <h3 className="mb-5 px-1 text-[22px] font-[560] tracking-[-0.02em]">The menu set</h3>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{menu.map(card)}</div>
+      </section>
+      <section>
+        <h3 className="mb-5 px-1 text-[22px] font-[560] tracking-[-0.02em]">Skin sets</h3>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{sets.map(card)}</div>
+      </section>
+      <p className="px-1 text-[13px] text-faint">Credits and licences are in Settings → Sound.</p>
+    </div>
+  );
+}
+
+/** One track: a cover lit in its skin's colour, the play control and where it plays. */
+function TrackCard({
+  title,
+  artist,
+  tint,
+  note,
+  locked,
+  playing,
+  onListen,
+  action,
+}: {
+  title: string;
+  artist: string;
+  tint: string;
+  note: string;
+  locked: boolean;
+  playing: boolean;
+  onListen: () => void;
+  action: ReactNode;
+}) {
+  return (
+    <div
+      className={`glass-panel flex items-center gap-5 rounded-[28px] p-4 pr-5 transition-opacity ${locked ? 'opacity-50' : ''}`}
+      style={playing ? { boxShadow: `inset 0 0 0 1px ${tint}55, 0 30px 70px -40px ${tint}` } : undefined}
+    >
+      <button
+        data-nav
+        disabled={locked}
+        onClick={onListen}
+        aria-label={playing ? 'Stop' : `Listen to ${title}`}
+        className={`group relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-[20px] disabled:cursor-default ${focusRing}`}
+        style={{ background: `radial-gradient(120% 120% at 30% 20%, ${tint}55, ${tint}10 55%, #0b0b0d)` }}
+      >
+        {locked ? (
+          <Icon name="lock" size={14} className="text-white/60" />
+        ) : playing ? (
+          <span className="flex h-6 items-end gap-[3px]" aria-hidden>
+            {[0, 1, 2, 3].map((i) => (
+              <span key={i} className="eq-bar w-[4px] rounded-full bg-white" style={{ animationDelay: `${i * 0.13}s` }} />
+            ))}
+          </span>
+        ) : (
+          <span className="grid size-10 place-items-center rounded-full bg-black/35 backdrop-blur transition-transform duration-300 group-hover:scale-110">
+            <Icon name="play" size={12} />
+          </span>
+        )}
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[17px] font-medium tracking-[-0.01em]">{title}</div>
+        <div className="truncate text-[13px] text-muted">{artist}</div>
+        {(note || action) && (
+          <div className="mt-2.5 flex items-center gap-3">
+            {action}
+            {note && <span className="label truncate">{note}</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const TIER: Record<Tier, { label: string; color: string }> = {
+  bronze: { label: 'Bronze', color: '#d39a6a' },
+  silver: { label: 'Silver', color: '#cfd5df' },
+  gold: { label: 'Gold', color: '#f5c95c' },
+  platinum: { label: 'Platinum', color: '#bfe9ff' },
+};
+
+function Achievements() {
+  const earned = useAchievements();
+  const count = ACHIEVEMENTS.filter((a) => earned[a.id]).length;
+  const byTier = (Object.keys(TIER) as Tier[]).map((t) => [t, ACHIEVEMENTS.filter((a) => a.tier === t && earned[a.id]).length, ACHIEVEMENTS.filter((a) => a.tier === t).length] as const);
+  return (
+    <div className="space-y-12">
+      <div className="glass-panel flex flex-wrap items-center gap-x-12 gap-y-6 rounded-[32px] px-8 py-7">
+        <div>
+          <div className="label">Earned</div>
+          <div className="tabular mt-2 text-[44px] leading-none font-[480] tracking-[-0.04em]">
+            {count}
+            <span className="text-faint"> / {ACHIEVEMENTS.length}</span>
+          </div>
+        </div>
+        <div className="min-w-[200px] flex-1">
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+            <div className="h-full rounded-full bg-accent transition-[width] duration-700 ease-spring" style={{ width: `${(count / ACHIEVEMENTS.length) * 100}%` }} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-5">
+            {byTier.map(([t, got, total]) => (
+              <span key={t} className="flex items-center gap-2 text-[13px] text-muted">
+                <Medal tier={t} earned size={14} />
+                {TIER[t].label} <span className="tabular text-faint">{got}/{total}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+        <p className="max-w-[30ch] text-[14px] leading-relaxed text-muted">Some unlock a skin. Four are yours from the start; the rest are earned.</p>
+      </div>
+
+      {CATEGORIES.map((cat) => (
+        <section key={cat}>
+          <h3 className="mb-5 px-1 text-[22px] font-[560] tracking-[-0.02em]">{cat}</h3>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {ACHIEVEMENTS.filter((a) => a.category === cat).map((a) => (
+              <AchievementCard key={a.id} a={a} at={earned[a.id]} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function AchievementCard({ a, at }: { a: Achievement; at?: number }) {
+  const progress = !at && a.progress ? a.progress() : null;
+  const tint = TIER[a.tier].color;
+  return (
+    <div
+      className={`glass-panel flex gap-5 rounded-[28px] p-5 transition-opacity ${at ? '' : 'opacity-60'}`}
+      style={at ? { boxShadow: `inset 0 0 0 1px ${tint}33, 0 30px 70px -45px ${tint}` } : undefined}
+    >
+      <Medal tier={a.tier} earned={!!at} size={44} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="truncate text-[17px] font-medium tracking-[-0.01em]">{a.name}</span>
+          <span className="label shrink-0" style={at ? { color: tint } : undefined}>
+            {TIER[a.tier].label}
+          </span>
+        </div>
+        <p className="mt-1 text-[14px] leading-snug text-muted">{a.description}</p>
+        {progress && (
+          <div className="mt-3 flex items-center gap-3">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+              <div className="h-full rounded-full bg-white/60" style={{ width: `${Math.min(100, (progress[0] / progress[1]) * 100)}%` }} />
             </div>
-          );
-        })}
+            <span className="tabular text-[12px] text-faint">
+              {Math.min(progress[0], progress[1]).toLocaleString('en-US')} / {progress[1].toLocaleString('en-US')}
+            </span>
+          </div>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {a.reward && (
+            <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] text-muted shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]">
+              <Icon name="skin" size={9} /> {SKINS[a.reward as SkinId]?.name} skin
+            </span>
+          )}
+          {at && <span className="text-[12px] text-faint">{new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+        </div>
       </div>
-    </>
+    </div>
+  );
+}
+
+/** A medal drawn in minos: a T on a ring, in the tier's metal. Unearned, it is an outline. */
+function Medal({ tier, earned, size }: { tier: Tier; earned: boolean; size: number }) {
+  const c = TIER[tier].color;
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" className="shrink-0" aria-hidden>
+      <circle cx="24" cy="24" r="22" fill={earned ? `${c}22` : 'none'} stroke={earned ? c : 'rgba(255,255,255,0.18)'} strokeWidth="1.5" />
+      <g fill={earned ? c : 'rgba(255,255,255,0.14)'}>
+        <rect x="11" y="16" width="8" height="8" rx="2" />
+        <rect x="20" y="16" width="8" height="8" rx="2" />
+        <rect x="29" y="16" width="8" height="8" rx="2" />
+        <rect x="20" y="25" width="8" height="8" rx="2" />
+      </g>
+    </svg>
   );
 }
 
@@ -460,7 +621,7 @@ function Locker() {
               onClick={() => equip(focused)}
               className={`mt-7 w-full rounded-full py-3.5 text-[15px] font-semibold ${equipped ? 'glass-panel text-muted' : locked ? 'glass-panel text-faint' : 'glass-light'}`}
             >
-              {equipped ? 'Equipped' : locked ? `Win ${CUPS.find((c) => c.reward === focused)?.name} to unlock` : 'Equip'}
+              {equipped ? 'Equipped' : locked ? skinUnlockHint(focused) : 'Equip'}
             </button>
           </div>
         </aside>
@@ -502,7 +663,6 @@ function SkinTile({
   onSelect: () => void;
 }) {
   const skin = SKINS[id];
-  const cup = CUPS.find((c) => c.reward === id);
   const tint = `#${hexToNumber(skin.palette(1).T).toString(16).padStart(6, '0')}`;
   return (
     <button
@@ -538,7 +698,7 @@ function SkinTile({
       </div>
       <div className="relative">
         <div className="text-[16px] font-medium tracking-[-0.015em]">{skin.name}</div>
-        <div className="label mt-0.5">{locked ? `${cup?.name} cup` : equipped ? 'Equipped' : SOUND_PACK_NAMES[skin.sound]}</div>
+        <div className="label mt-0.5">{locked ? 'Locked' : equipped ? 'Equipped' : SOUND_PACK_NAMES[skin.sound]}</div>
       </div>
     </button>
   );

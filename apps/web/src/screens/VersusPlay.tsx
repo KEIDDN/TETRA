@@ -12,6 +12,7 @@ import { findBot } from '../lib/customBots';
 import { isUnlocked } from '../lib/versus';
 import { ActionText } from '../ui/actionText';
 import { BotEmblem } from '../ui/BotEmblem';
+import { Glyph } from '../ui/Glyph';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
@@ -235,7 +236,7 @@ export function VersusPlay({
           onClick={() => (phase === 'playing' ? sessionRef.current?.pause() : onExit())}
           className="justify-self-start rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors hover:text-fg"
         >
-          {phase === 'playing' ? 'Pause' : '← Menu'} <span className="label ml-2">Esc</span>
+          {phase === 'playing' ? 'Pause' : '← Menu'} <Glyph k="pause" className="label ml-2" />
         </button>
         <Scoreboard score={score} firstTo={firstTo} botName={bot.name} botColor={bot.color} leftName={leftName} leftColor={leftColor} />
         <span className="label justify-self-end">{bout ? `${bout.label} · ` : ''}First to {firstTo}</span>

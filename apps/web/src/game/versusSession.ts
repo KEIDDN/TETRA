@@ -4,6 +4,7 @@ import { dj } from '../audio/dj';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
 import { addPlay, awardXp, versusXp } from '../lib/profile';
+import { onGameEvent, onGamePlayed, onVersusEnd } from '../lib/achievements';
 import { recordMatch } from '../lib/versus';
 import { InputRouter } from './input';
 import { botHandling, BotPilot } from './pilot';
@@ -239,6 +240,7 @@ export class VersusSession {
         if (player === 0) {
           sfx.onEvent(e);
           dj.event(e);
+          if (!this.options.left) onGameEvent(e);
         }
       }
       game.events.length = 0;
@@ -255,7 +257,10 @@ export class VersusSession {
     sfx.end(winner === 0 ? 'finished' : 'topout');
     const games = this.match.games;
     this.past.time += games[0].elapsed;
-    if (!this.options.left) addPlay(games[0].elapsed, getSettings().appearance.skin);
+    if (!this.options.left) {
+      addPlay(games[0].elapsed, getSettings().appearance.skin);
+      onGamePlayed(getSettings().appearance.skin);
+    }
     this.past.games.push(games.map((g) => ({ attack: g.stats.attack, pieces: g.stats.pieces, garbageCleared: g.stats.garbageCleared })));
     this.setPhase('roundOver');
     this.view.round(winner, [...this.score]);
@@ -269,6 +274,7 @@ export class VersusSession {
   private finishMatch(): void {
     this.setPhase('done');
     const won = this.score[0] > this.score[1];
+    if (!this.options.left) onVersusEnd(this.bot.level, won, [this.score[0], this.score[1]], this.firstTo);
     if (!this.options.tournament && !this.options.left) {
       recordMatch(this.bot.id, won, this.score[0], this.score[1]);
       awardXp(versusXp(won, this.bot.level, this.score[0]), `vs ${this.bot.name}`);

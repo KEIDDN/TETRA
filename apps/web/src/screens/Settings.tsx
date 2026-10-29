@@ -4,14 +4,17 @@ import { Row, Section, Segmented, SliderRow, ToggleRow } from '../ui/controls';
 import { SOUND_PACK_NAMES, sfx } from '../audio/sfx';
 import type { FxLevel } from '../game/fx';
 import { gamepads } from '../game/gamepad';
-import { CUPS, skinLocked } from '../lib/tournament';
+import { skinLocked } from '../lib/tournament';
 import { SKIN_ORDER, SKINS, type Skin, type SoundPackId } from '../game/skins';
 import { SkinSwatch } from '../ui/SkinSwatch';
 import { DemoBoard } from '../ui/DemoBoard';
+import { TRACKS } from '../audio/catalog';
+import { skinUnlockHint } from '../lib/achievements';
 import { ControllerPreview, KeyboardPreview, SUPPORTED_PADS } from '../ui/ControlsPreview';
 import { Icon, type IconName } from '../ui/Icon';
 import { buttonLabel, keyLabel, PAD_NAMES } from '../lib/labels';
 import { useMenuNav } from '../lib/nav';
+import { Glyph } from '../ui/Glyph';
 import {
   bind,
   COMMANDS,
@@ -91,7 +94,7 @@ export function Settings({
       <aside className="flex w-[300px] shrink-0 flex-col border-r border-line px-6 py-6">
         <button data-nav onClick={onBack} className={`glass -ml-1 self-start rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
           <span className="flex items-center gap-2">
-            <Icon name="back" size={12} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+            <Icon name="back" size={12} /> Back <Glyph k="back" className="text-white/40" />
           </span>
         </button>
         <h1 className="mt-10 text-[40px] leading-none font-[520] tracking-[-0.045em]">Settings</h1>
@@ -402,7 +405,7 @@ function SkinCard({ skin, selected, locked, onSelect }: { skin: Skin; selected: 
           />
         </div>
         <div className="mt-1 text-[12px] leading-snug text-faint">
-          {locked ? `Win ${CUPS.find((c) => c.reward === skin.id)?.name} to unlock` : skin.description}
+          {locked ? skinUnlockHint(skin.id) : skin.description}
         </div>
       </div>
     </button>
@@ -501,7 +504,53 @@ function SoundPanel() {
           </button>
         ))}
       </Section>
+
+      <Credits />
     </>
+  );
+}
+
+/** Who made the music, and under which licence: tucked away at the end of Sound. */
+function Credits() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Section label="Music credits" note="Every track, its artist and its licence.">
+      <button
+        data-nav
+        onClick={() => setOpen(!open)}
+        className={`flex w-full items-center justify-between px-6 py-4 text-left hover:bg-white/[0.03] sm:px-7 ${focusRing} focus-visible:ring-inset`}
+      >
+        <span className="text-[15px] text-muted">{open ? 'Hide credits' : `Show credits · ${TRACKS.length} tracks`}</span>
+        <span className={`text-muted transition-transform duration-300 ${open ? 'rotate-90' : ''}`}>›</span>
+      </button>
+      {open &&
+        TRACKS.map((t) => (
+          <div key={t.id} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-t border-line px-6 py-3 text-[13px] sm:px-7">
+            <span className="min-w-0">
+              <span className="text-fg">{t.title}</span>
+              <span className="text-faint">
+                {' '}
+                · {t.artist}
+                {t.album ? ` · ${t.album}` : ''}
+              </span>
+            </span>
+            <span className="flex items-center gap-4">
+              {t.source && (
+                <a href={t.source} target="_blank" rel="noreferrer" className="text-faint transition-colors hover:text-fg">
+                  Source
+                </a>
+              )}
+              {t.licenseUrl ? (
+                <a href={t.licenseUrl} target="_blank" rel="noreferrer" className="text-faint transition-colors hover:text-fg">
+                  {t.license}
+                </a>
+              ) : (
+                <span className="text-faint">{t.license}</span>
+              )}
+            </span>
+          </div>
+        ))}
+    </Section>
   );
 }
 

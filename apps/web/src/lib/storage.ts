@@ -7,7 +7,7 @@ const PREFIX = 'tetra.';
  * with them in memory only, so nothing they do is kept; everything else
  * (settings, controls, your own bots) stays on the device either way.
  */
-const STAT_KEY = /^(profile|best\.|history\.|versus\.|tournament|celebrated\.)/;
+const STAT_KEY = /^(profile|best\.|history\.|versus\.|tournament|celebrated\.|achievements|lifetime)/;
 const memory = new Map<string, string>();
 let policy: { persistStats: boolean; onWrite?: (key: string) => void } = { persistStats: true };
 

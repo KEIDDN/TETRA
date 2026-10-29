@@ -7,6 +7,7 @@ import { startTournament, type Seeding } from '../lib/tournament';
 import { BotEmblem } from '../ui/BotEmblem';
 import { Icon } from '../ui/Icon';
 import { Row, Section, Segmented, ToggleRow } from '../ui/controls';
+import { Glyph } from '../ui/Glyph';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 const SIZES = ['4', '8', '16'] as const;
@@ -62,7 +63,7 @@ export function TournamentBuilder({ onBack, onStart }: { onBack: () => void; onS
         <header className="flex h-24 items-center justify-between">
           <button data-nav onClick={onBack} className={`-ml-4 rounded-full px-4 py-2 text-[14px] font-medium text-muted hover:text-fg ${focusRing}`}>
             <span className="flex items-center gap-2">
-              <Icon name="back" size={11} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+              <Icon name="back" size={11} /> Back <Glyph k="back" className="text-white/40" />
             </span>
           </button>
           <span className="label">Custom bracket</span>
