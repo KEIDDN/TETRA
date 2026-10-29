@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { Provider } from '@supabase/supabase-js';
 import { desktop } from './platform';
 import { clearData, restore, setStoragePolicy, snapshot } from './storage';
-import { supabase } from './supabase';
+import { supabase, supabaseKey, supabaseUrl } from './supabase';
 
 /**
  * Who is playing.
@@ -177,11 +177,9 @@ export async function verifyEmailCode(email: string, code: string): Promise<stri
 /** Which of Google and Apple are switched on in the project, so the others aren't offered. */
 export async function signInProviders(): Promise<{ google: boolean; apple: boolean }> {
   const none = { google: false, apple: false };
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-  if (!url || !key) return none;
+  if (!supabase || !supabaseUrl || !supabaseKey) return none;
   try {
-    const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
+    const res = await fetch(`${supabaseUrl}/auth/v1/settings`, { headers: { apikey: supabaseKey } });
     const { external } = (await res.json()) as { external?: Record<string, boolean> };
     return { google: !!external?.google, apple: !!external?.apple };
   } catch {
