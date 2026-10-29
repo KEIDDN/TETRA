@@ -17,7 +17,9 @@ import type { ProfileSection } from './screens/Profile';
 import { Title } from './screens/Title';
 import { desktop } from './lib/platform';
 import type { LegalDoc } from './screens/Legal';
-import { accountsEnabled, getAccount, useAccount } from './lib/account';
+import { accountsEnabled, askedForReset, getAccount, useAccount, useRecovering } from './lib/account';
+import { NamePrompt } from './ui/NamePrompt';
+import { useProfile } from './lib/profile';
 import { load, save } from './lib/storage';
 import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
@@ -63,7 +65,7 @@ type Screen =
   | { name: 'experience'; firstRun?: boolean; back?: 'settings' }
   | { name: 'oxia' }
   | { name: 'download' }
-  | { name: 'account'; back?: boolean }
+  | { name: 'account'; back?: boolean; reset?: boolean }
   | { name: 'landing' }
   | { name: 'title' }
   | { name: 'legal'; doc: LegalDoc }
@@ -87,12 +89,15 @@ export function App() {
       save('onboarded', true);
       return { name: 'experience', firstRun: true };
     }
+    if (askedForReset) return { name: 'account', back: true, reset: true };
     if (desktop) return { name: 'title' };
     return accountsEnabled && getAccount().mode === 'unknown' ? { name: 'account' } : { name: 'home' };
   });
   // Pages you step into and out of (downloads, legal, the studio) go back to wherever you came from.
   const previous = useRef<Screen[]>([]);
   const account = useAccount();
+  const recovering = useRecovering();
+  const profile = useProfile();
   // Screens change inside a view transition: the old one settles back, the new one rises, shared elements fly between them.
   const setScreen = (next: Screen) => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -214,7 +219,15 @@ export function App() {
       );
       break;
     case 'account':
-      content = <Account onDone={finishOnboarding} onBack={screen.back ? back : undefined} onLegal={(doc) => visit({ name: 'legal', doc })} />;
+      content = (
+        <Account
+          key={screen.reset ? 'reset' : 'account'}
+          initial={screen.reset ? 'forgot' : 'signup'}
+          onDone={finishOnboarding}
+          onBack={screen.back ? backOrHome : undefined}
+          onLegal={(doc) => visit({ name: 'legal', doc })}
+        />
+      );
       break;
     case 'download':
       content = <Download onBack={back} onLegal={(doc) => visit({ name: 'legal', doc })} />;
@@ -337,6 +350,15 @@ export function App() {
       </div>
       {!['play', 'match', 'bout', 'experience', 'oxia', 'account', 'download', 'landing', 'legal', 'title'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
       {!['play', 'match', 'bout'].includes(screen.name) && <UpdateBanner />}
+      {recovering && (
+        <div className="fixed inset-0 z-[70]">
+          <Suspense fallback={null}>
+            <Account initial="newPassword" onDone={home} />
+          </Suspense>
+        </div>
+      )}
+      {/* Signed in without a player name yet (Google, Apple, or an older account): ask once. */}
+      {account.mode === 'user' && profile.name === 'Player' && !recovering && !['play', 'match', 'bout', 'experience'].includes(screen.name) && <NamePrompt />}
       <Toasts />
       {screen.name === 'home' && !desktop && <LogoIntro />}
     </>

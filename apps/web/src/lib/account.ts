@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react';
 import type { Provider } from '@supabase/supabase-js';
 import { desktop } from './platform';
 import { clearData, restore, setStoragePolicy, snapshot } from './storage';
+import { getProfile, setName } from './profile';
+import { toast } from '../ui/toast';
 import { supabase, supabaseKey, supabaseUrl } from './supabase';
 
 /**
@@ -93,7 +95,10 @@ async function reconcile(userId: string): Promise<void> {
   if (error) return;
   const local = syncState();
   if (!row) {
-    // A new account adopts whatever was played here before signing in.
+    // A new account adopts whatever was played here before signing in, under the name chosen at sign-up.
+    const { data: who } = await supabase.auth.getUser();
+    const chosen = (who.user?.user_metadata as { name?: string } | undefined)?.name;
+    if (chosen && getProfile().name === 'Player') setName(chosen);
     await push();
     return;
   }
@@ -112,6 +117,7 @@ async function reconcile(userId: string): Promise<void> {
 
 if (supabase) {
   supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') setRecovering(true);
     if (session?.user) {
       const first = account.mode !== 'user' || event === 'SIGNED_IN';
       set({ mode: 'user', email: session.user.email ?? null });
@@ -132,6 +138,46 @@ if (supabase) {
     const code = new URL(url).searchParams.get('code');
     if (code) await supabase!.auth.exchangeCodeForSession(code);
   });
+}
+
+/** Where email links land: the website, so they open on any device (a phone too). */
+const WEB = desktop ? 'https://tetra-blocks.vercel.app' : location.origin;
+
+/** The website opened from the desktop app's "Forgot password?": go straight to the reset form. */
+export const askedForReset =
+  typeof location !== 'undefined' && new URLSearchParams(location.search).has('reset') && !new URLSearchParams(location.search).has('code');
+
+// Coming back from an email link: say what happened, and tidy the address bar.
+if (supabase && typeof location !== 'undefined') {
+  const query = new URLSearchParams(location.search);
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const problem = hash.get('error_description') ?? query.get('error_description');
+  if (problem) setTimeout(() => toast(problem.replace(/\+/g, ' ')), 1200);
+  else if (query.has('confirmed')) {
+    void supabase.auth.getSession().then(({ data }) =>
+      setTimeout(() => toast(data.session ? 'Email confirmed. Welcome to TETRA.' : 'Email confirmed. Sign in on any device to start playing.'), 1200),
+    );
+  }
+  if (problem || query.has('confirmed') || query.has('reset')) history.replaceState(null, '', location.pathname);
+}
+
+// ── Password recovery ──────────────────────────────────────────
+
+let recovering = false;
+const recoveryListeners = new Set<() => void>();
+function setRecovering(on: boolean): void {
+  recovering = on;
+  recoveryListeners.forEach((l) => l());
+}
+/** True after following a reset-password link: time to choose a new one. */
+export function useRecovering(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      recoveryListeners.add(l);
+      return () => recoveryListeners.delete(l);
+    },
+    () => recovering,
+  );
 }
 
 // ── Actions ────────────────────────────────────────────────────
@@ -157,21 +203,65 @@ export function playAsGuest(): void {
   set({ mode: 'guest' });
 }
 
-/** Sends a sign-in email with a 6-digit code (and a link that works in this browser). */
-export async function sendEmailCode(email: string): Promise<string | null> {
-  if (!supabase) return 'Accounts are not available yet.';
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    // The link in the email brings the player back here (or to the desktop app).
-    options: { shouldCreateUser: true, emailRedirectTo: desktop ? DESKTOP_REDIRECT : location.origin },
+const friendly = (message: string): string =>
+  /email not confirmed/i.test(message)
+    ? 'Confirm your email first: open the link we sent you, on any device.'
+    : /invalid login credentials/i.test(message)
+      ? 'That email and password don’t match.'
+      : /rate limit/i.test(message)
+        ? 'Too many emails for now. Try again in a few minutes.'
+        : message;
+
+export type SignUpResult = { error: string } | { confirm: true } | { signedIn: true } | { exists: true };
+
+/** Creates an account. The confirmation link can be opened on any device; then sign in here. */
+export async function signUp(email: string, password: string, name: string): Promise<SignUpResult> {
+  if (!supabase) return { error: 'Accounts are not available yet.' };
+  const clean = name.trim().slice(0, 24);
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: { data: { name: clean }, emailRedirectTo: `${WEB}/?confirmed=1` },
   });
-  return error?.message ?? null;
+  if (error) return { error: friendly(error.message) };
+  // Supabase answers a known email with an empty identity list instead of an error.
+  if (data.user && data.user.identities?.length === 0) return { exists: true };
+  if (clean) setName(clean);
+  return data.session ? { signedIn: true } : { confirm: true };
 }
 
-export async function verifyEmailCode(email: string, code: string): Promise<string | null> {
+export async function signInWithPassword(email: string, password: string): Promise<string | null> {
   if (!supabase) return 'Accounts are not available yet.';
-  const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: 'email' });
-  return error?.message ?? null;
+  const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+  return error ? friendly(error.message) : null;
+}
+
+export async function resendConfirmation(email: string): Promise<string | null> {
+  if (!supabase) return 'Accounts are not available yet.';
+  const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: `${WEB}/?confirmed=1` } });
+  return error ? friendly(error.message) : null;
+}
+
+/**
+ * Sends a reset link. The link has to be opened in the same browser that asked
+ * for it, so the desktop app sends players to the website to do it there.
+ */
+export async function forgotPassword(email: string): Promise<string | null> {
+  if (!supabase) return 'Accounts are not available yet.';
+  if (desktop) {
+    desktop.openExternal(`${WEB}/?reset=1`);
+    return null;
+  }
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${WEB}/?reset=1` });
+  return error ? friendly(error.message) : null;
+}
+
+export async function setNewPassword(password: string): Promise<string | null> {
+  if (!supabase) return 'Accounts are not available yet.';
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return friendly(error.message);
+  setRecovering(false);
+  return null;
 }
 
 /** Which of Google and Apple are switched on in the project, so the others aren't offered. */

@@ -1,5 +1,15 @@
-import { useEffect, useState } from 'react';
-import { playAsGuest, sendEmailCode, signInProviders, signInWith, verifyEmailCode } from '../lib/account';
+import { useEffect, useState, type ReactNode } from 'react';
+import {
+  forgotPassword,
+  playAsGuest,
+  resendConfirmation,
+  setNewPassword,
+  signInProviders,
+  signInWith,
+  signInWithPassword,
+  signUp,
+} from '../lib/account';
+import { desktop } from '../lib/platform';
 import { useMenuNav } from '../lib/nav';
 import { Icon, type IconName } from '../ui/Icon';
 import { Logo } from '../ui/Logo';
@@ -8,8 +18,8 @@ import { Stage3D } from '../ui/experience/Stage3D';
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
 /**
- * Sign in to keep your progress everywhere, or play as a guest. Email gets a
- * six-digit code; Google and Apple go through their own sign-in.
+ * Sign in to keep your progress everywhere, or play as a guest. Email and
+ * password work on every device; the confirmation link opens anywhere.
  */
 const SAVED: [IconName, string][] = [
   ['profile', 'Level and XP'],
@@ -20,13 +30,42 @@ const SAVED: [IconName, string][] = [
   ['settings', 'Settings'],
 ];
 
-export function Account({ onDone, onBack, onLegal }: { onDone: () => void; onBack?: () => void; onLegal?: (doc: 'terms' | 'privacy') => void }) {
+type Mode = 'signin' | 'signup' | 'check' | 'forgot' | 'newPassword';
+const input =
+  'glass-panel h-12 w-full rounded-full px-5 text-[15px] outline-none placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-accent/60';
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="grid gap-1.5">
+      <span className="px-2 text-[12px] font-medium text-white/50">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+export function Account({
+  onDone,
+  onBack,
+  onLegal,
+  initial = 'signup',
+}: {
+  onDone: () => void;
+  onBack?: () => void;
+  onLegal?: (doc: 'terms' | 'privacy') => void;
+  initial?: Mode;
+}) {
+  const [mode, setMode] = useState<Mode>(initial);
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [withCode, setWithCode] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const go = (next: Mode) => {
+    setMode(next);
+    setError(null);
+    setNote(null);
+  };
   const [providers, setProviders] = useState({ google: false, apple: false });
   useEffect(() => {
     void signInProviders().then(setProviders);
@@ -36,6 +75,7 @@ export function Account({ onDone, onBack, onLegal }: { onDone: () => void; onBac
   const run = async (task: () => Promise<string | null>, then?: () => void) => {
     setBusy(true);
     setError(null);
+    setNote(null);
     const message = await task();
     setBusy(false);
     if (message) setError(message);
@@ -78,143 +118,245 @@ export function Account({ onDone, onBack, onLegal }: { onDone: () => void; onBac
 
         <div className="mt-10 w-full max-w-[440px] text-left">
           <div className="glass-panel animate-rise rounded-[36px] p-8 [animation-delay:120ms] sm:p-10">
-            <h2 className="text-[22px] font-[560] tracking-[-0.02em]">Sign in or create an account</h2>
-            <p className="mt-2 text-[14px] text-white/45">No password. Same steps for both.</p>
-            {(providers.apple || providers.google) && (
+            {mode === 'signin' || mode === 'signup' ? (
               <>
-                <div className="mt-8 grid gap-3">
-                  {providers.apple && (
+                <div className="glass inline-flex w-full rounded-full p-1">
+                  {(
+                    [
+                      ['signin', 'Sign in'],
+                      ['signup', 'Create account'],
+                    ] as const
+                  ).map(([id, label]) => (
                     <button
-                      disabled={busy}
-                      onClick={() => void run(() => signInWith('apple'))}
-                      className={`glass-light flex h-14 items-center justify-center gap-3 rounded-full text-[16px] font-semibold disabled:opacity-60 ${focusRing}`}
+                      key={id}
+                      data-nav
+                      onClick={() => go(id)}
+                      className={`flex-1 rounded-full py-2.5 text-[14px] font-medium transition-colors duration-300 ${focusRing} ${
+                        mode === id ? 'bg-white text-black' : 'text-white/60 hover:text-fg'
+                      }`}
                     >
-                      <AppleGlyph /> Continue with Apple
+                      {label}
                     </button>
-                  )}
-                  {providers.google && (
-                    <button
-                      disabled={busy}
-                      onClick={() => void run(() => signInWith('google'))}
-                      className={`glass flex h-14 items-center justify-center gap-3 rounded-full text-[16px] font-medium disabled:opacity-60 ${focusRing}`}
-                    >
-                      <GoogleGlyph /> Continue with Google
-                    </button>
-                  )}
+                  ))}
                 </div>
+                {(providers.apple || providers.google) && (
+                  <>
+                    <div className="mt-6 grid gap-3">
+                      {providers.apple && (
+                        <button
+                          disabled={busy}
+                          onClick={() => void run(() => signInWith('apple'))}
+                          className={`glass-light flex h-14 items-center justify-center gap-3 rounded-full text-[16px] font-semibold disabled:opacity-60 ${focusRing}`}
+                        >
+                          <AppleGlyph /> Continue with Apple
+                        </button>
+                      )}
+                      {providers.google && (
+                        <button
+                          disabled={busy}
+                          onClick={() => void run(() => signInWith('google'))}
+                          className={`glass flex h-14 items-center justify-center gap-3 rounded-full text-[16px] font-medium disabled:opacity-60 ${focusRing}`}
+                        >
+                          <GoogleGlyph /> Continue with Google
+                        </button>
+                      )}
+                    </div>
 
-                <div className="my-8 flex items-center gap-4 font-mono text-[10px] tracking-[0.24em] text-white/35 uppercase">
-                  <span className="h-px flex-1 bg-white/10" />
-                  or with email
-                  <span className="h-px flex-1 bg-white/10" />
-                </div>
+                    <div className="my-6 flex items-center gap-4 font-mono text-[10px] tracking-[0.24em] text-white/35 uppercase">
+                      <span className="h-px flex-1 bg-white/10" />
+                      or with email
+                      <span className="h-px flex-1 bg-white/10" />
+                    </div>
+                  </>
+                )}
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (mode === 'signin') void run(() => signInWithPassword(email, password), onDone);
+                    else
+                      void run(async () => {
+                        const result = await signUp(email, password, name);
+                        if ('error' in result) return result.error;
+                        if ('exists' in result) {
+                          go('signin');
+                          return 'You already have an account with this email. Sign in, or reset your password.';
+                        }
+                        if ('signedIn' in result) onDone();
+                        else go('check');
+                        return null;
+                      });
+                  }}
+                  className={`grid gap-3 ${providers.apple || providers.google ? '' : 'mt-6'}`}
+                >
+                  {mode === 'signup' && (
+                    <Field label="Player name">
+                      <input
+                        required
+                        maxLength={24}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        placeholder="How others will see you"
+                        autoComplete="nickname"
+                        className={input}
+                      />
+                    </Field>
+                  )}
+                  <Field label="Email">
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      className={input}
+                    />
+                  </Field>
+                  <Field label="Password">
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      placeholder={mode === 'signup' ? 'At least 8 characters' : 'Your password'}
+                      autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                      className={input}
+                    />
+                  </Field>
+                  <button disabled={busy} className={`glass-light mt-2 h-14 rounded-full text-[16px] font-semibold disabled:opacity-50 ${focusRing}`}>
+                    {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+                  </button>
+                  {mode === 'signin' && (
+                    <button
+                      type="button"
+                      onClick={() => go('forgot')}
+                      className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
+                    >
+                      Forgot your password?
+                    </button>
+                  )}
+                </form>
               </>
+            ) : mode === 'check' ? (
+              <div className="grid gap-4">
+                <h2 className="text-[24px] font-[560] tracking-[-0.02em]">Check your email.</h2>
+                <p className="text-[15px] leading-relaxed text-white/60">
+                  We sent a link to <span className="text-fg">{email}</span>. Open it on any device, your phone is fine, to confirm your account. Then
+                  come back and sign in.
+                </p>
+                <button data-nav onClick={() => go('signin')} className={`glass-light mt-2 h-14 rounded-full text-[16px] font-semibold ${focusRing}`}>
+                  I've confirmed, sign in
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(
+                      () => resendConfirmation(email),
+                      () => setNote('Sent again. It can take a minute to arrive.'),
+                    )
+                  }
+                  className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
+                >
+                  Didn't get it? Send it again
+                </button>
+              </div>
+            ) : mode === 'forgot' ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void run(
+                    () => forgotPassword(email),
+                    () =>
+                      setNote(
+                        desktop
+                          ? 'We opened TETRA in your browser: reset your password there.'
+                          : 'Check your email for a link to choose a new password. Open it in this browser.',
+                      ),
+                  );
+                }}
+                className="grid gap-3"
+              >
+                <h2 className="text-[24px] font-[560] tracking-[-0.02em]">Reset your password</h2>
+                <p className="text-[15px] leading-relaxed text-white/60">
+                  {desktop ? 'This opens TETRA in your browser, where you can reset it.' : "We'll email you a link to choose a new one."}
+                </p>
+                {!desktop && (
+                  <Field label="Email">
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      className={input}
+                    />
+                  </Field>
+                )}
+                <button disabled={busy} className={`glass-light mt-2 h-14 rounded-full text-[16px] font-semibold disabled:opacity-50 ${focusRing}`}>
+                  {desktop ? 'Open in browser' : busy ? 'Sending…' : 'Send reset link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go('signin')}
+                  className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
+                >
+                  Back to sign in
+                </button>
+              </form>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void run(() => setNewPassword(password), onDone);
+                }}
+                className="grid gap-3"
+              >
+                <h2 className="text-[24px] font-[560] tracking-[-0.02em]">Choose a new password</h2>
+                <Field label="New password">
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                    className={input}
+                  />
+                </Field>
+                <button disabled={busy} className={`glass-light mt-2 h-14 rounded-full text-[16px] font-semibold disabled:opacity-50 ${focusRing}`}>
+                  {busy ? 'Saving…' : 'Save and play'}
+                </button>
+              </form>
             )}
 
-            <div className={providers.apple || providers.google ? '' : 'mt-8'}>
-              {!sent ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void run(
-                      () => sendEmailCode(email),
-                      () => setSent(true),
-                    );
-                  }}
-                  className="grid gap-3"
-                >
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                    className="glass-panel h-14 rounded-full px-6 text-[16px] outline-none placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-accent/60"
-                  />
-                  <button disabled={busy || !email} className={`glass h-14 rounded-full text-[16px] font-medium disabled:opacity-50 ${focusRing}`}>
-                    {busy ? 'Sending…' : 'Email me a sign-in link'}
-                  </button>
-                </form>
-              ) : !withCode ? (
-                <div className="grid gap-3">
-                  <div className="glass-panel rounded-[28px] px-6 py-5">
-                    <p className="text-[16px] font-medium">Check your email.</p>
-                    <p className="mt-2 text-[14px] leading-relaxed text-white/55">
-                      We sent a sign-in link to <span className="text-fg">{email}</span>. Open it on this device and you're in.
-                    </p>
-                  </div>
-                  <div className="flex justify-between px-2">
-                    <button
-                      type="button"
-                      onClick={() => setSent(false)}
-                      className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
-                    >
-                      Use a different email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setWithCode(true)}
-                      className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
-                    >
-                      I have a code
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void run(() => verifyEmailCode(email, code), onDone);
-                  }}
-                  className="grid gap-3"
-                >
-                  <p className="text-[14px] leading-relaxed text-white/55">
-                    Type the code from the email sent to <span className="text-fg">{email}</span>.
-                  </p>
-                  <input
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    required
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    placeholder="123456"
-                    className="glass-panel tabular h-14 rounded-full px-6 text-center text-[22px] tracking-[0.5em] outline-none placeholder:text-white/20 focus-visible:ring-2 focus-visible:ring-accent/60"
-                  />
-                  <button
-                    disabled={busy || code.length < 6}
-                    className={`glass-light h-14 rounded-full text-[16px] font-semibold disabled:opacity-50 ${focusRing}`}
-                  >
-                    {busy ? 'Checking…' : 'Sign in'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWithCode(false)}
-                    className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
-                  >
-                    Back
-                  </button>
-                </form>
-              )}
-            </div>
-
+            {note && <p className="mt-5 text-[14px] text-white/70">{note}</p>}
             {error && <p className="mt-5 text-[14px] text-[#ff6b6b]">{error}</p>}
 
-            <div className="mt-8 border-t border-white/10 pt-7 text-center">
-              <button
-                onClick={() => {
-                  playAsGuest();
-                  onDone();
-                }}
-                className={`group inline-flex items-center gap-3 font-mono text-[11px] tracking-[0.24em] text-white/70 uppercase ${focusRing}`}
-              >
-                <span className="border-b border-white/25 pb-1 transition-colors group-hover:border-white">Play as guest</span>
-                <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
-              </button>
-              <p className="mt-3 text-[13px] text-white/35">As a guest you can play everything, but nothing is saved.</p>
-            </div>
+            {(mode === 'signin' || mode === 'signup') && (
+              <div className="mt-8 border-t border-white/10 pt-7 text-center">
+                <button
+                  onClick={() => {
+                    playAsGuest();
+                    onDone();
+                  }}
+                  className={`group inline-flex items-center gap-3 font-mono text-[11px] tracking-[0.24em] text-white/70 uppercase ${focusRing}`}
+                >
+                  <span className="border-b border-white/25 pb-1 transition-colors group-hover:border-white">Play as guest</span>
+                  <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+                </button>
+                <p className="mt-3 text-[13px] text-white/35">As a guest you can play everything, but nothing is saved.</p>
+              </div>
+            )}
             <p className="mt-8 text-center text-[12px] leading-relaxed text-white/35">
               By continuing you agree to the{' '}
               <button onClick={() => onLegal?.('terms')} className={`underline decoration-white/25 underline-offset-2 hover:text-fg ${focusRing}`}>

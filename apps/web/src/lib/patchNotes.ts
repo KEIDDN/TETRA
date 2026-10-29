@@ -10,6 +10,25 @@ export interface Release {
 
 export const PATCH_NOTES: Release[] = [
   {
+    version: '1.1.1',
+    date: 'November 2026',
+    title: 'Hotfix',
+    intro: 'A quick fix so everyone can create an account, wherever they open their email.',
+    sections: [
+      {
+        heading: 'New',
+        notes: ['Create your account with a player name, email and password. Pick the name you want to be known by.'],
+      },
+      {
+        heading: 'Fixed',
+        notes: [
+          'Fixed confirmation emails that could not be opened on a phone or in another browser. The link now works on any device.',
+          'Added Forgot your password? to the sign-in screen.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.1.0',
     date: 'November 2026',
     title: 'Earn it',
