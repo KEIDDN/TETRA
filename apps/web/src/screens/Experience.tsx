@@ -51,7 +51,7 @@ const CHAPTERS: Chapter[] = [
     line: 'Ten bots that hesitate, misdrop and get greedy, like people do. Face them one on one in Versus, or fight through the Cups.',
     stage: { game: 'versus', bot: true },
   },
-  { id: 'focus', name: 'Focus', title: ['Here to train?'], line: 'One switch. Everything but the stack goes quiet.', stage: { game: 'sprint' } },
+  { id: 'focus', name: 'Focus', title: ['Here to train?'], line: 'The Experience is TETRA as OXIA designed it: sound, light and play as one. Here to practise? Focus is for you too. It quiets the rooms, backgrounds and motion, so only the stack moves.', stage: { game: 'sprint' } },
   { id: 'oxia', name: 'OXIA', title: ['Designed by', 'OXIA Labs.'], line: 'Creative technology, made with obsession.', stage: 'oxia' },
 ];
 const LISTEN: Chapter = { id: 'listen', name: 'Listen', title: ['How are you', 'listening?'], stage: 'welcome' };
@@ -302,7 +302,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
             <div>
               <GlassSwitch options={['Experience', 'Focus']} value={settings.experience ? 0 : 1} onChange={(v) => toggleFocus(v === 1)} />
               <p key={String(settings.experience)} className="animate-rise mt-6 font-mono text-[11px] tracking-[0.22em] text-white/50 uppercase">
-                {settings.experience ? 'Sound, light and play as one' : 'Just you and the stack'}
+                {settings.experience ? 'As designed: sound, light and play as one' : 'Rooms, backgrounds and motion off. Just the stack'}
               </p>
             </div>
           )}
@@ -395,7 +395,9 @@ function Scene({ chapter, active, gameSide, children }: { chapter: Chapter; acti
     <div
       aria-hidden={!active}
       className={`absolute inset-0 z-10 flex flex-col justify-center transition-[opacity,filter] duration-700 ${active ? 'opacity-100' : 'pointer-events-none opacity-0 blur-[8px]'} ${
-        gameSide ? 'items-start px-8 text-left sm:px-12 lg:pl-[7vw]' : 'items-center px-8 text-center'
+        gameSide
+          ? 'items-start px-8 text-left sm:px-12 lg:pl-[7vw]'
+          : `items-center px-8 text-center ${chapter.stage === 'oxia' ? 'pt-[30vh]' : ''}`
       }`}
     >
       <h2

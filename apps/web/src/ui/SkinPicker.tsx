@@ -17,7 +17,7 @@ function MiniT({ id }: { id: SkinId }) {
     const skin = SKINS[id];
     const canvas = ref.current!;
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const px = Math.round(9 * dpr);
+    const px = Math.round(12 * dpr);
     canvas.width = 3 * px;
     canvas.height = 2 * px;
     const ctx = canvas.getContext('2d')!;
@@ -27,7 +27,7 @@ function MiniT({ id }: { id: SkinId }) {
     const masks = linkMasks(T_CELLS);
     T_CELLS.forEach(([x, y], i) => ctx.drawImage(paintBlock(skin, px, color, 'T', masks[i]), x * px - bleed, (1 - y) * px - bleed));
   }, [id]);
-  return <canvas ref={ref} className="h-[18px] w-[27px]" aria-hidden />;
+  return <canvas ref={ref} className="h-[24px] w-[36px]" aria-hidden />;
 }
 
 /**
@@ -37,24 +37,33 @@ function MiniT({ id }: { id: SkinId }) {
 export function SkinPicker({ skins, value, onChange }: { skins: SkinId[]; value: SkinId; onChange: (id: SkinId) => void }) {
   const index = Math.max(0, skins.indexOf(value));
   return (
-    <div className="glass-panel relative inline-grid grid-cols-5 rounded-[26px] p-2" onClick={(e) => e.stopPropagation()}>
-      <div
-        aria-hidden
-        className="pick-lens pointer-events-none absolute top-2 left-2 h-11 w-14 rounded-[16px] transition-transform duration-500 ease-[cubic-bezier(0.34,1.5,0.64,1)]"
-        style={{ transform: `translate(${(index % COLS) * 56}px, ${Math.floor(index / COLS) * 44}px)` }}
-      />
-      {skins.map((id) => (
-        <button
-          key={id}
-          onClick={() => onChange(id)}
-          title={SKINS[id].name}
-          aria-label={SKINS[id].name}
-          aria-pressed={id === value}
-          className={`relative z-10 grid h-11 w-14 place-items-center rounded-[16px] outline-none transition-[opacity,transform] duration-300 focus-visible:ring-2 focus-visible:ring-accent/60 ${id === value ? 'scale-110 opacity-100' : 'opacity-55 hover:opacity-90'}`}
-        >
-          <MiniT id={id} />
-        </button>
-      ))}
+    <div onClick={(e) => e.stopPropagation()}>
+      <div className="mb-3 flex items-center gap-3 font-mono text-[10px] tracking-[0.24em] text-white/55 uppercase">
+        <span className="relative flex size-1.5">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-white/70" />
+          <span className="relative inline-flex size-1.5 rounded-full bg-white" />
+        </span>
+        Pick a skin · it plays live
+      </div>
+      <div className="glass-panel relative inline-grid grid-cols-5 rounded-[30px] p-2.5">
+        <div
+          aria-hidden
+          className="pick-lens pointer-events-none absolute top-2.5 left-2.5 h-14 w-[72px] rounded-[20px] transition-transform duration-500 ease-[cubic-bezier(0.34,1.5,0.64,1)]"
+          style={{ transform: `translate(${(index % COLS) * 72}px, ${Math.floor(index / COLS) * 56}px)` }}
+        />
+        {skins.map((id) => (
+          <button
+            key={id}
+            onClick={() => onChange(id)}
+            title={SKINS[id].name}
+            aria-label={SKINS[id].name}
+            aria-pressed={id === value}
+            className={`relative z-10 grid h-14 w-[72px] cursor-pointer place-items-center rounded-[20px] outline-none transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.34,1.5,0.64,1)] focus-visible:ring-2 focus-visible:ring-accent/60 ${id === value ? 'scale-110 opacity-100' : 'opacity-55 hover:-translate-y-0.5 hover:scale-105 hover:opacity-100'}`}
+          >
+            <MiniT id={id} />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

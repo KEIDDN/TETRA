@@ -23,7 +23,7 @@ const PILLARS: [string, string][] = [
 ];
 
 const MANIFESTO =
-  'We love this game. We love the music that keeps a room moving until sunrise. They speak the same language: tension, release, the drop. TETRA is where they finally meet.';
+  'We love this game. We love the music that keeps a room moving until sunrise. Put them together and something happens: the stack and the beat lock in, and you slip into a kind of trance. TETRA was built for that moment.';
 
 /** Each section asks the 3D stage for its own formation, centred or set to the right of the text. */
 type Section = { formation: Formation; centered: boolean };
@@ -101,7 +101,7 @@ export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperienc
             </Reveal>
             <Reveal root={scroller} delay={320}>
               <p className="mx-auto mt-8 max-w-[36ch] text-[clamp(17px,1.4vw,22px)] leading-relaxed text-white/60">
-                A falling-block game designed as an audiovisual experience, by an independent studio that cares too much.
+                An audiovisual experience where the music and the blocks lock together, until you slip into something close to a trance.
               </p>
             </Reveal>
             <Reveal root={scroller} delay={600}>
@@ -119,8 +119,8 @@ export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperienc
             </Reveal>
             <Reveal root={scroller} delay={240}>
               <p className="mt-8 max-w-[46ch] text-[clamp(16px,1.25vw,20px)] leading-relaxed text-white/55">
-                OXIA Labs designs and builds software where engineering meets feel: apps, tools and experiences. We are small on purpose, so every
-                decision passes through the same hands, and nothing ships until it feels right.
+                OXIA Labs is a creative technology studio. We obsess over design, over the technology underneath it, and over making everything
+                feel right and look beautiful. Every decision is deliberate, and nothing ships until it feels inevitable.
               </p>
             </Reveal>
             <div className="mt-16 grid max-w-[880px] gap-10 sm:grid-cols-3">

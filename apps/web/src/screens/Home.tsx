@@ -21,17 +21,21 @@ import type { ProfileSection } from './Profile';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 
-type Entry = DemoMode | 'cups';
-const ENTRIES: Entry[] = [...MODE_ORDER, 'versus', 'cups'];
+type Entry = DemoMode | 'cups' | 'multiplayer';
+const ENTRIES: Entry[] = [...MODE_ORDER, 'versus', 'cups', 'multiplayer'];
+/** On the menu so it is known it is coming, but not playable yet. */
+const SOON: Entry[] = ['multiplayer'];
 const PIECES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
 function entryName(id: Entry): string {
+  if (id === 'multiplayer') return 'Multiplayer';
   return id === 'versus' ? 'Versus' : id === 'cups' ? 'Cups' : MODE_CONFIGS[id].def.name;
 }
 
 function entryDescription(id: Entry): string {
   if (id === 'cups') return 'Eight-bot brackets. Three cups, or your own.';
+  if (id === 'multiplayer') return 'Play people, live. We are building it now.';
   return id === 'versus' ? 'Ten bots that play like people.' : MODE_CONFIGS[id].description;
 }
 
@@ -105,9 +109,14 @@ export function Home({
     if (el) lattice.ripple(el.left, el.top + el.height / 2, 2.2);
   };
 
-  const activate = (id: Entry) => (id === 'versus' ? onVersus() : id === 'cups' ? onCups() : onPlay(id));
+  const activate = (id: Entry) => {
+    if (id === 'multiplayer') return toast('Multiplayer is coming soon');
+    if (id === 'versus') onVersus();
+    else if (id === 'cups') onCups();
+    else onPlay(id);
+  };
 
-  const best = selected === 'versus' || selected === 'cups' ? null : loadBest(selected);
+  const best = selected === 'versus' || selected === 'cups' || selected === 'multiplayer' ? null : loadBest(selected);
 
   return (
     <div className="fixed inset-0 overflow-x-hidden overflow-y-auto">
@@ -171,6 +180,8 @@ export function Home({
                 extra={(id) =>
                   id === 'cups' ? (
                     <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold tracking-normal text-black">New</span>
+                  ) : SOON.includes(id) ? (
+                    <span className="glass rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-normal text-muted">Coming soon</span>
                   ) : null
                 }
                 onSelect={select}
@@ -184,7 +195,9 @@ export function Home({
               className="animate-fade mt-[min(40px,3.5vh)] flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-[min(24px,3vh)]"
             >
               <p className="min-w-[220px] flex-1 text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
-              {selected === 'versus' || selected === 'cups' ? (
+              {selected === 'multiplayer' ? (
+                <span className="glass rounded-full px-6 py-3 text-[15px] font-semibold text-muted">Coming soon</span>
+              ) : selected === 'versus' || selected === 'cups' ? (
                 <>
                   <PlayButton onClick={() => activate(selected)} />
                 </>
@@ -206,7 +219,7 @@ export function Home({
           >
             <div className="absolute inset-0 overflow-hidden rounded-[48px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.18)] backdrop-blur-xl">
               <DemoBoard
-                mode={selected === 'cups' ? 'versus' : selected}
+                mode={selected === 'cups' || selected === 'multiplayer' ? 'versus' : selected}
                 skin={appearance.skin}
                 className="absolute inset-0"
                 onClear={(power, y) => {
