@@ -11,7 +11,7 @@ import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScen
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
-type ChapterId = 'sound' | 'rooms' | 'play' | 'focus' | 'oxia';
+type ChapterId = 'sound' | 'rooms' | 'play' | 'opponents' | 'focus' | 'design' | 'oxia';
 type View = 'welcome' | 'index' | 'listen' | ChapterId;
 
 interface Chapter {
@@ -28,9 +28,9 @@ const CHAPTERS: Chapter[] = [
   {
     id: 'sound',
     name: 'Sound',
-    teaser: 'A club in your headphones.',
-    title: ['Played', 'loud.'],
-    body: 'TETRA comes with its own set: hypnotic, minimal techno, mastered for a concrete room. On headphones it surrounds you; on speakers it opens wide. A live DJ rides the mix with your game. Stack high and it sinks under a filter, chain combos and it opens, land a quad and the room throws it back.',
+    teaser: 'The music is half the game.',
+    title: ['You play', 'the music.'],
+    body: 'In TETRA the music is not in the background. It is half of the game. Every session plays its own set of hypnotic, minimal techno, and you play it as much as it plays you: stack high and the mix sinks under a filter, chain combos and it opens up, land a quad and the room throws it back at you. Put on headphones and you are standing in the middle of the club.',
     facts: [
       ['Binaural', 'On headphones'],
       ['Club', 'Master chain'],
@@ -40,9 +40,9 @@ const CHAPTERS: Chapter[] = [
   {
     id: 'rooms',
     name: 'Rooms',
-    teaser: 'Every skin is a room of light.',
-    title: ['Every skin', 'is a room.'],
-    body: 'Each skin brings its own room of light. It follows the kick, counts the bars and opens up on the drop, while the board stays perfectly still. You never lose a piece.',
+    teaser: 'Every skin brings its own light.',
+    title: ['Light that', 'listens.'],
+    body: 'Pick a skin and you walk into its room. The light behind your board follows the kick, counts the bars and opens up when the track drops. The board itself never moves an inch, so you always see every piece.',
     facts: [
       [String(SKIN_ORDER.length), 'Rooms'],
       ['Kick · Bar · Drop', 'What they hear'],
@@ -54,19 +54,43 @@ const CHAPTERS: Chapter[] = [
     name: 'Play',
     teaser: 'Precise to the frame.',
     title: ['Precise to', 'the frame.'],
-    body: 'Under the light runs a competitive engine: modern rotation, handling you tune to the frame, and opponents that play like people. 40 Lines, Blitz, Marathon, Endless, Versus and Cups.',
+    body: 'Under the light runs a serious engine: modern rotation, handling you tune to the frame, and every mode you know. Sprint 40 lines, chase a Blitz score, climb a Marathon, or go Endless until 20G.',
     facts: [
       ['SRS+', 'Rotation'],
+      ['DAS · ARR', 'Tuned to the frame'],
+      ['6', 'Ways to play'],
+    ],
+  },
+  {
+    id: 'opponents',
+    name: 'Opponents',
+    teaser: 'Ten bots that play like people.',
+    title: ['Opponents', 'with a pulse.'],
+    body: 'Ten bots, from your first match to a wall you will spend weeks climbing. They hesitate, misdrop and get greedy like people do, so beating one feels earned. Take them on in Versus, fight through the Cups, or build your own and watch it play.',
+    facts: [
       ['10', 'Human-like bots'],
-      ['3', 'Cups, or your own'],
+      ['3', 'Cups'],
+      ['∞', 'Bots you build'],
     ],
   },
   {
     id: 'focus',
     name: 'Focus',
-    teaser: 'Here to train? Strip it back.',
+    teaser: 'Here to train? One switch.',
     title: ['Here to train?', 'Focus.'],
-    body: 'The Experience is how we play TETRA. When you are here to train, Focus strips it back: no rooms, no club, no intro. Instant restarts, nothing between you and the stack. Flip it and feel the difference.',
+    body: 'The Experience is how we play TETRA, and we think it is the best way to feel it. But some days you are here to train: to shave tenths off your 40 lines or drill openers against the bots. Focus strips everything back for that. No rooms, no club, no intro, instant restarts. Flip the switch and feel the difference.',
+  },
+  {
+    id: 'design',
+    name: 'Design',
+    teaser: 'Every detail, considered.',
+    title: ['Made with', 'care.'],
+    body: 'Every skin is a material, not a colour: glass that catches the light, concrete with its tie holes, weathering steel. Menus turn like a wheel, games start on the beat, and every sound is synthesised for TETRA. Nothing here is a default.',
+    facts: [
+      [String(SKIN_ORDER.length), 'Skins'],
+      ['0', 'Stock sounds'],
+      ['1', 'Obsession'],
+    ],
   },
   {
     id: 'oxia',
@@ -84,7 +108,9 @@ const FORMATION: Record<View, Formation> = {
   sound: 'sound',
   rooms: 'rooms',
   play: 'play',
+  opponents: 'versus',
   focus: 'focus',
+  design: 'design',
   oxia: 'oxia',
 };
 
@@ -243,7 +269,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
               </Line>
             </h1>
             <Reveal show={view === 'welcome'} delay={1100}>
-              <p className="mt-8 text-[clamp(16px,1.3vw,19px)] text-white/55">Feel the blocks.</p>
+              <p className="mt-8 text-[clamp(16px,1.3vw,19px)] text-white/55">Feel the blocks. Play the music.</p>
             </Reveal>
             <Reveal show={view === 'welcome'} delay={1700}>
               <span className="exp-blink mt-16 inline-block font-mono text-[11px] tracking-[0.28em] text-white/70 uppercase">Press any key</span>

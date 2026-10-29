@@ -7,7 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import type { AudioBands } from '../../audio/music';
 
-export type Formation = 'welcome' | 'index' | 'sound' | 'rooms' | 'play' | 'focus' | 'oxia' | 'mark';
+export type Formation = 'welcome' | 'index' | 'sound' | 'rooms' | 'play' | 'versus' | 'focus' | 'design' | 'oxia' | 'mark';
 
 const TYPES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
 const PIECES = 36;
@@ -89,6 +89,8 @@ export class ExperienceScene {
   private dummy = new THREE.Object3D();
   private target = new THREE.Quaternion();
   private color = new THREE.Color();
+  private scratchPos = new THREE.Vector3();
+  private scratchRot = new THREE.Euler();
   private time = 0;
   private raf = 0;
   private last = performance.now();
@@ -102,14 +104,14 @@ export class ExperienceScene {
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1;
     this.renderer.setClearColor(0x000000, 1);
     host.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.display = 'block';
 
-    this.scene.fog = new THREE.Fog(0x000000, 18, 46);
+    this.scene.fog = new THREE.Fog(0x000000, 28, 64);
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x000000, 0.35));
     // A soft key from the upper left and a cool fill from behind: shading, never hotspots.
     this.key = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -134,7 +136,7 @@ export class ExperienceScene {
     // Generous bevels with enough segments that highlights stay smooth.
     const box = new RoundedBoxGeometry(0.9, 0.9, 0.9, 4, 0.16);
     const count = (porcelain: boolean) => this.pieces.filter((p) => p.porcelain === porcelain).length * 4;
-    this.graphite = new THREE.InstancedMesh(box, glowMaterial(0x202024, 0.62, 0.15), count(false));
+    this.graphite = new THREE.InstancedMesh(box, glowMaterial(0x2c2c31, 0.55, 0.1), count(false));
     this.porcelain = new THREE.InstancedMesh(box, glowMaterial(0xcfcfd4, 0.48, 0), count(true));
     for (const mesh of [this.graphite, this.porcelain]) {
       for (let i = 0; i < mesh.count; i++) mesh.setColorAt(i, this.color.setScalar(0));
@@ -149,7 +151,7 @@ export class ExperienceScene {
     this.composer = new EffectComposer(this.renderer, target);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     // Only real light blooms: the threshold sits above anything the lamps can make.
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.5, 0.92);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.45, 0.28, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -188,8 +190,9 @@ export class ExperienceScene {
     const a = r();
     const b = r();
     const d = r();
-    const pos = new THREE.Vector3();
-    const rot = new THREE.Euler();
+    // Scratch objects: the pose is read at once, so nothing is allocated per frame.
+    const pos = this.scratchPos.set(0, 0, 0);
+    const rot = this.scratchRot.set(0, 0, 0);
     let scale = 1;
     let glow = 0;
     const kick = this.reactive ? (this.bands?.kick ?? 0) : 0;
@@ -247,6 +250,29 @@ export class ExperienceScene {
         glow = fall > 9 && this.reactive ? 0.9 : 0;
         break;
       }
+      case 'versus': {
+        // Two stacks face off; attacks fly across on the beat.
+        const sideOf = i % 2 === 0 ? -1 : 1;
+        const k = Math.floor(i / 2);
+        const col = k % 3;
+        const row = Math.floor(k / 3);
+        const lean = sideOf * (0.35 + Math.sin(t * 0.4) * 0.05);
+        pos.set(side + sideOf * 4.2 + (col - 1) * 2.6 * 0.9, (row - 2.5) * 2.1, -11);
+        rot.set(0, lean, 0);
+        const turn = this.reactive ? this.beats % 2 : -1;
+        glow = (turn === 0 && sideOf < 0) || (turn === 1 && sideOf > 0) ? (row === 5 - (this.beats % 6) ? 1 + kick * 0.6 : 0.08) : 0;
+        break;
+      }
+      case 'design': {
+        // A precise, slowly turning lattice: every piece in its place.
+        const cols = 6;
+        const x = i % cols;
+        const y = Math.floor(i / cols);
+        pos.set(side + (x - (cols - 1) / 2) * 3.2, (y - 2.5) * 2.3, -12);
+        rot.set(0.25 + Math.sin(t * 0.2) * 0.1, -0.5 + Math.sin(t * 0.15) * 0.12, 0);
+        glow = p.porcelain ? 0.06 + kick * 0.3 : 0;
+        break;
+      }
       case 'focus': {
         if (this.reactive) {
           // Experience: the pieces orbit and breathe with the music.
@@ -275,20 +301,31 @@ export class ExperienceScene {
         const unit = page ? 0.36 : 0.34;
         const block = 2 * unit;
         const macro = 3 * block + unit * 1.2;
-        const centre = page ? new THREE.Vector3(side ? 10 : 0, -0.5, -12) : new THREE.Vector3(0, 4.2, -8);
-        pos.set(centre.x + cell[0] * macro + ((k % 3) - 1) * block, centre.y + (cell[1] - 0.5) * macro + (Math.floor(k / 3) - 1) * block, centre.z);
+        const [cx, cy, cz] = page ? [side ? 11.5 : 0, -0.5, -12] : [0, 4.2, -8];
+        pos.set(cx + cell[0] * macro + ((k % 3) - 1) * block, cy + (cell[1] - 0.5) * macro + (Math.floor(k / 3) - 1) * block, cz);
         rot.set(0, 0, 0);
         scale = unit;
-        const wave = this.reactive ? (this.beats + Math.floor(i / 9)) % 4 : -1;
-        glow = (p.porcelain ? 0.12 : 0) + (wave === 0 ? 0.35 + kick * 0.5 : 0);
+        // Each of the T's four cells reads as one solid square of light: all its
+        // minos glow together. The cells take the beat in turn, the bass breathes through all.
+        const lit = this.reactive && (this.beats + Math.floor(i / 9)) % 4 === 0;
+        // Graphite gets extra light so it matches porcelain: one even surface per cell.
+        glow = (p.porcelain ? 0.04 : 0.3) + low * 0.12 + (lit ? 0.22 + kick * 0.45 : kick * 0.06);
         return { pos, rot, scale, glow, square: true };
       }
     }
+    // Pieces live on four depth layers, so neighbours can never cut through each other.
+    pos.z -= (i % 4) * 1.05;
     return { pos, rot, scale, glow };
   }
 
   private frame = (now: number): void => {
     if (this.disposed) return;
+    // A hidden tab draws nothing.
+    if (document.hidden) {
+      this.last = now;
+      this.raf = requestAnimationFrame(this.frame);
+      return;
+    }
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     // Time slows almost to a stop in Focus.
@@ -320,7 +357,8 @@ export class ExperienceScene {
       for (const o of p.offsets) {
         this.dummy.position.set(o.x, o.y, 0).applyQuaternion(p.quat).multiplyScalar(p.scale).add(p.pos);
         this.dummy.quaternion.copy(p.quat);
-        this.dummy.scale.setScalar(p.scale);
+        // In the mark the minos close up into solid squares.
+        this.dummy.scale.setScalar(p.scale * (pose.square ? 1.1 : 1));
         this.dummy.updateMatrix();
         const index = p.porcelain ? pi++ : gi++;
         mesh.setMatrixAt(index, this.dummy.matrix);

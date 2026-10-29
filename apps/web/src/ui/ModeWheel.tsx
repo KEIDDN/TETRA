@@ -3,7 +3,7 @@ import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 /** Radians between neighbouring rows on the drum. */
 const STEP = 0.4;
 /** Rows past this angle are hidden: they would be edge-on. */
-const LIMIT = 1.45;
+const LIMIT = 1.3;
 
 /**
  * A vertical wheel. The selected row sits in a glass lens at the centre;
@@ -59,7 +59,7 @@ export function ModeWheel<T extends string>({
       const first = rows.current[0];
       if (!first) return;
       const row = first.offsetHeight;
-      const radius = (row * 1.04) / STEP;
+      const radius = (row * 1.02) / STEP;
       let lensWidth = 0;
       rows.current.forEach((el, i) => {
         if (!el) return;
@@ -70,11 +70,11 @@ export function ModeWheel<T extends string>({
         if (!visible) return;
         const cos = Math.cos(a);
         const near = Math.max(0, 1 - Math.abs(d));
-        const y = radius * Math.sin(a);
-        const x = -(1 - cos) * row * 0.75;
-        const scale = 0.62 + 0.38 * cos;
+        const x = -(1 - cos) * row * 0.35;
         const fade = Math.min(1, (LIMIT - Math.abs(a)) / 0.35);
-        el.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${a * 7}deg) scale(${scale}, ${scale * cos})`;
+        // A real drum: each row sits on a cylinder and turns with it, so the
+        // letters foreshorten the way printed type on a wheel would, never squashed.
+        el.style.transform = `translate3d(${x.toFixed(2)}px, 0, ${(-radius).toFixed(2)}px) rotateX(${(-a).toFixed(4)}rad) translateZ(${radius.toFixed(2)}px)`;
         el.style.opacity = String((0.16 + 0.84 * near * near) * fade);
         if (near > 0) lensWidth += (el.firstElementChild as HTMLElement).offsetWidth * near;
       });
@@ -117,7 +117,11 @@ export function ModeWheel<T extends string>({
   }, [items]);
 
   return (
-    <div ref={box} className="relative pl-[0.45em] text-[clamp(30px,min(5.2vw,6.6vh),80px)]" style={{ height: 'min(5.4em, 44vh)' }}>
+    <div
+      ref={box}
+      className="relative pl-[0.45em] text-[clamp(30px,min(5.2vw,6.6vh),80px)] [transform-style:preserve-3d]"
+      style={{ height: 'min(5.4em, 44vh)', perspective: '1100px', perspectiveOrigin: '25% 50%' }}
+    >
       <div
         ref={lens}
         className="glass-lens pointer-events-none absolute top-1/2 left-0 h-[1.22em] -translate-y-1/2 rounded-[0.36em] transition-[width] duration-300 ease-out"
@@ -139,7 +143,7 @@ export function ModeWheel<T extends string>({
             // Keyboard and controller confirm at once; a click picks first, then plays.
             if (e.detail === 0 || pressedSelected.current) onActivate(id);
           }}
-          className="absolute top-1/2 left-[0.45em] -mt-[0.55em] flex h-[1.1em] origin-left items-center gap-[0.3em] outline-none will-change-transform"
+          className="absolute top-1/2 left-[0.45em] -mt-[0.55em] flex h-[1.1em] origin-left items-center gap-[0.3em] outline-none [backface-visibility:hidden] will-change-transform"
         >
           <span className="leading-none font-[480] tracking-[-0.045em] whitespace-nowrap">{label(id)}</span>
           {extra?.(id)}
