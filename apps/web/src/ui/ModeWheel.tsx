@@ -151,6 +151,7 @@ export function ModeWheel<T extends string>({
             }
           }}
           data-nav
+          data-wheel-row
           onFocus={() => onSelect(id)}
           onPointerDown={() => (pressedSelected.current = id === selected)}
           onClick={(e) => {

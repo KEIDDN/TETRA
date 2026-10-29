@@ -5,17 +5,11 @@ import { SKIN_ORDER } from '../game/skins';
 import { useMenuNav } from '../lib/nav';
 import { CUPS } from '../lib/tournament';
 import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScene';
+import { SiteFooter } from '../ui/SiteFooter';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
 /** Where OXIA lives online. Empty links are placeholders until the profiles are live. */
-const SOCIALS: { name: string; url: string }[] = [
-  { name: 'X', url: '' },
-  { name: 'Instagram', url: '' },
-  { name: 'LinkedIn', url: '' },
-  { name: 'Website', url: '' },
-];
-
 const PILLARS: [string, string][] = [
   ['Design', 'Interfaces that feel inevitable. Nothing decorative, nothing missing.'],
   ['Engineering', 'Software built to the frame: fast, precise, quietly robust.'],
@@ -29,7 +23,15 @@ const MANIFESTO =
 type Section = { formation: Formation; centered: boolean };
 
 /** Why TETRA: a landing for the curious. Who OXIA Labs is, why we built TETRA, and where to find us. */
-export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperience: () => void }) {
+export function Oxia({
+  onBack,
+  onExperience,
+  onLegal,
+}: {
+  onBack: () => void;
+  onExperience: () => void;
+  onLegal?: (doc: 'terms' | 'privacy') => void;
+}) {
   const stage = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ExperienceScene | null>(null);
@@ -198,25 +200,7 @@ export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperienc
           </section>
         </InView>
 
-        <footer className="relative mx-auto flex max-w-[1320px] flex-wrap items-end justify-between gap-8 border-t border-white/10 px-8 pt-10 pb-14 sm:px-12">
-          <div>
-            <div className="text-[22px] font-[600] tracking-[-0.03em]">OXIA Labs</div>
-            <div className="mt-1 text-[13px] text-white/40">Creative technology. Independent.</div>
-          </div>
-          <nav className="flex flex-wrap items-center gap-8">
-            {SOCIALS.map((s) =>
-              s.url ? (
-                <a key={s.name} href={s.url} target="_blank" rel="noreferrer" className={`font-mono text-[11px] tracking-[0.24em] text-white/70 uppercase transition-colors hover:text-fg ${focusRing}`}>
-                  {s.name}
-                </a>
-              ) : (
-                <span key={s.name} className="font-mono text-[11px] tracking-[0.24em] text-white/30 uppercase" title="Coming soon">
-                  {s.name} <span className="text-white/20">· soon</span>
-                </span>
-              ),
-            )}
-          </nav>
-        </footer>
+        <SiteFooter onLegal={onLegal} />
       </main>
     </div>
   );

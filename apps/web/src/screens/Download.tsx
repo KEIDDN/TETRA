@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useMenuNav } from '../lib/nav';
+import { SiteFooter } from '../ui/SiteFooter';
 import { canPromptInstall, detectOs, DOWNLOADS, onInstallAvailable, promptInstall } from '../lib/platform';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
 /** Get the app: the desktop builds, and how to put TETRA on a phone's home screen. */
-export function Download({ onBack }: { onBack: () => void }) {
+export function Download({ onBack, onLegal }: { onBack: () => void; onLegal?: (doc: 'terms' | 'privacy') => void }) {
   const os = detectOs();
   const [installable, setInstallable] = useState(canPromptInstall());
   useMenuNav(onBack, true);
@@ -28,22 +29,25 @@ export function Download({ onBack }: { onBack: () => void }) {
 
       <main className="mx-auto max-w-[1100px] px-8 pt-36 pb-24 sm:px-12">
         <div className="animate-rise">
-          <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Desktop</span>
-          <h1 className="mt-5 max-w-[14ch] text-[clamp(44px,6vw,96px)] leading-[1.03] font-[560] tracking-[-0.05em]">TETRA, in its own window.</h1>
-          <p className="mt-6 max-w-[44ch] text-[clamp(16px,1.3vw,20px)] leading-relaxed text-white/55">
-            The full Experience without a browser around it: true fullscreen, nothing in the way, and your progress with you.
+          <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Desktop app</span>
+          <h1 className="mt-5 max-w-[15ch] text-[clamp(44px,6vw,96px)] leading-[1.03] font-[560] tracking-[-0.05em]">Download TETRA for desktop.</h1>
+          <p className="mt-6 max-w-[46ch] text-[clamp(16px,1.3vw,20px)] leading-relaxed text-white/55">
+            For macOS and Windows. The full TETRA Experience in its own window: true fullscreen, smoother play, your progress with you, and it keeps
+            itself up to date.
           </p>
         </div>
 
         <div className="animate-rise mt-12 grid gap-4 [animation-delay:120ms] sm:grid-cols-2">
-          <Platform name="macOS" detail="Apple silicon and Intel · .dmg" href={DOWNLOADS.mac} suggested={os === 'mac'} />
-          <Platform name="Windows" detail="Windows 10 and 11 · installer" href={DOWNLOADS.windows} suggested={os === 'windows'} />
+          <Platform name="macOS" detail="Apple silicon and Intel · macOS 11 or later" href={DOWNLOADS.mac} suggested={os === 'mac'} />
+          <Platform name="Windows" detail="Windows 10 and 11 · 64-bit" href={DOWNLOADS.windows} suggested={os === 'windows'} />
         </div>
         {installable && (
           <button onClick={() => void promptInstall()} className={`glass mt-4 rounded-full px-5 py-2.5 text-[14px] font-medium ${focusRing}`}>
             Or install it from this browser
           </button>
         )}
+
+        <Requirements />
 
         <div className="animate-rise mt-28 [animation-delay:240ms]">
           <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Phone and tablet</span>
@@ -56,6 +60,7 @@ export function Download({ onBack }: { onBack: () => void }) {
           <PhoneGuide initial={os === 'android' ? 'android' : 'ios'} />
         </div>
       </main>
+      <SiteFooter onLegal={onLegal} />
     </div>
   );
 }
@@ -74,6 +79,43 @@ function Platform({ name, detail, href, suggested }: { name: string; detail: str
         <span className="text-[22px] transition-transform duration-300 group-hover:translate-y-0.5">↓</span>
       </span>
     </a>
+  );
+}
+
+const SPECS: [string, string, string][] = [
+  ['System', 'macOS 11 Big Sur · Windows 10 (64-bit)', 'macOS 13 or later · Windows 11'],
+  ['Processor', 'Any dual-core from 2015 on', 'Apple M1 or later · Intel Core i5 (8th gen) · AMD Ryzen 5'],
+  ['Memory', '4 GB', '8 GB'],
+  ['Graphics', 'WebGL 2 (Intel HD 520 or equivalent)', 'Apple silicon · Intel Iris Xe · any dedicated GPU'],
+  ['Display', '1280 × 720', '1920 × 1080 at 120 Hz'],
+  ['Storage', '600 MB', '600 MB'],
+  ['Sound', 'Speakers', 'Headphones, for the binaural sound'],
+];
+
+/** Minimum and recommended, side by side. */
+function Requirements() {
+  return (
+    <div className="animate-rise mt-16 [animation-delay:200ms]">
+      <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Requirements</span>
+      <div className="glass-panel mt-5 overflow-hidden rounded-[30px]">
+        <div className="grid grid-cols-[minmax(0,0.6fr)_minmax(0,1fr)_minmax(0,1fr)] gap-6 border-b border-white/[0.07] px-8 py-4 font-mono text-[10px] tracking-[0.2em] text-white/45 uppercase">
+          <span />
+          <span>Minimum</span>
+          <span>Recommended</span>
+        </div>
+        {SPECS.map(([name, min, rec]) => (
+          <div
+            key={name}
+            className="grid grid-cols-[minmax(0,0.6fr)_minmax(0,1fr)_minmax(0,1fr)] gap-6 border-b border-white/[0.05] px-8 py-4 text-[14px] last:border-0"
+          >
+            <span className="text-white/45">{name}</span>
+            <span className="text-white/70">{min}</span>
+            <span className="text-fg">{rec}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-[13px] text-white/35">A controller is optional: keyboard works everywhere.</p>
+    </div>
   );
 }
 

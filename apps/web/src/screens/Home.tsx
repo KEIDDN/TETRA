@@ -1,10 +1,10 @@
 import type { ModeId, PieceType } from '@tetra/engine';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { sfx } from '../audio/sfx';
 import { Lattice } from '../game/ambient';
 import { gamepads } from '../game/gamepad';
 import { MODE_CONFIGS, MODE_ORDER } from '../game/modes';
-import { hexToNumber, SKIN_ORDER, SKINS, type SkinId } from '../game/skins';
+import { hexToNumber, SKIN_ORDER, SKINS } from '../game/skins';
 import { PAD_NAMES } from '../lib/labels';
 import { useMenuNav } from '../lib/nav';
 import { updateSettings, useSettings } from '../lib/settings';
@@ -53,7 +53,9 @@ export function Home({
   onDownload,
   onSignIn,
   onSettings,
+  onLegal,
 }: {
+  onLegal: (doc: 'terms' | 'privacy') => void;
   onExperience: () => void;
   onOxia: () => void;
   onDownload: () => void;
@@ -72,7 +74,9 @@ export function Home({
   );
   const [selected, setSelected] = useState<Entry>('sprint');
   const firstRef = useRef<HTMLButtonElement>(null);
-  const roomsRef = useRef<HTMLElement>(null);
+  // Picking a mode opens its setup: the wheel steps aside, the board and the rooms come in.
+  const [setup, setSetup] = useState(false);
+  const boardRef = useRef<HTMLDivElement>(null);
   const skin = SKINS[appearance.skin];
 
   const lattice = useMemo(() => new Lattice(0.9), []);
@@ -89,7 +93,7 @@ export function Home({
     const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
     lattice.ripple(window.innerWidth / 2, window.innerHeight - 40, 4, lattice.palette[piece]);
   };
-  useMenuNav(undefined, true, cycleSkin);
+  useMenuNav(setup ? () => leaveSetup() : undefined, true, cycleSkin);
 
   useEffect(() => {
     firstRef.current?.focus({ preventScroll: true });
@@ -103,12 +107,24 @@ export function Home({
     if (el) lattice.ripple(el.left, el.top + el.height / 2, 2.2);
   };
 
-  const activate = (id: Entry) => {
-    if (id === 'multiplayer') return toast('Multiplayer is coming soon');
+  const start = (id: Entry) => {
     if (id === 'versus') onVersus();
     else if (id === 'cups') onCups();
-    else onPlay(id);
+    else if (id !== 'multiplayer') onPlay(id);
   };
+  const activate = (id: Entry) => {
+    if (id === 'multiplayer') return toast('Multiplayer is coming soon');
+    if (setup) return start(id);
+    setSetup(true);
+    sfx.ui('select');
+  };
+  const leaveSetup = () => {
+    setSetup(false);
+    sfx.ui('back');
+    // Keep the keyboard on the wheel.
+    document.querySelectorAll<HTMLButtonElement>('[data-wheel-row]')[ENTRIES.indexOf(selected)]?.focus({ preventScroll: true });
+  };
+  const openRooms = () => SKIN_ORDER.filter((id) => !skinLocked(id) || id === appearance.skin);
 
   const best = selected === 'versus' || selected === 'cups' || selected === 'multiplayer' ? null : loadBest(selected);
 
@@ -178,8 +194,12 @@ export function Home({
           </div>
         </header>
 
-        <main className="relative grid flex-1 place-items-center py-[min(40px,5vh)]">
-          <div className="relative flex w-full max-w-[680px] flex-col items-center text-center">
+        <main className="relative min-h-[540px] flex-1">
+          {/* The wheel: centre stage, then a step to the left once a mode is picked. */}
+          <div
+            className="absolute top-1/2 left-1/2 flex w-[min(680px,90vw)] flex-col items-center text-center transition-transform duration-[900ms] ease-spring"
+            style={{ transform: setup ? 'translate(calc(-50% - min(33vw, 450px)), -50%) scale(0.74)' : 'translate(-50%, -50%)' }}
+          >
             <div className="label animate-rise">Select a mode</div>
             <div className="animate-rise mt-[min(32px,3.5vh)] w-full [animation-delay:80ms]">
               <ModeWheel
@@ -201,24 +221,96 @@ export function Home({
               />
             </div>
 
-            <div key={selected} className="animate-fade mt-[min(48px,5vh)] flex flex-col items-center">
+            <div
+              key={selected}
+              className={`animate-fade mt-[min(48px,5vh)] flex flex-col items-center transition-opacity duration-500 ${setup ? 'pointer-events-none opacity-0' : ''}`}
+            >
               <p className="max-w-[38ch] text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
               <div className="mt-[min(28px,3vh)] flex items-center gap-8">
                 {selected === 'multiplayer' ? (
                   <span className="glass rounded-full px-6 py-3 text-[15px] font-semibold text-muted">Coming soon</span>
                 ) : (
-                  <>
-                    {selected !== 'versus' && selected !== 'cups' && (
-                      <div className="text-left">
-                        <div className="label">Best</div>
-                        <div className="tabular mt-1.5 text-[18px] font-medium">{best ? MODE_CONFIGS[selected].formatRecord(best) : '—'}</div>
-                      </div>
-                    )}
-                    <PlayButton onClick={() => activate(selected)} />
-                  </>
+                  <button
+                    data-nav
+                    tabIndex={setup ? -1 : 0}
+                    onClick={() => activate(selected)}
+                    className={`glass-light group flex h-12 items-center gap-3 rounded-full pr-2.5 pl-6 text-[16px] font-semibold ${focusRing}`}
+                  >
+                    Choose
+                    <span className="grid size-8 place-items-center rounded-full bg-black/10 font-mono text-[11px] text-black/60">↵</span>
+                  </button>
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Centre: the mode playing live in the chosen room. */}
+          <div
+            className={`absolute top-1/2 left-1/2 flex -translate-x-1/2 flex-col items-center transition-[opacity,translate,scale] duration-700 ease-spring ${
+              setup ? '-translate-y-1/2 opacity-100' : 'pointer-events-none -translate-y-[46%] scale-95 opacity-0'
+            }`}
+          >
+            <div
+              ref={boardRef}
+              className="relative aspect-[4/5] h-[min(56vh,520px)] overflow-hidden rounded-[44px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.16)]"
+            >
+              {setup && (
+                <DemoBoard
+                  mode={selected === 'cups' || selected === 'multiplayer' ? 'versus' : selected}
+                  skin={appearance.skin}
+                  className="animate-fade absolute inset-0"
+                  onClear={(power, y) => {
+                    const rect = boardRef.current?.getBoundingClientRect();
+                    if (!rect) return;
+                    const x = rect.left + rect.width * 0.4;
+                    const at = rect.top + rect.height * y;
+                    const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
+                    if (power >= 4) lattice.celebrate(x, at, power, lattice.palette[piece] ?? 0xffffff, [piece]);
+                    else lattice.ripple(x, at, power, lattice.palette[piece]);
+                  }}
+                />
+              )}
+            </div>
+            <div className="mt-7 flex items-center gap-8">
+              {best !== null || (selected !== 'versus' && selected !== 'cups') ? (
+                <div className="text-left">
+                  <div className="label">Best</div>
+                  <div className="tabular mt-1.5 text-[18px] font-medium">{best && selected !== 'versus' && selected !== 'cups' && selected !== 'multiplayer' ? MODE_CONFIGS[selected].formatRecord(best) : '—'}</div>
+                </div>
+              ) : null}
+              <PlayButton onClick={() => start(selected)} />
+              <button data-nav onClick={leaveSetup} className={`rounded-sm text-[13px] text-muted transition-colors hover:text-fg ${focusRing}`}>
+                Back <span className="ml-1 font-mono text-[11px] text-faint">Esc</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Right: the rooms. */}
+          <div
+            className={`absolute top-1/2 right-0 w-[min(390px,30vw)] -translate-y-1/2 transition-[opacity,translate] duration-700 ease-spring ${
+              setup ? 'translate-x-0 opacity-100 [transition-delay:120ms]' : 'pointer-events-none translate-x-16 opacity-0'
+            }`}
+          >
+            <span className="label">Room</span>
+            <div key={appearance.skin} className="animate-fade mt-3">
+              <div className="text-[clamp(28px,2.6vw,40px)] leading-[1.05] font-[560] tracking-[-0.04em]">{skin.name}</div>
+              <p className="mt-2 min-h-[3em] text-[15px] leading-relaxed text-muted">{skin.description}</p>
+            </div>
+            <div className="mt-6">
+              <SkinPicker
+                skins={openRooms()}
+                value={appearance.skin}
+                onChange={(next) => {
+                  if (next === appearance.skin) return;
+                  updateSettings((st) => ({ ...st, appearance: { ...st.appearance, skin: next } }));
+                  sfx.ui('move');
+                }}
+              />
+            </div>
+            <p className="mt-5 text-[13px] text-faint">
+              Every room plays its own set.
+              {SKIN_ORDER.length - openRooms().length > 0 ? ` ${SKIN_ORDER.length - openRooms().length} more unlock as you win cups.` : ''}
+            </p>
           </div>
         </main>
 
@@ -228,7 +320,7 @@ export function Home({
               ‹
             </SkinArrow>
             <button
-              onClick={() => roomsRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => (setup ? leaveSetup() : activate(selected === 'multiplayer' ? 'sprint' : selected))}
               className={`group min-w-[120px] rounded-full px-3 py-1.5 text-center transition-colors hover:bg-white/[0.06] ${focusRing}`}
               title="All rooms"
             >
@@ -236,16 +328,13 @@ export function Home({
               <span key={skin.id} className="animate-fade text-[14px] font-medium">
                 {skin.name}
               </span>
-              <span className="ml-2 text-[12px] text-faint transition-colors group-hover:text-fg">All ↓</span>
+              <span className="ml-2 text-[12px] text-faint transition-colors group-hover:text-fg">{setup ? 'Done' : 'All'}</span>
             </button>
             <SkinArrow label="Next skin" onClick={() => cycleSkin(1)}>
               ›
             </SkinArrow>
           </div>
           <div className="label hidden items-center gap-5 md:flex">
-            <button onClick={() => roomsRef.current?.scrollIntoView({ behavior: 'smooth' })} className={`glass rounded-full px-3 py-1 text-muted transition-colors hover:text-fg ${focusRing}`}>
-              Rooms ↓
-            </button>
             <span>
               <span className="text-muted">↑↓</span> Mode
             </span>
@@ -256,92 +345,23 @@ export function Home({
               <span className="text-muted">↵</span> Play
             </span>
           </div>
-          <VersionTaps />
+          <div className="flex items-center gap-5">
+            <button onClick={() => onLegal('terms')} className={`label rounded-sm transition-colors hover:text-fg ${focusRing}`}>
+              Terms
+            </button>
+            <button onClick={() => onLegal('privacy')} className={`label rounded-sm transition-colors hover:text-fg ${focusRing}`}>
+              Privacy
+            </button>
+            <span className="label hidden lg:inline">© {new Date().getFullYear()} OXIA Labs</span>
+            <VersionTaps />
+          </div>
         </footer>
       </div>
 
-      <Rooms
-        sectionRef={roomsRef}
-        mode={selected === 'cups' || selected === 'multiplayer' ? 'versus' : selected}
-        skin={appearance.skin}
-        onPick={(next) => {
-          if (next === appearance.skin) return;
-          updateSettings((s) => ({ ...s, appearance: { ...s.appearance, skin: next } }));
-          sfx.ui('move');
-        }}
-        onClear={(power, x, y) => {
-          const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
-          if (power >= 4) lattice.celebrate(x, y, power, lattice.palette[piece] ?? 0xffffff, [piece]);
-          else lattice.ripple(x, y, power, lattice.palette[piece]);
-        }}
-      />
     </div>
   );
 }
 
-/**
- * Below the menu: every room, and the one you pick playing itself live.
- * The board only runs while it is on screen.
- */
-function Rooms({
-  sectionRef,
-  mode,
-  skin,
-  onPick,
-  onClear,
-}: {
-  sectionRef: RefObject<HTMLElement | null>;
-  mode: DemoMode;
-  skin: SkinId;
-  onPick: (id: SkinId) => void;
-  onClear: (power: number, x: number, y: number) => void;
-}) {
-  const board = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: '0px 0px -10% 0px' });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [sectionRef]);
-  const open = SKIN_ORDER.filter((id) => !skinLocked(id) || id === skin);
-  const locked = SKIN_ORDER.length - open.length;
-
-  return (
-    <section ref={sectionRef} className="relative mx-auto grid min-h-full w-full max-w-[1100px] items-center gap-14 px-6 py-[10vh] sm:px-10 lg:grid-cols-2">
-      <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-        <span className="label">Rooms</span>
-        <h2 className="mt-5 text-[clamp(40px,5vw,72px)] leading-[1.02] font-[560] tracking-[-0.05em]">Pick your room.</h2>
-        <p key={skin} className="animate-fade mt-4 min-h-[3.2em] max-w-[34ch] text-[17px] leading-relaxed text-muted">
-          <span className="text-fg">{SKINS[skin].name}</span> · {SKINS[skin].description}
-        </p>
-        <div className="mt-8">
-          <SkinPicker skins={open} value={skin} onChange={onPick} />
-        </div>
-        <p className="mt-6 text-[13px] text-faint">
-          Every room plays its own set.{locked > 0 ? ` ${locked} more unlock as you win cups.` : ''}
-        </p>
-      </div>
-      <div
-        ref={board}
-        className="relative mx-auto aspect-[4/5] w-[min(400px,82vw)] overflow-hidden rounded-[44px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.16)]"
-      >
-        {visible && (
-          <DemoBoard
-            mode={mode}
-            skin={skin}
-            className="animate-fade absolute inset-0"
-            onClear={(power, y) => {
-              const rect = board.current?.getBoundingClientRect();
-              if (rect) onClear(power, rect.left + rect.width * 0.4, rect.top + rect.height * y);
-            }}
-          />
-        )}
-      </div>
-    </section>
-  );
-}
 
 /** Five quick taps on the version toggle developer mode, Android style. */
 function VersionTaps() {

@@ -8,6 +8,7 @@ import { CUPS, skinLocked } from '../lib/tournament';
 import { SKIN_ORDER, SKINS, type Skin, type SoundPackId } from '../game/skins';
 import { SkinSwatch } from '../ui/SkinSwatch';
 import { DemoBoard } from '../ui/DemoBoard';
+import { ControllerPreview, KeyboardPreview, SUPPORTED_PADS } from '../ui/ControlsPreview';
 import { Icon, type IconName } from '../ui/Icon';
 import { buttonLabel, keyLabel, PAD_NAMES } from '../lib/labels';
 import { useMenuNav } from '../lib/nav';
@@ -192,14 +193,7 @@ function LivePreview() {
     <section className="relative hidden w-[min(34vw,520px)] shrink-0 border-l border-line xl:block">
       <div className="absolute inset-5 overflow-hidden rounded-[36px] bg-black shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
         <DemoBoard mode="endless" skin={appearance.skin} live className="absolute inset-0" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-6">
-          <span className="glass-panel flex items-center gap-2 rounded-full px-3 py-1.5">
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#30d158] opacity-60" />
-              <span className="relative inline-flex size-2 rounded-full bg-[#30d158]" />
-            </span>
-            <span className="label text-muted">Live preview</span>
-          </span>
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-end p-6">
           <span className="glass-panel rounded-full px-3 py-1.5 text-[12px] font-medium">{skin.name}</span>
         </div>
       </div>
@@ -672,6 +666,25 @@ function ControlsPanel({
             onChange={(deadzone) => updateSettings((s) => ({ ...s, gamepad: { ...s.gamepad, deadzone } }))}
           />
         </Section>
+      )}
+
+      {part === 'bindings' && (
+        <div className="glass-panel mb-10 rounded-[28px] px-6 pt-6 pb-5">
+          {device === 'keyboard' ? (
+            <KeyboardPreview bindings={settings.keyboard.bindings} />
+          ) : (
+            <>
+              <ControllerPreview bindings={settings.gamepad.bindings} kind={padKind ?? 'xbox'} stick={settings.gamepad.stick} />
+              <div className="mt-2 flex flex-wrap justify-center gap-2">
+                {SUPPORTED_PADS.map((name) => (
+                  <span key={name} className="rounded-full px-3 py-1 text-[12px] text-muted shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {part === 'bindings' && (

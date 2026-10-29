@@ -169,10 +169,10 @@ export function App() {
       content = <Account onDone={finishOnboarding} onBack={screen.back ? back : undefined} onLegal={(doc) => visit({ name: 'legal', doc })} />;
       break;
     case 'download':
-      content = <Download onBack={back} />;
+      content = <Download onBack={back} onLegal={(doc) => visit({ name: 'legal', doc })} />;
       break;
     case 'oxia':
-      content = <Oxia onBack={back} onExperience={() => setScreen({ name: 'experience' })} />;
+      content = <Oxia onBack={back} onExperience={() => setScreen({ name: 'experience' })} onLegal={(doc) => visit({ name: 'legal', doc })} />;
       break;
     case 'legal':
       content = <Legal doc={screen.doc} onBack={back} />;
@@ -263,6 +263,7 @@ export function App() {
           onOxia={() => visit({ name: 'oxia' })}
           onDownload={() => visit({ name: 'download' })}
           onSignIn={() => visit({ name: 'account', back: true })}
+          onLegal={(doc) => visit({ name: 'legal', doc })}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );

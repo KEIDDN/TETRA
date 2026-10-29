@@ -38,13 +38,6 @@ export function SkinPicker({ skins, value, onChange }: { skins: SkinId[]; value:
   const index = Math.max(0, skins.indexOf(value));
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <div className="mb-3 flex items-center gap-3 font-mono text-[10px] tracking-[0.24em] text-white/55 uppercase">
-        <span className="relative flex size-1.5">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-white/70" />
-          <span className="relative inline-flex size-1.5 rounded-full bg-white" />
-        </span>
-        Pick a skin · it plays live
-      </div>
       <div className="glass-panel relative inline-grid grid-cols-5 rounded-[30px] p-2.5">
         <div
           aria-hidden
