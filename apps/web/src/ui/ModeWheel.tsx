@@ -28,7 +28,8 @@ export function ModeWheel<T extends string>({
   label: (id: T) => string;
   extra?: (id: T) => ReactNode;
   onSelect: (id: T) => void;
-  onActivate: (id: T) => void;
+  /** `pointer`: it came from a click or tap, not a key or button. */
+  onActivate: (id: T, pointer: boolean) => void;
   firstRef?: Ref<HTMLButtonElement>;
   /** Font size class: everything in the wheel is sized in em. */
   size?: string;
@@ -156,7 +157,7 @@ export function ModeWheel<T extends string>({
           onPointerDown={() => (pressedSelected.current = id === selected)}
           onClick={(e) => {
             // Keyboard and controller confirm at once; a click picks first, then plays.
-            if (e.detail === 0 || pressedSelected.current) onActivate(id);
+            if (e.detail === 0 || pressedSelected.current) onActivate(id, e.detail !== 0);
           }}
           className={`absolute top-1/2 -mt-[0.55em] flex h-[1.1em] items-center gap-[0.3em] outline-none [backface-visibility:hidden] will-change-transform ${
             center ? 'left-1/2 origin-center' : 'left-[0.45em] origin-left'

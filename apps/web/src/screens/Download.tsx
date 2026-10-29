@@ -238,8 +238,8 @@ function PhoneFrame({ children }: { children: ReactNode }) {
 function Target({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <span className={`relative inline-grid place-items-center ${className}`}>
-      <span className="absolute -inset-1.5 animate-ping rounded-full bg-white/25 [animation-duration:1.8s]" />
-      <span className="absolute -inset-1.5 rounded-full ring-2 ring-white/80" />
+      {/* Breathes in place: a ring that grows would spill past the little screen's edge. */}
+      <span className="absolute -inset-1.5 animate-pulse rounded-full bg-white/15 ring-2 ring-white/80 [animation-duration:1.8s]" />
       <span className="relative">{children}</span>
     </span>
   );

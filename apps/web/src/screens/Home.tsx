@@ -20,7 +20,7 @@ import { Logo } from '../ui/Logo';
 import { SkinPicker } from '../ui/SkinPicker';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
-import { skinLocked } from '../lib/tournament';
+import { CUPS, skinLocked } from '../lib/tournament';
 import type { ProfileSection } from './Profile';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
@@ -30,6 +30,8 @@ const ENTRIES: Entry[] = [...MODE_ORDER, 'versus', 'cups', 'multiplayer'];
 /** On the menu so it is known it is coming, but not playable yet. */
 const SOON: Entry[] = ['multiplayer'];
 const PIECES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+/** A long, soft ease-out: things glide into place and settle without a bounce. */
+const GLIDE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
 function entryName(id: Entry): string {
@@ -112,9 +114,10 @@ export function Home({
     else if (id === 'cups') onCups();
     else if (id !== 'multiplayer') onPlay(id);
   };
-  const activate = (id: Entry) => {
+  const activate = (id: Entry, pointer = false) => {
     if (id === 'multiplayer') return toast('Multiplayer is coming soon');
-    if (setup) return start(id);
+    // In the setup only Play (or Enter) starts: a stray click on the wheel never does.
+    if (setup) return pointer ? undefined : start(id);
     setSetup(true);
     sfx.ui('select');
   };
@@ -197,8 +200,11 @@ export function Home({
         <main className="relative min-h-[540px] flex-1">
           {/* The wheel: centre stage, then a step to the left once a mode is picked. */}
           <div
-            className="absolute top-1/2 left-1/2 flex w-[min(680px,90vw)] flex-col items-center text-center transition-transform duration-[900ms] ease-spring"
-            style={{ transform: setup ? 'translate(calc(-50% - min(33vw, 450px)), -50%) scale(0.74)' : 'translate(-50%, -50%)' }}
+            className="absolute top-1/2 left-1/2 flex w-[min(680px,90vw)] flex-col items-center text-center will-change-transform"
+            style={{
+              transform: setup ? 'translate3d(calc(-50% - min(31vw, 440px)), -50%, 0)' : 'translate3d(-50%, -50%, 0)',
+              transition: `transform ${setup ? 1100 : 900}ms ${GLIDE}`,
+            }}
           >
             <div className="label animate-rise">Select a mode</div>
             <div className="animate-rise mt-[min(32px,3.5vh)] w-full [animation-delay:80ms]">
@@ -223,7 +229,7 @@ export function Home({
 
             <div
               key={selected}
-              className={`animate-fade mt-[min(48px,5vh)] flex flex-col items-center transition-opacity duration-500 ${setup ? 'pointer-events-none opacity-0' : ''}`}
+              className={`animate-fade mt-[min(48px,5vh)] flex flex-col items-center transition-[opacity,translate] duration-500 ${setup ? 'pointer-events-none translate-y-3 opacity-0' : ''}`}
             >
               <p className="max-w-[38ch] text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
               <div className="mt-[min(28px,3vh)] flex items-center gap-8">
@@ -246,9 +252,12 @@ export function Home({
 
           {/* Centre: the mode playing live in the chosen room. */}
           <div
-            className={`absolute top-1/2 left-1/2 flex -translate-x-1/2 flex-col items-center transition-[opacity,translate,scale] duration-700 ease-spring ${
-              setup ? '-translate-y-1/2 opacity-100' : 'pointer-events-none -translate-y-[46%] scale-95 opacity-0'
-            }`}
+            className={`absolute top-1/2 left-1/2 flex flex-col items-center will-change-transform ${setup ? '' : 'pointer-events-none'}`}
+            style={{
+              opacity: setup ? 1 : 0,
+              transform: setup ? 'translate3d(-50%, -50%, 0) scale(1)' : 'translate3d(-50%, calc(-50% + 28px), 0) scale(0.96)',
+              transition: `opacity ${setup ? 900 : 350}ms ${GLIDE} ${setup ? 180 : 0}ms, transform ${setup ? 1100 : 450}ms ${GLIDE} ${setup ? 140 : 0}ms`,
+            }}
           >
             <div
               ref={boardRef}
@@ -287,19 +296,27 @@ export function Home({
 
           {/* Right: the rooms. */}
           <div
-            className={`absolute top-1/2 right-0 w-[min(390px,30vw)] -translate-y-1/2 transition-[opacity,translate] duration-700 ease-spring ${
-              setup ? 'translate-x-0 opacity-100 [transition-delay:120ms]' : 'pointer-events-none translate-x-16 opacity-0'
-            }`}
+            className={`absolute top-1/2 right-0 w-[min(390px,30vw)] will-change-transform ${setup ? '' : 'pointer-events-none'}`}
+            style={{
+              opacity: setup ? 1 : 0,
+              transform: setup ? 'translate3d(0, -50%, 0)' : 'translate3d(48px, -50%, 0)',
+              transition: `opacity ${setup ? 900 : 300}ms ${GLIDE} ${setup ? 300 : 0}ms, transform ${setup ? 1100 : 400}ms ${GLIDE} ${setup ? 260 : 0}ms`,
+            }}
           >
-            <span className="label">Room</span>
+            <span className="label">Skin</span>
             <div key={appearance.skin} className="animate-fade mt-3">
               <div className="text-[clamp(28px,2.6vw,40px)] leading-[1.05] font-[560] tracking-[-0.04em]">{skin.name}</div>
               <p className="mt-2 min-h-[3em] text-[15px] leading-relaxed text-muted">{skin.description}</p>
             </div>
             <div className="mt-6">
               <SkinPicker
-                skins={openRooms()}
+                skins={SKIN_ORDER}
                 value={appearance.skin}
+                locked={skinLocked}
+                onLocked={(id) => {
+                  const cup = CUPS.find((c) => c.reward === id);
+                  toast(cup ? `Win the ${cup.name} cup to unlock ${SKINS[id].name}` : `${SKINS[id].name} is locked`);
+                }}
                 onChange={(next) => {
                   if (next === appearance.skin) return;
                   updateSettings((st) => ({ ...st, appearance: { ...st.appearance, skin: next } }));
@@ -308,8 +325,8 @@ export function Home({
               />
             </div>
             <p className="mt-5 text-[13px] text-faint">
-              Every room plays its own set.
-              {SKIN_ORDER.length - openRooms().length > 0 ? ` ${SKIN_ORDER.length - openRooms().length} more unlock as you win cups.` : ''}
+              Every skin plays its own set.
+              {SKIN_ORDER.length - openRooms().length > 0 ? ` ${SKIN_ORDER.length - openRooms().length} more are won in Cups.` : ''}
             </p>
           </div>
         </main>

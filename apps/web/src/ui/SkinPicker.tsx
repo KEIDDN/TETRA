@@ -1,6 +1,7 @@
 import { linkMasks } from '@tetra/engine';
 import { useEffect, useRef } from 'react';
 import { paintBlock, SKINS, type SkinId } from '../game/skins';
+import { Icon } from './Icon';
 
 const T_CELLS: [number, number][] = [
   [0, 1],
@@ -34,7 +35,20 @@ function MiniT({ id }: { id: SkinId }) {
  * Every skin as a T on a pane of glass; a brighter lens of glass springs to
  * the one you pick.
  */
-export function SkinPicker({ skins, value, onChange }: { skins: SkinId[]; value: SkinId; onChange: (id: SkinId) => void }) {
+export function SkinPicker({
+  skins,
+  value,
+  onChange,
+  locked,
+  onLocked,
+}: {
+  skins: SkinId[];
+  value: SkinId;
+  onChange: (id: SkinId) => void;
+  /** Skins still to be won: shown dimmed with a lock, and not picked. */
+  locked?: (id: SkinId) => boolean;
+  onLocked?: (id: SkinId) => void;
+}) {
   const index = Math.max(0, skins.indexOf(value));
   return (
     <div onClick={(e) => e.stopPropagation()}>
@@ -44,18 +58,34 @@ export function SkinPicker({ skins, value, onChange }: { skins: SkinId[]; value:
           className="pick-lens pointer-events-none absolute top-2.5 left-2.5 h-14 w-[72px] rounded-[20px] transition-transform duration-500 ease-[cubic-bezier(0.34,1.5,0.64,1)]"
           style={{ transform: `translate(${(index % COLS) * 72}px, ${Math.floor(index / COLS) * 56}px)` }}
         />
-        {skins.map((id) => (
-          <button
-            key={id}
-            onClick={() => onChange(id)}
-            title={SKINS[id].name}
-            aria-label={SKINS[id].name}
-            aria-pressed={id === value}
-            className={`relative z-10 grid h-14 w-[72px] cursor-pointer place-items-center rounded-[20px] outline-none transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.34,1.5,0.64,1)] focus-visible:ring-2 focus-visible:ring-accent/60 ${id === value ? 'scale-110 opacity-100' : 'opacity-55 hover:-translate-y-0.5 hover:scale-105 hover:opacity-100'}`}
-          >
-            <MiniT id={id} />
-          </button>
-        ))}
+        {skins.map((id) => {
+          const shut = id !== value && !!locked?.(id);
+          return (
+            <button
+              key={id}
+              onClick={() => (shut ? onLocked?.(id) : onChange(id))}
+              title={shut ? `${SKINS[id].name} · locked` : SKINS[id].name}
+              aria-label={shut ? `${SKINS[id].name}, locked` : SKINS[id].name}
+              aria-pressed={id === value}
+              className={`relative z-10 grid h-14 w-[72px] place-items-center rounded-[20px] outline-none transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.34,1.5,0.64,1)] focus-visible:ring-2 focus-visible:ring-accent/60 ${
+                shut
+                  ? 'cursor-default'
+                  : id === value
+                    ? 'scale-110 cursor-pointer opacity-100'
+                    : 'cursor-pointer opacity-55 hover:-translate-y-0.5 hover:scale-105 hover:opacity-100'
+              }`}
+            >
+              <span className={shut ? 'opacity-20 grayscale' : ''}>
+                <MiniT id={id} />
+              </span>
+              {shut && (
+                <span className="absolute inset-0 grid place-items-center text-white/70">
+                  <Icon name="lock" size={12} />
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
