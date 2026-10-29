@@ -18,6 +18,8 @@ export function ModeWheel<T extends string>({
   onSelect,
   onActivate,
   firstRef,
+  size = 'text-[clamp(30px,min(5.2vw,6.6vh),80px)]',
+  lead,
 }: {
   items: T[];
   selected: T;
@@ -26,6 +28,10 @@ export function ModeWheel<T extends string>({
   onSelect: (id: T) => void;
   onActivate: (id: T) => void;
   firstRef?: Ref<HTMLButtonElement>;
+  /** Font size class: everything in the wheel is sized in em. */
+  size?: string;
+  /** Something shown before each row's label (an emblem). */
+  lead?: (id: T) => ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const lens = useRef<HTMLDivElement>(null);
@@ -76,9 +82,9 @@ export function ModeWheel<T extends string>({
         // letters foreshorten the way printed type on a wheel would, never squashed.
         el.style.transform = `translate3d(${x.toFixed(2)}px, 0, ${(-radius).toFixed(2)}px) rotateX(${(-a).toFixed(4)}rad) translateZ(${radius.toFixed(2)}px)`;
         el.style.opacity = String((0.16 + 0.84 * near * near) * fade);
-        if (near > 0) lensWidth += (el.firstElementChild as HTMLElement).offsetWidth * near;
+        if (near > 0) lensWidth += el.scrollWidth * near;
       });
-      if (lens.current && lensWidth) lens.current.style.width = `${lensWidth + row * 0.7}px`;
+      if (lens.current && lensWidth) lens.current.style.width = `${lensWidth + row * 0.5}px`;
     };
     layout();
     if (!m.frame) m.frame = requestAnimationFrame(tick);
@@ -119,7 +125,7 @@ export function ModeWheel<T extends string>({
   return (
     <div
       ref={box}
-      className="relative isolate pl-[0.45em] text-[clamp(30px,min(5.2vw,6.6vh),80px)]"
+      className={`relative isolate pl-[0.45em] ${size}`}
       style={{ height: 'min(5.4em, 44vh)', perspective: '1100px', perspectiveOrigin: '25% 50%' }}
     >
       <div
@@ -145,6 +151,7 @@ export function ModeWheel<T extends string>({
           }}
           className="absolute top-1/2 left-[0.45em] -mt-[0.55em] flex h-[1.1em] origin-left items-center gap-[0.3em] outline-none [backface-visibility:hidden] will-change-transform"
         >
+          {lead?.(id)}
           <span className="leading-none font-[480] tracking-[-0.045em] whitespace-nowrap">{label(id)}</span>
           {extra?.(id)}
         </button>

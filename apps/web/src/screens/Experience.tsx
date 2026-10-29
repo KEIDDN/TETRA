@@ -9,6 +9,8 @@ import { BotEmblem } from '../ui/BotEmblem';
 import { save } from '../lib/storage';
 import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
 import { GlassSwitch } from '../ui/GlassSwitch';
+import { ModeWheel } from '../ui/ModeWheel';
+import { SkinPicker } from '../ui/SkinPicker';
 import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScene';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm';
@@ -94,16 +96,23 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
   const [gameMode, setGameMode] = useState<{ game: DemoMode; bot?: boolean } | null>(null);
   // Rooms walks through every skin; Opponents through every bot. One step every two bars.
   const [step, setStep] = useState(0);
+  // Once you pick a skin or a bot yourself, the tour stops and shows yours.
+  const [pickedSkin, setPickedSkin] = useState<SkinId | null>(null);
+  const [pickedBot, setPickedBot] = useState<string | null>(null);
   const focusing = chapter.id === 'focus' && !settings.experience;
   useEffect(() => {
     setStep(0);
+    setPickedSkin(null);
+    setPickedBot(null);
     if (chapter.id !== 'rooms' && chapter.id !== 'opponents') return;
     const beat = (music.nextBeat()?.period ?? 60 / 131) * 1000;
     const id = window.setInterval(() => setStep((s) => s + 1), beat * 8);
     return () => clearInterval(id);
   }, [chapter.id]);
-  const skin: SkinId = chapter.id === 'rooms' ? SKIN_ORDER[step % SKIN_ORDER.length] : 'mono';
-  const rival = BOTS[chapter.id === 'opponents' ? step % BOTS.length : 6];
+  const skin: SkinId = chapter.id === 'rooms' ? (pickedSkin ?? SKIN_ORDER[step % SKIN_ORDER.length]) : 'mono';
+  const rival = chapter.id === 'opponents' ? (BOTS.find((b) => b.id === pickedBot) ?? BOTS[step % BOTS.length]) : BOTS[6];
+  const rivalRef = useRef(rival);
+  rivalRef.current = rival;
   useEffect(() => sfx.unlock(), []);
 
   // The page plays its own set.
@@ -192,6 +201,14 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
         e.preventDefault();
         return finish();
       }
+      if (chapter.id === 'opponents' && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+        e.preventDefault();
+        const i = BOTS.indexOf(rivalRef.current);
+        const next = BOTS[Math.max(0, Math.min(BOTS.length - 1, i + (e.code === 'ArrowDown' ? 1 : -1)))];
+        if (next !== rivalRef.current) sfx.ui('move');
+        setPickedBot(next.id);
+        return;
+      }
       if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'Space' || (index === 0 && e.code === 'Enter')) {
         e.preventDefault();
         go(index + 1);
@@ -203,6 +220,8 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
     let acc = 0;
     let lockedUntil = 0;
     const onWheel = (e: WheelEvent) => {
+      // The roster turns with the wheel itself.
+      if ((e.target as Element | null)?.closest?.('[data-roster]')) return;
       const now = performance.now();
       if (now < lockedUntil) return;
       acc += e.deltaY;
@@ -217,7 +236,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('wheel', onWheel);
     };
-  }, [index, go, finish]);
+  }, [index, go, finish, chapter.id]);
 
   const toggleFocus = (focus: boolean) => {
     if (focus === !settings.experience) return;
@@ -287,7 +306,8 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
               </p>
             </div>
           )}
-          {c.id === 'opponents' && <Roster active={index === i} current={rival.id} />}
+          {c.id === 'rooms' && <SkinPicker skins={SKIN_ORDER} value={skin} onChange={setPickedSkin} />}
+          {c.id === 'opponents' && <Roster current={rival.id} onPick={setPickedBot} />}
           {c.id === 'oxia' && onOxia && !firstRun && (
             <button onClick={onOxia} className={`group inline-flex items-center gap-3 font-mono text-[11px] tracking-[0.24em] text-white/80 uppercase ${focusRing}`}>
               <span className="border-b border-white/30 pb-1 transition-colors group-hover:border-white">Why we made TETRA</span>
@@ -336,36 +356,24 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
   );
 }
 
-/** The ten bots as their emblems: they cascade in, and the one playing on the right steps forward. */
-function Roster({ active, current }: { active: boolean; current: string }) {
+/** The ten bots on a wheel of glass, like the home menu: arrows, the wheel or a click pick one, and it plays on the right. */
+function Roster({ current, onPick }: { current: string; onPick: (id: string) => void }) {
   const bot = BOTS.find((b) => b.id === current)!;
   return (
-    <div>
-      <div className="flex items-end gap-2.5">
-        {BOTS.map((b, i) => {
-          const on = b.id === current;
-          return (
-            <div
-              key={b.id}
-              className="transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.34,1.4,0.64,1)]"
-              style={{
-                transitionDelay: active ? `${i * 45}ms` : '0ms',
-                transform: active ? `translateY(${on ? -10 : 0}px) scale(${on ? 1.35 : 1})` : 'translateY(24px) scale(0.8)',
-                opacity: active ? (on ? 1 : 0.35) : 0,
-                filter: on ? 'none' : 'grayscale(0.4)',
-              }}
-            >
-              <BotEmblem bot={b} size={42} glow={on} />
-            </div>
-          );
-        })}
-      </div>
-      <div key={current} className="animate-rise mt-6">
-        <div className="text-[22px] font-[560] tracking-[-0.02em]">
-          {bot.name} <span className="font-mono text-[11px] tracking-[0.2em] text-white/45 uppercase">Level {bot.level}</span>
-        </div>
-        <div className="mt-1 text-[14px] text-white/50">{bot.style}</div>
-      </div>
+    <div data-roster onClick={(e) => e.stopPropagation()}>
+      <ModeWheel
+        items={BOTS.map((b) => b.id)}
+        selected={current}
+        label={(id) => BOTS.find((b) => b.id === id)!.name}
+        lead={(id) => <BotEmblem bot={BOTS.find((b) => b.id === id)!} size={30} glow={id === current} />}
+        extra={(id) => <span className="font-mono text-[0.3em] tracking-[0.2em] text-white/45">LV {BOTS.find((b) => b.id === id)!.level}</span>}
+        onSelect={onPick}
+        onActivate={onPick}
+        size="text-[clamp(26px,2.4vw,40px)]"
+      />
+      <p key={current} className="animate-rise mt-4 max-w-[34ch] text-[14px] leading-relaxed text-white/55">
+        {bot.style}
+      </p>
     </div>
   );
 }
