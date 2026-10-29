@@ -1,139 +1,61 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
-import { SKIN_ORDER } from '../game/skins';
-import { useMenuNav } from '../lib/nav';
 import { setExperience, updateSettings, useSettings } from '../lib/settings';
 import { save } from '../lib/storage';
-import { ModeWheel } from '../ui/ModeWheel';
-import { Icon } from '../ui/Icon';
 import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScene';
 
-const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
+const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm';
 
-type ChapterId = 'sound' | 'rooms' | 'play' | 'opponents' | 'focus' | 'design' | 'oxia';
-type View = 'welcome' | 'index' | 'listen' | ChapterId;
+type Step = 'origin' | 'sound' | 'rooms' | 'opponents' | 'focus' | 'oxia' | 'listen';
 
-interface Chapter {
-  id: ChapterId;
+interface Statement {
+  id: Step;
+  /** Its name in the bar at the bottom. */
   name: string;
-  /** One line for the index. */
-  teaser: string;
-  title: [string, string];
-  body: string;
-  facts?: [string, string][];
+  /** Lines are split with `|`, so no word is ever left alone on a line. */
+  title: string;
+  line: string;
+  formation: Formation;
 }
 
-const CHAPTERS: Chapter[] = [
-  {
-    id: 'sound',
-    name: 'Sound',
-    teaser: 'Where TETRA begins: the music.',
-    title: ['You play', 'the music.'],
-    body: 'TETRA began with one idea: falling blocks and music speak the same language. Tension, release, the drop. So the music is not in the background here, it is half of the game. Every session plays its own set of hypnotic, minimal techno, and the mix follows you: stack high and it sinks under a filter, chain combos and it opens up, land a quad and the room throws it back. Put on headphones and you are standing in the middle of the club.',
-    facts: [
-      ['Binaural', 'On headphones'],
-      ['Club', 'Master chain'],
-      ['Live', 'DJ on your game'],
-    ],
-  },
-  {
-    id: 'rooms',
-    name: 'Rooms',
-    teaser: 'Every skin brings its own light.',
-    title: ['Light that', 'listens.'],
-    body: 'Pick a skin and you walk into its room. The light behind your board follows the kick, counts the bars and opens up when the track drops. The board itself never moves an inch, so you always see every piece.',
-    facts: [
-      [String(SKIN_ORDER.length), 'Rooms'],
-      ['Kick · Bar · Drop', 'What they hear'],
-      ['0 px', 'Board movement'],
-    ],
-  },
-  {
-    id: 'play',
-    name: 'Play',
-    teaser: 'Precise to the frame.',
-    title: ['Precise to', 'the frame.'],
-    body: 'Under the light runs a serious engine: modern rotation, handling you tune to the frame, and every mode you know. Sprint 40 lines, chase a Blitz score, climb a Marathon, or go Endless until 20G.',
-    facts: [
-      ['SRS+', 'Rotation'],
-      ['DAS · ARR', 'Tuned to the frame'],
-      ['6', 'Ways to play'],
-    ],
-  },
-  {
-    id: 'opponents',
-    name: 'Opponents',
-    teaser: 'Ten bots that play like people.',
-    title: ['Opponents', 'with a pulse.'],
-    body: 'Ten bots, from your first match to a wall you will spend weeks climbing. They hesitate, misdrop and get greedy like people do, so beating one feels earned. Take them on in Versus, fight through the Cups, or build your own and watch it play.',
-    facts: [
-      ['10', 'Human-like bots'],
-      ['3', 'Cups'],
-      ['∞', 'Bots you build'],
-    ],
-  },
-  {
-    id: 'focus',
-    name: 'Focus',
-    teaser: 'Here to train? One switch.',
-    title: ['Here to train?', 'Focus.'],
-    body: 'We built TETRA around sound: the music, the light and your game moving as one. That is the Experience, and it is how we want you to feel TETRA. Some days, though, you are here to train, shaving tenths off your 40 lines or drilling openers against the bots. For those days there is Focus: no rooms, no club, no intro, instant restarts. Flip it, hear what disappears, and flip it back when you want the music again.',
-  },
-  {
-    id: 'design',
-    name: 'Design',
-    teaser: 'Every detail, considered.',
-    title: ['Made with', 'care.'],
-    body: 'Every skin is a material, not a colour: glass that catches the light, concrete with its tie holes, weathering steel. Menus turn like a wheel, games start on the beat, and every sound is synthesised for TETRA. Nothing here is a default.',
-    facts: [
-      [String(SKIN_ORDER.length), 'Skins'],
-      ['0', 'Stock sounds'],
-      ['1', 'Obsession'],
-    ],
-  },
-  {
-    id: 'oxia',
-    name: 'OXIA',
-    teaser: 'Who is behind TETRA.',
-    title: ['Designed by', 'OXIA Labs.'],
-    body: 'TETRA is designed and built by OXIA Labs, a creative technology studio working where engineering meets feel.',
-  },
+/** The story, one statement per screen. Few words, each one earning its place. */
+const STORY: Statement[] = [
+  { id: 'origin', name: 'Origin', title: 'Music and blocks|speak the same language.', line: 'Tension. Release. The drop.', formation: 'welcome' },
+  { id: 'sound', name: 'Sound', title: 'You play the music.', line: 'Stack high and it sinks. Clear four and it drops.', formation: 'sound' },
+  { id: 'rooms', name: 'Rooms', title: 'Every skin is a room.', line: 'Light that listens to the beat.', formation: 'rooms' },
+  { id: 'opponents', name: 'Opponents', title: 'Opponents|with a pulse.', line: 'Ten bots that play like people. Mistakes included.', formation: 'versus' },
+  { id: 'focus', name: 'Focus', title: 'Here to train?', line: 'Focus turns off everything but the stack.', formation: 'focus' },
+  { id: 'oxia', name: 'OXIA', title: 'Designed by|OXIA Labs.', line: 'A creative technology studio, where engineering meets feel.', formation: 'oxia' },
 ];
 
-const FORMATION: Record<View, Formation> = {
-  welcome: 'welcome',
-  index: 'index',
-  listen: 'welcome',
-  sound: 'sound',
-  rooms: 'rooms',
-  play: 'play',
-  opponents: 'versus',
-  focus: 'focus',
-  design: 'design',
-  oxia: 'oxia',
-};
+const LISTEN: Statement = { id: 'listen', name: 'Listen', title: 'How are you listening?', line: 'You can change it any time in Settings.', formation: 'welcome' };
 
 /**
- * The TETRA Experience: what TETRA is, told like a game's own menus. It
- * opens on a welcome, then an index of chapters, each a full screen of its
- * own. On first launch it runs straight through and ends by asking how
- * you are listening.
+ * The TETRA Experience: why TETRA exists, told in six statements over the
+ * 3D stage, with the menu music underneath. It opens on a welcome; arrows,
+ * the wheel or the bar move through it. On first launch it ends by asking
+ * how you are listening.
  */
 export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () => void; onOxia?: () => void; firstRun?: boolean }) {
   const settings = useSettings();
-  const [view, setView] = useState<View>('welcome');
-  const [focused, setFocused] = useState<ChapterId>('sound');
+  const story = firstRun ? [...STORY, LISTEN] : STORY;
+  const [index, setIndex] = useState(-1);
   const stage = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ExperienceScene | null>(null);
-  const firstRef = useRef<HTMLButtonElement>(null);
   useEffect(() => sfx.unlock(), []);
 
-  const chapterIndex = CHAPTERS.findIndex((c) => c.id === view);
-  const go = useCallback((next: View) => {
-    sfx.ui('move');
-    setView(next);
-  }, []);
+  const current = index >= 0 ? story[index] : null;
+  const go = useCallback(
+    (next: number) => {
+      const clamped = Math.max(-1, Math.min(story.length - 1, next));
+      setIndex((i) => {
+        if (clamped !== i) sfx.ui('move');
+        return clamped;
+      });
+    },
+    [story.length],
+  );
   const finish = useCallback(
     (output?: 'headphones' | 'speakers') => {
       if (output) updateSettings((s) => ({ ...s, audio: { ...s.audio, output } }));
@@ -142,22 +64,15 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
     },
     [onDone],
   );
-  const step = useCallback(
-    (direction: 1 | -1) => {
-      const i = chapterIndex + direction;
-      if (i < 0) return go(firstRun ? 'welcome' : 'index');
-      if (i >= CHAPTERS.length) return go(firstRun ? 'listen' : 'index');
-      go(CHAPTERS[i].id);
-    },
-    [chapterIndex, firstRun, go],
-  );
 
   // The 3D stage loads on its own (Three.js only ships with this page).
   useEffect(() => {
     let disposed = false;
     void import('../ui/experience/ExperienceScene').then(({ ExperienceScene }) => {
       if (disposed || !stage.current) return;
-      sceneRef.current = new ExperienceScene(stage.current);
+      const scene = new ExperienceScene(stage.current);
+      scene.centered = true;
+      sceneRef.current = scene;
     });
     let raf = 0;
     const tick = () => {
@@ -173,360 +88,195 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
     };
   }, []);
 
+  // The stage follows the story; the welcome hears the music as if from the next room.
   useEffect(() => {
-    const scene = sceneRef.current;
-    if (scene) scene.formation = FORMATION[view];
-    // The welcome plays the set muffled, as if from the next room; it opens when you walk in.
-    music.club?.setLowpass(view === 'welcome' ? 700 : null);
-  }, [view]);
-  useEffect(() => () => music.club?.setLowpass(null), []);
-  useEffect(() => {
-    if (sceneRef.current) sceneRef.current.reactive = settings.experience;
-  }, [settings.experience]);
-  // The stage may arrive after the first view was set.
-  useEffect(() => {
-    const id = setInterval(() => {
+    const apply = () => {
       const scene = sceneRef.current;
       if (!scene) return;
-      scene.formation = FORMATION[view];
+      scene.formation = current?.formation ?? 'welcome';
       scene.reactive = settings.experience;
-    }, 250);
+    };
+    apply();
+    const id = setInterval(apply, 250);
+    music.club?.setLowpass(index < 0 ? 700 : null);
     return () => clearInterval(id);
-  }, [view, settings.experience]);
+  }, [current, index, settings.experience]);
+  useEffect(() => () => music.club?.setLowpass(null), []);
 
-  // Index: arrows move the wheel, Esc leaves.
-  useMenuNav(firstRun ? undefined : onDone, view === 'index');
+  // Keys, and the wheel: one statement per gesture.
   useEffect(() => {
-    if (view === 'index')
-      firstRef.current?.parentElement?.querySelectorAll<HTMLButtonElement>('[data-nav]')[CHAPTERS.findIndex((c) => c.id === focused)]?.focus();
-    // Only when arriving at the index.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
-
-  // Welcome and chapters: their own keys.
-  useEffect(() => {
-    if (view === 'index') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if (view === 'welcome') {
-        if (e.code === 'Escape' && !firstRun) return onDone();
+      if (e.code === 'Escape') {
         e.preventDefault();
-        return go(firstRun ? 'sound' : 'index');
+        return finish();
       }
-      if (view === 'listen') {
-        if (e.code === 'Escape' || e.code === 'ArrowLeft') go('oxia');
-        return;
+      if (index < 0) {
+        e.preventDefault();
+        return go(0);
       }
-      if (e.code === 'ArrowRight' || e.code === 'Enter') {
-        // Enter on a focused control is that control's.
-        if (e.code === 'Enter' && document.activeElement instanceof HTMLButtonElement) return;
+      if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'Space') {
         e.preventDefault();
-        step(1);
-      } else if (e.code === 'ArrowLeft') {
+        go(index + 1);
+      } else if (e.code === 'ArrowLeft' || e.code === 'ArrowUp') {
         e.preventDefault();
-        step(-1);
-      } else if (e.code === 'Escape') {
-        e.preventDefault();
-        if (firstRun) finish();
-        else go('index');
+        go(index - 1);
       }
     };
+    let acc = 0;
+    let lockedUntil = 0;
+    const onWheel = (e: WheelEvent) => {
+      const now = performance.now();
+      if (now < lockedUntil) return;
+      acc += e.deltaY;
+      if (Math.abs(acc) < 50) return;
+      go(index + Math.sign(acc));
+      acc = 0;
+      lockedUntil = now + 850;
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [view, firstRun, go, step, onDone, finish]);
-
-  const chapter = chapterIndex >= 0 ? CHAPTERS[chapterIndex] : null;
+    window.addEventListener('wheel', onWheel, { passive: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('wheel', onWheel);
+    };
+  }, [index, go, finish]);
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black text-fg">
+    <div className="fixed inset-0 overflow-hidden bg-black text-fg" onClick={() => index < 0 && go(0)}>
       <div ref={stage} className="absolute inset-0" aria-hidden />
-      <div
-        aria-hidden
-        className={`pointer-events-none absolute inset-0 transition-opacity duration-700 ${view === 'welcome' || view === 'oxia' || view === 'listen' ? 'opacity-0' : 'opacity-100'} bg-[linear-gradient(90deg,rgba(0,0,0,0.85)_0%,rgba(0,0,0,0.55)_42%,rgba(0,0,0,0)_70%)]`}
-      />
+      {/* A soft dark pool in the middle keeps the words above the light. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_46%_at_50%_50%,rgba(0,0,0,0.9),rgba(0,0,0,0.55)_55%,rgba(0,0,0,0.1)_90%)]" />
 
       <header className="absolute inset-x-0 top-0 z-20 flex h-20 items-center justify-between px-8 sm:px-12">
+        <span className="font-mono text-[11px] font-medium tracking-[0.24em] text-white/70 uppercase">TETRA</span>
         <button
-          onClick={() => !firstRun && go('index')}
-          className={`font-mono text-[11px] font-medium tracking-[0.2em] uppercase transition-opacity duration-500 ${view === 'welcome' ? 'opacity-0' : 'opacity-100'} ${focusRing}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            finish();
+          }}
+          className={`font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase transition-colors hover:text-fg ${focusRing}`}
         >
-          TETRA <span className="text-white/40">/ Experience</span>
-        </button>
-        <button onClick={() => finish()} className={`glass rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
-          <span className="flex items-center gap-2">
-            <Icon name="close" size={10} /> {firstRun ? 'Skip' : 'Close'} <span className="font-mono text-[11px] text-white/40">Esc</span>
-          </span>
+          {firstRun ? 'Skip' : 'Close'}
         </button>
       </header>
 
       {/* Welcome */}
-      <Screen show={view === 'welcome'}>
-        <button onClick={() => go(firstRun ? 'sound' : 'index')} className="absolute inset-0 grid place-items-center outline-none">
-          <div className="text-center">
-            <h1 className="text-[clamp(48px,8.4vw,150px)] leading-[0.95] font-[560] tracking-[-0.055em]">
-              <Line show={view === 'welcome'} delay={250}>
-                Welcome to TETRA
-              </Line>
-            </h1>
-            <Reveal show={view === 'welcome'} delay={1100}>
-              <p className="mt-8 text-[clamp(16px,1.3vw,19px)] text-white/55">Feel the blocks. Play the music.</p>
-            </Reveal>
-            <Reveal show={view === 'welcome'} delay={1700}>
-              <span className="exp-blink mt-16 inline-block font-mono text-[11px] tracking-[0.28em] text-white/70 uppercase">Press any key</span>
-            </Reveal>
-          </div>
-        </button>
-      </Screen>
+      <Layer show={index < 0}>
+        <h1 className="text-[clamp(48px,8vw,140px)] leading-[1.04] font-[560] tracking-[-0.055em]">
+          <Words show={index < 0} text="Welcome to TETRA" delay={300} />
+        </h1>
+        <Fade show={index < 0} delay={1400}>
+          <p className="exp-blink mt-14 font-mono text-[11px] tracking-[0.3em] text-white/60 uppercase">Press any key</p>
+        </Fade>
+      </Layer>
 
-      {/* Index */}
-      <Screen show={view === 'index'}>
-        <div className="flex h-full flex-col justify-center px-8 sm:px-12 lg:pl-[8vw]">
-          <Reveal show={view === 'index'} delay={80}>
-            <span className="label">The Experience</span>
-          </Reveal>
-          <Reveal show={view === 'index'} delay={160}>
-            <div className="mt-6 max-w-[640px]">
-              <ModeWheel
-                items={CHAPTERS.map((c) => c.id)}
-                selected={focused}
-                label={(id) => CHAPTERS.find((c) => c.id === id)!.name}
-                extra={(id) => (
-                  <span className="ml-2 font-mono text-[0.18em] tracking-[0.2em] text-white/40">
-                    {String(CHAPTERS.findIndex((c) => c.id === id) + 1).padStart(2, '0')}
-                  </span>
-                )}
-                onSelect={setFocused}
-                onActivate={(id) => go(id)}
-                firstRef={firstRef}
-              />
-            </div>
-          </Reveal>
-          <Reveal show={view === 'index'} delay={260}>
-            <div className="mt-10 flex max-w-[560px] items-center justify-between gap-8 border-t border-line pt-6">
-              <p key={focused} className="animate-fade text-[16px] text-muted">
-                {CHAPTERS.find((c) => c.id === focused)!.teaser}
-              </p>
-              <button
-                onClick={() => go(focused)}
-                className={`glass-light flex shrink-0 items-center gap-3 rounded-full py-2.5 pr-2.5 pl-5 text-[15px] font-semibold ${focusRing}`}
-              >
-                Open
-                <span className="grid size-7 place-items-center rounded-full bg-black/10 font-mono text-[12px]">↵</span>
-              </button>
-            </div>
-          </Reveal>
-        </div>
-      </Screen>
-
-      {/* Chapters */}
-      {CHAPTERS.map((c, i) => (
-        <Screen key={c.id} show={view === c.id}>
-          {c.id === 'oxia' ? (
-            <Oxia show={view === 'oxia'} firstRun={firstRun} onWhy={onOxia} onNext={() => step(1)} />
-          ) : (
-            <div className="flex h-full flex-col justify-center px-8 pb-20 sm:px-12 lg:pl-[8vw]">
-              <Reveal show={view === c.id} delay={0}>
-                <div className="flex items-center gap-4 font-mono text-[11px] tracking-[0.24em] uppercase">
-                  <span className="text-white/40">{String(i + 1).padStart(2, '0')}</span>
-                  <span className={`h-px bg-white/40 transition-all duration-1000 ease-out ${view === c.id ? 'w-12' : 'w-0'}`} />
-                  <span>{c.name}</span>
-                </div>
-              </Reveal>
-              <h2 className="mt-7 text-[clamp(52px,7.4vw,128px)] leading-[1.06] font-[560] tracking-[-0.05em]">
-                {c.title.map((line, k) => (
-                  <Line key={line} show={view === c.id} delay={90 + k * 90}>
-                    {line}
-                  </Line>
-                ))}
-              </h2>
-              <Reveal show={view === c.id} delay={320}>
-                <p className="mt-8 max-w-[540px] text-[clamp(16px,1.25vw,19px)] leading-relaxed text-white/65">{c.body}</p>
-              </Reveal>
-              {c.facts && (
-                <Reveal show={view === c.id} delay={440}>
-                  <div className="mt-12 flex max-w-[640px] gap-3">
-                    {c.facts.map(([big, small]) => (
-                      <div key={small} className="glass flex-1 rounded-[22px] px-5 py-4">
-                        <div className="text-[clamp(20px,1.9vw,30px)] leading-none font-[560] tracking-[-0.035em]">{big}</div>
-                        <div className="mt-2.5 font-mono text-[10px] tracking-[0.18em] text-white/50 uppercase">{small}</div>
-                      </div>
-                    ))}
-                  </div>
-                </Reveal>
-              )}
-              {c.id === 'focus' && (
-                <Reveal show={view === 'focus'} delay={440}>
-                  <FocusSwitches on={settings.experience} />
-                </Reveal>
-              )}
-            </div>
+      {story.map((s, i) => (
+        <Layer key={s.id} show={index === i}>
+          <h2 className="text-[clamp(44px,6.4vw,112px)] leading-[1.04] font-[560] tracking-[-0.05em]">
+            {s.title.split('|').map((line, k, all) => (
+              <span key={k} className="block whitespace-nowrap">
+                <Words show={index === i} text={line} delay={120 + k * 70 * (all[k - 1]?.split(' ').length ?? 0)} />
+              </span>
+            ))}
+          </h2>
+          <Fade show={index === i} delay={650}>
+            <p className="mx-auto mt-8 max-w-[34ch] text-[clamp(17px,1.35vw,21px)] leading-relaxed text-white/55">{s.line}</p>
+          </Fade>
+          {s.id === 'focus' && (
+            <Fade show={index === i} delay={900}>
+              <FocusSwitch on={settings.experience} />
+            </Fade>
           )}
-        </Screen>
+          {s.id === 'oxia' && onOxia && !firstRun && (
+            <Fade show={index === i} delay={900}>
+              <button
+                onClick={onOxia}
+                className={`group mt-12 inline-flex items-center gap-3 font-mono text-[11px] tracking-[0.24em] text-white/80 uppercase ${focusRing}`}
+              >
+                <span className="border-b border-white/30 pb-1 transition-colors group-hover:border-white">Why we made TETRA</span>
+                <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+              </button>
+            </Fade>
+          )}
+          {s.id === 'listen' && (
+            <Fade show={index === i} delay={900}>
+              <div className="mt-14 flex items-center justify-center gap-12">
+                {(['headphones', 'speakers'] as const).map((output) => (
+                  <button
+                    key={output}
+                    onClick={() => finish(output)}
+                    className={`group text-[clamp(28px,2.6vw,40px)] font-[520] tracking-[-0.03em] text-white/45 transition-colors hover:text-fg ${focusRing}`}
+                  >
+                    {output === 'headphones' ? 'Headphones' : 'Speakers'}
+                    <span className="mx-auto mt-2 block h-px w-0 bg-fg transition-all duration-500 group-hover:w-full" />
+                  </button>
+                ))}
+              </div>
+            </Fade>
+          )}
+        </Layer>
       ))}
 
-      {/* First run: how are you listening? */}
-      <Screen show={view === 'listen'}>
-        <div className="grid h-full place-items-center px-8">
-          <div className="w-full max-w-[720px] text-center">
-            <Reveal show={view === 'listen'} delay={0}>
-              <span className="label">One last thing</span>
-            </Reveal>
-            <h2 className="mt-6 text-[clamp(44px,6vw,100px)] leading-[0.95] font-[560] tracking-[-0.05em]">
-              <Line show={view === 'listen'} delay={100}>
-                How are you listening?
-              </Line>
-            </h2>
-            <Reveal show={view === 'listen'} delay={300}>
-              <p className="mx-auto mt-6 max-w-[500px] text-[17px] leading-relaxed text-white/60">
-                Headphones put you inside the room. Speakers get the club master in wide stereo. You can change it any time in Settings.
-              </p>
-            </Reveal>
-            <Reveal show={view === 'listen'} delay={420}>
-              <div className="mt-12 grid grid-cols-2 gap-4">
-                <Choice title="Headphones" hint="Binaural, the full room" onClick={() => finish('headphones')} />
-                <Choice title="Speakers" hint="Wide stereo, club master" onClick={() => finish('speakers')} />
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </Screen>
-
-      {chapter && (
-        <nav className="animate-fade absolute inset-x-0 bottom-0 z-20 flex h-24 items-center justify-between px-8 sm:px-12">
-          <button onClick={() => step(-1)} className={`glass rounded-full px-5 py-2.5 text-[14px] font-medium ${focusRing}`}>
-            ← {chapterIndex > 0 ? CHAPTERS[chapterIndex - 1].name : firstRun ? 'Welcome' : 'Index'}
+      {/* The bar: where you are, and a menu to jump anywhere. */}
+      <nav
+        className={`absolute inset-x-0 bottom-0 z-20 flex h-24 items-center justify-center gap-7 px-8 transition-opacity duration-700 ${index < 0 ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
+      >
+        {story.map((s, i) => (
+          <button
+            key={s.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              go(i);
+            }}
+            className={`group flex flex-col items-center gap-2.5 ${focusRing}`}
+          >
+            <span className={`h-px transition-all duration-500 ${i === index ? 'w-10 bg-fg' : 'w-5 bg-white/25 group-hover:bg-white/60'}`} />
+            <span className={`font-mono text-[10px] tracking-[0.2em] uppercase transition-colors duration-500 ${i === index ? 'text-fg' : 'text-white/30 group-hover:text-white/70'}`}>
+              {s.name}
+            </span>
           </button>
-          <div className="flex items-center gap-2">
-            {CHAPTERS.map((c, i) => (
-              <span key={c.id} className={`h-1 rounded-full transition-all duration-500 ${i === chapterIndex ? 'w-8 bg-fg' : 'w-1 bg-white/25'}`} />
-            ))}
-          </div>
-          <button onClick={() => step(1)} className={`glass-light rounded-full px-5 py-2.5 text-[14px] font-semibold ${focusRing}`}>
-            {chapterIndex < CHAPTERS.length - 1 ? CHAPTERS[chapterIndex + 1].name : firstRun ? 'Finish' : 'Index'} →
-          </button>
-        </nav>
-      )}
+        ))}
+      </nav>
     </div>
   );
 }
 
-/** A full-screen layer that fades in and out with its view. */
-function Screen({ show, children }: { show: boolean; children: ReactNode }) {
+/** One full-screen statement, centred. */
+function Layer({ show, children }: { show: boolean; children: React.ReactNode }) {
   return (
     <div
-      className={`absolute inset-0 z-10 transition-opacity duration-500 ${show ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      className={`absolute inset-0 z-10 grid place-items-center px-8 text-center transition-[opacity,filter] duration-700 ${show ? 'opacity-100' : 'pointer-events-none opacity-0 blur-[6px]'}`}
       aria-hidden={!show}
     >
-      {children}
+      <div>{children}</div>
     </div>
   );
 }
 
-/** The Focus chapter's live switches: flip them and the page changes sound and light. */
-function FocusSwitches({ on }: { on: boolean }) {
-  const parts: [string, string][] = [
-    ['Rooms', 'Light that follows the music'],
-    ['Club sound', 'Mastering and space'],
-    ['Live DJ', 'The mix follows your game'],
-    ['Game intro', 'The board builds on the beat'],
-  ];
+/** A headline whose words rise one by one from behind their own line, and lift away when it leaves. */
+function Words({ text, show, delay }: { text: string; show: boolean; delay: number }) {
   return (
-    <div className="mt-10 max-w-[560px]">
-      <div className="glass inline-flex rounded-full p-1">
-        {(
-          [
-            [true, 'Experience'],
-            [false, 'Focus'],
-          ] as const
-        ).map(([value, name]) => (
-          <button
-            key={name}
-            onClick={() => value !== on && setExperience(value)}
-            className={`rounded-full px-6 py-2.5 text-[15px] font-medium transition-all duration-300 ease-spring ${focusRing} ${on === value ? 'bg-fg text-black' : 'text-muted hover:text-fg'}`}
+    <>
+      {text.split(' ').map((word, i, all) => (
+        <span key={i} className="inline-block overflow-hidden pb-[0.12em] align-top -mb-[0.12em]">
+          <span
+            className={`inline-block transition-[transform,opacity] ease-[cubic-bezier(0.16,1,0.3,1)] ${show ? 'translate-y-0 opacity-100 duration-[1100ms]' : '-translate-y-[40%] opacity-0 duration-500'}`}
+            style={{ transitionDelay: show ? `${delay + i * 70}ms` : '0ms' }}
           >
-            {name}
-          </button>
-        ))}
-      </div>
-      <ul className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4">
-        {parts.map(([name, hint], i) => (
-          <li key={name} className="flex items-center gap-3">
-            <span
-              className={`relative h-[18px] w-[32px] shrink-0 rounded-full transition-colors duration-300 ${on ? 'bg-[#30d158]' : 'bg-white/15'}`}
-              style={{ transitionDelay: `${i * 90}ms` }}
-            >
-              <span
-                className={`absolute top-[2px] left-[2px] size-[14px] rounded-full bg-white transition-transform duration-300 ease-spring ${on ? 'translate-x-[14px]' : ''}`}
-                style={{ transitionDelay: `${i * 90}ms` }}
-              />
-            </span>
-            <span>
-              <span className="block text-[14px] font-medium">{name}</span>
-              <span className="block text-[12px] text-faint">{hint}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+            {word}
+            {i < all.length - 1 ? ' ' : ''}
+          </span>
+        </span>
+      ))}
+    </>
   );
 }
 
-/** The close: contained, almost an ad. */
-function Oxia({ show, firstRun, onWhy, onNext }: { show: boolean; firstRun: boolean; onWhy?: () => void; onNext: () => void }) {
-  return (
-    <div className="grid h-full place-items-center px-8 pb-16">
-      <div className="pt-[22vh] text-center">
-        <Reveal show={show} delay={0}>
-          <span className="label">Designed and built by</span>
-        </Reveal>
-        <h2 className="mt-6 text-[clamp(64px,10vw,180px)] leading-[0.9] font-[600] tracking-[-0.06em]">
-          <Line show={show} delay={120}>
-            OXIA Labs
-          </Line>
-        </h2>
-        <Reveal show={show} delay={360}>
-          <p className="mx-auto mt-7 max-w-[460px] text-[17px] leading-relaxed text-white/60">
-            A creative technology studio. We build where engineering meets feel. TETRA is ours.
-          </p>
-        </Reveal>
-        <Reveal show={show} delay={480}>
-          <div className="mt-10 flex justify-center gap-3">
-            {onWhy && !firstRun && (
-              <button onClick={onWhy} className={`glass-light rounded-full px-6 py-3 text-[15px] font-semibold ${focusRing}`}>
-                Why TETRA →
-              </button>
-            )}
-            {firstRun && (
-              <button onClick={onNext} className={`glass-light rounded-full px-6 py-3 text-[15px] font-semibold ${focusRing}`}>
-                Continue →
-              </button>
-            )}
-          </div>
-        </Reveal>
-      </div>
-    </div>
-  );
-}
-
-/** A headline line that slides up from behind its own mask; padded so descenders never clip. */
-function Line({ children, show, delay }: { children: ReactNode; show: boolean; delay: number }) {
-  return (
-    <span className="-mb-[0.14em] block overflow-hidden pb-[0.14em]">
-      <span
-        className={`block transition-transform duration-[1100ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${show ? 'translate-y-0' : 'translate-y-[110%]'}`}
-        style={{ transitionDelay: show ? `${delay}ms` : '0ms' }}
-      >
-        {children}
-      </span>
-    </span>
-  );
-}
-
-/** Fades and lifts in with its screen. */
-function Reveal({ children, show, delay }: { children: ReactNode; show: boolean; delay: number }) {
+function Fade({ show, delay, children }: { show: boolean; delay: number; children: React.ReactNode }) {
   return (
     <div
-      className={`transition-all duration-[900ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${show ? 'translate-y-0 opacity-100' : 'translate-y-5 opacity-0'}`}
+      className={`transition-[opacity,transform] duration-[900ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${show ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'}`}
       style={{ transitionDelay: show ? `${delay}ms` : '0ms' }}
     >
       {children}
@@ -534,11 +284,28 @@ function Reveal({ children, show, delay }: { children: ReactNode; show: boolean;
   );
 }
 
-function Choice({ title, hint, onClick }: { title: string; hint: string; onClick: () => void }) {
+/** Experience or Focus: flip it and hear and see what changes. */
+function FocusSwitch({ on }: { on: boolean }) {
   return (
-    <button onClick={onClick} className={`glass rounded-[28px] p-7 text-left ${focusRing}`}>
-      <span className="block text-[26px] font-[560] tracking-[-0.03em]">{title}</span>
-      <span className="mt-2 block font-mono text-[10px] tracking-[0.2em] text-white/50 uppercase">{hint}</span>
-    </button>
+    <div className="mt-12 inline-flex items-center gap-10">
+      {(
+        [
+          [true, 'Experience'],
+          [false, 'Focus'],
+        ] as const
+      ).map(([value, name]) => (
+        <button
+          key={name}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (value !== on) setExperience(value);
+          }}
+          className={`group flex flex-col items-center gap-3 text-[clamp(22px,1.9vw,30px)] font-[520] tracking-[-0.03em] transition-colors duration-500 ${on === value ? 'text-fg' : 'text-white/35 hover:text-white/70'} ${focusRing}`}
+        >
+          {name}
+          <span className={`h-px transition-all duration-500 ${on === value ? 'w-full bg-fg' : 'w-0 bg-white/40'}`} />
+        </button>
+      ))}
+    </div>
   );
 }

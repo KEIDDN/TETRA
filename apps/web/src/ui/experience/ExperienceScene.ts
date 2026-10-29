@@ -125,6 +125,8 @@ export class ExperienceScene {
   formation: Formation = 'welcome';
   /** Focus off: the room reacts to the music. On: everything settles and goes still. */
   reactive = true;
+  /** Text sits in the middle of the screen: compositions stay centred behind it. */
+  centered = false;
   bands: AudioBands | null = null;
 
   constructor(private host: HTMLElement) {
@@ -227,7 +229,7 @@ export class ExperienceScene {
   /** Geometry of the T: unit is one mino, a macro cell is 3×3 two-mino blocks. */
   private markLayout() {
     const page = this.formation === 'mark';
-    const side = this.camera.aspect >= 1.2 ? 7 : 0;
+    const side = !this.centered && this.camera.aspect >= 1.2 ? 7 : 0;
     const unit = page ? 0.3 : 0.34;
     const block = 2 * unit;
     const macro = 3 * block + unit * 1.2;
@@ -246,7 +248,7 @@ export class ExperienceScene {
     const kick = this.reactive ? (this.bands?.kick ?? 0) : 0;
     const low = this.reactive ? (this.bands?.low ?? 0) : 0;
     // Text sits left on wide screens, so compositions take the right.
-    const side = this.camera.aspect >= 1.2 ? 7 : 0;
+    const side = !this.centered && this.camera.aspect >= 1.2 ? 7 : 0;
     // A grid of pieces in their spawn orientation; neighbours alternate layers.
     const grid = (cols: number, dx: number, dy: number, cx: number, cy: number, z: number) => {
       const x = i % cols;
@@ -361,6 +363,8 @@ export class ExperienceScene {
       }
     }
     pos.z -= layer * LAYER;
+    // With the words in the middle, compositions step back so they frame the text instead of crossing it.
+    if (this.centered) pos.z -= 7;
     quat.setFromAxisAngle(this.zAxis, angle);
     return { pos, quat, scale, glow };
   }

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { music } from '../audio/music';
 import { useMenuNav } from '../lib/nav';
-import { Icon } from '../ui/Icon';
 import type { ExperienceScene } from '../ui/experience/ExperienceScene';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
@@ -47,59 +46,42 @@ export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperienc
         <span className="font-mono text-[11px] font-medium tracking-[0.2em] uppercase">
           TETRA <span className="text-white/40">/ Why TETRA</span>
         </span>
-        <button data-nav onClick={onBack} className={`glass rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
-          <span className="flex items-center gap-2">
-            <Icon name="close" size={10} /> Close <span className="font-mono text-[11px] text-white/40">Esc</span>
-          </span>
+        <button data-nav onClick={onBack} className={`font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase transition-colors hover:text-fg ${focusRing}`}>
+          Close
         </button>
       </header>
 
       <main className="relative z-10 mx-auto flex min-h-full max-w-[1320px] flex-col justify-center px-8 pt-28 pb-16 sm:px-12 lg:pl-[8vw]">
         <Rise show={shown} delay={0}>
-          <span className="label">Why TETRA</span>
+          <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Why TETRA</span>
         </Rise>
-        <h1 className="mt-6 max-w-[900px] text-[clamp(48px,6.6vw,112px)] leading-[1.06] font-[560] tracking-[-0.05em]">
+        <h1 className="mt-6 max-w-[11ch] text-[clamp(48px,6.6vw,112px)] leading-[1.04] font-[560] tracking-[-0.05em]">
           <Rise show={shown} delay={80}>
-            We wanted to
-          </Rise>
-          <Rise show={shown} delay={160}>
-            feel the blocks.
+            We wanted to feel the blocks.
           </Rise>
         </h1>
-
-        <div className="mt-12 grid max-w-[880px] gap-x-12 gap-y-6 text-[clamp(16px,1.2vw,18px)] leading-relaxed text-white/65 md:grid-cols-2">
-          <Rise show={shown} delay={300}>
-            <p>
-              The falling-block game has been played for forty years, and it still deserves better. Most places to play it today feel rough around the edges:
-              cluttered, noisy, unconsidered. We wanted a version designed with the care of a premium product, where every pixel and every sound is deliberate.
-            </p>
-          </Rise>
-          <Rise show={shown} delay={380}>
-            <p>
-              And we wanted music at its heart. We remember nights when the stack and the track moved as one and nothing else existed. TETRA is built around
-              that feeling: sound, light and play designed as one thing. That is the Experience. When you are here to train, Focus is one switch away.
-            </p>
-          </Rise>
-        </div>
-
-        <Rise show={shown} delay={480}>
-          <div className="mt-14 flex max-w-[880px] flex-wrap items-center gap-6">
-            <div className="glass flex items-center gap-5 rounded-[28px] py-4 pr-8 pl-4">
-              <span className="grid size-14 place-items-center rounded-full bg-fg text-[18px] font-semibold tracking-[-0.02em] text-black">MH</span>
-              <span>
-                <span className="block text-[18px] font-[560] tracking-[-0.02em]">Miki Herrero</span>
-                <span className="mt-0.5 block text-[13px] text-muted">CEO &amp; Lead Designer, OXIA Labs</span>
-              </span>
-            </div>
-            <p className="max-w-[340px] text-[14px] leading-relaxed text-faint">
-              OXIA Labs is a creative technology studio. We build apps, tools and experiences where engineering meets feel.
-            </p>
-          </div>
+        <Rise show={shown} delay={320}>
+          <p className="mt-10 max-w-[44ch] text-[clamp(17px,1.35vw,21px)] leading-relaxed text-white/60">
+            The falling-block game is forty years old, and most places to play it still feel rough. We wanted it made with care, with music at its
+            heart: sound, light and play as one thing.
+          </p>
         </Rise>
-
-        <Rise show={shown} delay={600}>
-          <button data-nav onClick={onExperience} className={`glass-light mt-12 rounded-full px-6 py-3 text-[15px] font-semibold ${focusRing}`}>
-            Take the Experience →
+        <Rise show={shown} delay={440}>
+          <p className="mt-5 max-w-[44ch] text-[clamp(15px,1.1vw,17px)] leading-relaxed text-white/40">That is the Experience. For training days, Focus is one switch away.</p>
+        </Rise>
+        <Rise show={shown} delay={560}>
+          <p className="mt-14 text-[15px]">
+            Miki Herrero <span className="text-white/40">— CEO &amp; Lead Designer, OXIA Labs</span>
+          </p>
+        </Rise>
+        <Rise show={shown} delay={680}>
+          <button
+            data-nav
+            onClick={onExperience}
+            className={`group mt-10 inline-flex items-center gap-3 font-mono text-[11px] tracking-[0.24em] text-white/80 uppercase ${focusRing}`}
+          >
+            <span className="border-b border-white/30 pb-1 transition-colors group-hover:border-white">Take the Experience</span>
+            <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
           </button>
         </Rise>
       </main>
