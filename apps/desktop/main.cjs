@@ -151,7 +151,7 @@ app.whenReady().then(() => {
 // itself: it downloads the new .app (zipped) in the background, and on Restart
 // (or the next quit) a small script swaps it in and opens it again.
 const RELEASES = 'https://github.com/keiddn/tetra/releases/latest/download';
-const UPDATE_EVERY = 4 * 60 * 60 * 1000;
+const UPDATE_EVERY = 30 * 60 * 1000;
 
 function tellWindow(update) {
   if (win && !win.isDestroyed()) win.webContents.send('update', update);
@@ -271,6 +271,13 @@ function checkForUpdates() {
   };
   void check();
   setInterval(check, UPDATE_EVERY);
+  // Coming back to the app is a good moment to look again (at most every ten minutes).
+  let lastFocusCheck = Date.now();
+  app.on('browser-window-focus', () => {
+    if (Date.now() - lastFocusCheck < 10 * 60 * 1000) return;
+    lastFocusCheck = Date.now();
+    void check();
+  });
 }
 
 ipcMain.on('install-update', () => {
