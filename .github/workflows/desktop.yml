@@ -31,9 +31,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build the web app into the desktop package
         working-directory: apps/desktop
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
           npm ci
           npm run web

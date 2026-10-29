@@ -64,6 +64,12 @@ function createWindow() {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
+  // The window only ever shows TETRA; any other address opens in the browser.
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('app://tetra/')) return;
+    event.preventDefault();
+    if (/^https:\/\//.test(url)) void shell.openExternal(url);
+  });
   void win.loadURL('app://tetra/');
 }
 
@@ -75,7 +81,7 @@ app.whenReady().then(() => {
   protocol.handle('app', (request) => {
     const { pathname } = new URL(request.url);
     let file = path.normalize(path.join(WEB, decodeURIComponent(pathname)));
-    if (!file.startsWith(WEB)) return new Response('Not found', { status: 404 });
+    if (file !== WEB && !file.startsWith(WEB + path.sep)) return new Response('Not found', { status: 404 });
     // The app is a single page: anything without an extension is the page itself.
     if (pathname === '/' || !path.extname(pathname)) file = path.join(WEB, 'index.html');
     return net.fetch(pathToFileURL(file).toString());

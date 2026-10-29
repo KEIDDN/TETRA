@@ -5,6 +5,7 @@ import './styles.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 // Decides how progress is kept before anything reads its saved state.
+import 'pixi.js/unsafe-eval'; // Pixi without eval(), so the site can forbid it.
 import './lib/account';
 import { App } from './App';
 import { registerServiceWorker } from './lib/platform';

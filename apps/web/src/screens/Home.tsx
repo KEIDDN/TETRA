@@ -170,6 +170,16 @@ export function Home({
                 {PAD_NAMES[padKind]}
               </span>
             )}
+            {!installed() && (
+              <button
+                data-nav
+                onClick={onDownload}
+                className={`glass-light flex items-center gap-2 rounded-full px-5 py-2 text-[14px] font-semibold ${focusRing}`}
+              >
+                <Icon name="download" size={12} />
+                Get the app
+              </button>
+            )}
             <button
               data-nav
               onClick={() => onSettings()}
@@ -296,14 +306,7 @@ export function Home({
               <span className="text-muted">↵</span> Play
             </span>
           </div>
-          <div className="flex items-center gap-6">
-            {!installed() && (
-              <button onClick={onDownload} className={`label rounded-sm transition-colors hover:text-fg ${focusRing}`}>
-                Get the app
-              </button>
-            )}
-            <VersionTaps />
-          </div>
+          <VersionTaps />
         </footer>
       </div>
     </div>
@@ -324,7 +327,7 @@ function VersionTaps() {
   };
   return (
     <button onClick={onTap} className="label select-none">
-      v0.9
+      v{__APP_VERSION__}
     </button>
   );
 }
