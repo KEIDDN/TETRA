@@ -316,3 +316,60 @@ New skins: **Liquid Glass** (dark tinted glass, rim light; not translucent), **B
 8. Settings rebuilt with a sidebar and a live preview board.
 
 References: offsuit.app, Apple, Tetris Effect, Teenage Engineering, Nothing, Lumines. Dark theme only.
+
+## 9. Design pass v3 (fourth grill round, Q45–Q60)
+
+### 9a. Voice
+- TETRA is sold as an audiovisual experience first and a serious trainer second. Line: **"Feel the blocks."**
+- Lexicon, used everywhere in the UI:
+  - **Experience** (always capitalised): the way OXIA intends TETRA to be played. Sound, light and play as one.
+  - **Room**: the light scene behind each skin.
+  - **Set**: the music of a session.
+  - **Drop**: the peak moment.
+  - **Focus**: the training mode. No rooms, no club sound, instant restarts. It is explained as clearly as every game mode.
+- No outline-only lettering anywhere. Only the existing families (Plus Jakarta Sans, Geist Mono).
+
+### 9b. Experience page
+- It opens on a single centred line, "Welcome to TETRA", then becomes a chapter index navigated like a game menu (arrows, wheel, click).
+- Each chapter is a full-screen, designed piece:
+  - **01 Sound**: club and binaural, the DJ.
+  - **02 Rooms**: every skin's room.
+  - **03 Play**: the modes.
+  - **04 Focus**: live switches. Flipping them changes the page's sound and light in real time.
+  - **05 OXIA**: a contained, almost ad-like close.
+- First-time players see the Focus chapter during onboarding.
+- Keep the monochrome 3D tetrominoes, with no visual glitches.
+- The page plays menu-style music; chapters move its filter.
+
+### 9c. OXIA page
+- It has its own entry from Home.
+- Content: a short manifesto on why TETRA exists, who OXIA Labs is, and **Miki Herrero — CEO & Lead Designer**.
+
+### 9d. Menus
+- Home's mode list is a wheel:
+  - the selected mode sits centred inside a liquid-glass lens;
+  - neighbours compress, fade and bend along an arc (after the references: a drum list and an arced list);
+  - it moves on a spring and ticks once per step.
+- **Game intro**: the board assembles on the beat, the room lights up, and the set drops on the downbeat after a 3-2-1. It lasts about 2 s and any key skips it. It plays only when a game starts from a menu: never on retry, never in Focus.
+
+### 9e. Liquid Glass UI
+- Most buttons and floating surfaces (selection lens, pause, results, Now playing, toasts) use a minimal liquid-glass material:
+  - blurred and saturated backdrop;
+  - specular top lip and a rim brighter at opposite corners;
+  - light pooling at the bottom.
+
+### 9f. Settings
+- A sidebar of categories: Experience, Visuals, Sound, Controls, Handling, Accessibility.
+- A live board on the right plays with the current skin, room and sound, so every change is seen and heard at once.
+- Presets at the top: Experience, Focus, Custom.
+
+### 9g. Profile
+- A player card:
+  - editable name;
+  - level ring and title;
+  - favourite skin;
+  - **total time played**.
+- Tabs: Overview, Records (charts per mode), Locker, Music, Trophies.
+- Stats are local for now; online sync comes later.
+
+Order: voice → Experience + OXIA → wheel + game intro → Settings → Profile → glass everywhere → icons. Desktop first.

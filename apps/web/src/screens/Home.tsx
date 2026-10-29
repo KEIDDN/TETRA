@@ -12,6 +12,7 @@ import { loadBest } from '../lib/storage';
 import { AmbientBackground } from '../ui/AmbientBackground';
 import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
 import { LevelChip } from '../ui/LevelChip';
+import { ModeWheel } from '../ui/ModeWheel';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
 import { skinLocked } from '../lib/tournament';
@@ -134,7 +135,7 @@ export function Home({
             <button
               data-nav
               onClick={() => onSettings()}
-              className={`hairline rounded-full bg-tile px-5 py-2 text-[14px] font-medium backdrop-blur-md transition-transform duration-250 ease-spring hover:scale-[1.04] ${focusRing}`}
+              className={`glass rounded-full px-5 py-2 text-[14px] font-medium ${focusRing}`}
             >
               Settings
             </button>
@@ -144,39 +145,19 @@ export function Home({
         <main className="grid flex-1 items-center gap-10 py-[min(24px,3vh)] lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.72fr)]">
           <div>
             <div className="label animate-rise">Select a mode</div>
-            <ul className="mt-[min(24px,2.5vh)]">
-              {ENTRIES.map((id, i) => {
-                const active = id === selected;
-                return (
-                  <li key={id} className="animate-rise" style={{ animationDelay: `${60 + i * 50}ms` }}>
-                    <button
-                      ref={i === 0 ? firstRef : undefined}
-                      data-nav
-                      onFocus={() => select(id)}
-                      onMouseEnter={(e) => e.currentTarget.focus({ preventScroll: true })}
-                      onClick={() => activate(id)}
-                      className="group relative flex w-full items-center gap-6 py-1 text-left outline-none"
-                    >
-                      <span
-                        className={`absolute top-1/2 -left-5 h-[0.5em] w-1 -translate-y-1/2 rounded-full bg-accent text-[clamp(30px,min(5.4vw,7vh),84px)] transition-all duration-300 ease-spring ${
-                          active ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
-                        }`}
-                      />
-                      <span
-                        className={`text-[clamp(30px,min(5.4vw,7vh),84px)] leading-[1.02] font-[480] tracking-[-0.045em] transition-colors duration-300 ${
-                          active ? 'text-fg' : 'text-white/[0.14] group-hover:text-white/30'
-                        }`}
-                      >
-                        {entryName(id)}
-                      </span>
-                      {id === 'cups' && (
-                        <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold text-black">New</span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="animate-rise mt-[min(20px,2vh)] [animation-delay:80ms]">
+              <ModeWheel
+                items={ENTRIES}
+                selected={selected}
+                label={entryName}
+                extra={(id) =>
+                  id === 'cups' ? <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold tracking-normal text-black">New</span> : null
+                }
+                onSelect={select}
+                onActivate={activate}
+                firstRef={firstRef}
+              />
+            </div>
 
             <div key={selected} className="animate-fade mt-[min(40px,3.5vh)] flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-[min(24px,3vh)]">
               <p className="min-w-[220px] flex-1 text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
@@ -290,7 +271,7 @@ function PlayButton({ onClick }: { onClick: () => void }) {
     <button
       data-nav
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-full bg-accent py-3 pr-3 pl-6 text-[16px] font-semibold text-black transition-transform duration-250 ease-spring hover:scale-[1.04] active:scale-[0.98] ${focusRing}`}
+      className={`glass-light flex items-center gap-3 rounded-full py-3 pr-3 pl-6 text-[16px] font-semibold ${focusRing}`}
     >
       Play
       <span className="grid size-7 place-items-center rounded-full bg-black/10 font-mono text-[12px]">↵</span>
