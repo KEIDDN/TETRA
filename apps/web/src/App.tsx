@@ -4,6 +4,7 @@ import { sfx } from './audio/sfx';
 import { gamepads } from './game/gamepad';
 import { Toasts } from './ui/toast';
 import { DevBadge } from './ui/DevBadge';
+import { LogoIntro } from './ui/LogoIntro';
 import { director } from './audio/director';
 import { getSettings as readSettings } from './lib/settings';
 import { Home } from './screens/Home';
@@ -199,6 +200,7 @@ export function App() {
       </div>
       {!['play', 'match', 'bout', 'experience', 'oxia'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
       <Toasts />
+      {screen.name === 'home' && <LogoIntro />}
     </>
   );
 }
