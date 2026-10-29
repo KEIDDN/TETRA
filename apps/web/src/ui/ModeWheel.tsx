@@ -20,6 +20,7 @@ export function ModeWheel<T extends string>({
   firstRef,
   size = 'text-[clamp(30px,min(5.2vw,6.6vh),80px)]',
   lead,
+  dim,
 }: {
   items: T[];
   selected: T;
@@ -32,6 +33,8 @@ export function ModeWheel<T extends string>({
   size?: string;
   /** Something shown before each row's label (an emblem). */
   lead?: (id: T) => ReactNode;
+  /** Rows that are on the wheel but not available yet: they stay dim even when selected. */
+  dim?: (id: T) => boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const lens = useRef<HTMLDivElement>(null);
@@ -39,6 +42,8 @@ export function ModeWheel<T extends string>({
   const index = Math.max(0, items.indexOf(selected));
   const motion = useRef({ pos: index, vel: 0, target: index, lens: 0, frame: 0, last: 0 });
   const pressedSelected = useRef(false);
+  const dimRef = useRef(dim);
+  dimRef.current = dim;
 
   useEffect(() => {
     const m = motion.current;
@@ -81,7 +86,7 @@ export function ModeWheel<T extends string>({
         // A real drum: each row sits on a cylinder and turns with it, so the
         // letters foreshorten the way printed type on a wheel would, never squashed.
         el.style.transform = `translate3d(${x.toFixed(2)}px, 0, ${(-radius).toFixed(2)}px) rotateX(${(-a).toFixed(4)}rad) translateZ(${radius.toFixed(2)}px)`;
-        el.style.opacity = String((0.16 + 0.84 * near * near) * fade);
+        el.style.opacity = String((0.16 + 0.84 * near * near) * fade * (dimRef.current?.(items[i]) ? 0.4 : 1));
         if (near > 0) lensWidth += el.scrollWidth * near;
       });
       if (lens.current && lensWidth) lens.current.style.width = `${lensWidth + row * 0.5}px`;

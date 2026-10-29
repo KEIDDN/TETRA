@@ -186,6 +186,7 @@ export function Home({
                 }
                 onSelect={select}
                 onActivate={activate}
+                dim={(id) => SOON.includes(id)}
                 firstRef={firstRef}
               />
             </div>

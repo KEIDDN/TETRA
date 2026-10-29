@@ -397,7 +397,7 @@ function Scene({ chapter, active, gameSide, children }: { chapter: Chapter; acti
       className={`absolute inset-0 z-10 flex flex-col justify-center transition-[opacity,filter] duration-700 ${active ? 'opacity-100' : 'pointer-events-none opacity-0 blur-[8px]'} ${
         gameSide
           ? 'items-start px-8 text-left sm:px-12 lg:pl-[7vw]'
-          : `items-center px-8 text-center ${chapter.stage === 'oxia' ? 'pt-[30vh]' : ''}`
+          : `items-center px-8 text-center ${chapter.stage === 'oxia' ? 'pt-[16vh]' : ''}`
       }`}
     >
       <h2
