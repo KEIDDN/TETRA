@@ -3,7 +3,7 @@ import { dj } from '../audio/dj';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
-import { addPlay, awardXp, soloXp } from '../lib/profile';
+import { addPlay, awardXp, getProfile, soloXp } from '../lib/profile';
 import { loadBest, recordRun, submitBest, type RunRecord } from '../lib/storage';
 import { InputRouter } from './input';
 import { MODE_CONFIGS } from './modes';
@@ -32,6 +32,9 @@ export interface SessionResult {
   record: RunRecord;
   personalBest: boolean;
   previousBest: RunRecord | null;
+  /** XP this run earned, and the total before it, so the results can fill the ring. */
+  xp: number;
+  xpBefore: number;
 }
 
 export interface SessionView {
@@ -294,10 +297,19 @@ export class GameSession {
     const counts = (finished || !config.recordNeedsFinish) && stats.pieces > 0;
     const personalBest = counts && submitBest(this.mode, record, config.isBetter);
     if (counts) recordRun(this.mode, record);
-    awardXp(soloXp(stats.pieces, stats.lines, personalBest), config.def.name);
+    const xpBefore = getProfile().xp;
+    const xp = Math.round(soloXp(stats.pieces, stats.lines, personalBest));
+    awardXp(xp, config.def.name);
     // Let the end animation play before the results card covers the board.
     this.resultTimer = window.setTimeout(
-      () => this.view.result({ mode: this.mode, finished, record, personalBest, previousBest }),
+      () => {
+        this.renderer.climax(personalBest);
+        if (personalBest) {
+          sfx.personalBest();
+          music.club?.throw(6, music.bpm);
+        }
+        this.view.result({ mode: this.mode, finished, record, personalBest, previousBest, xp, xpBefore });
+      },
       finished ? 900 : 1100,
     );
   }

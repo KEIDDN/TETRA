@@ -10,6 +10,10 @@ import { GameSession, type LiveStats, type Phase, type SessionResult } from '../
 import { formatRate, formatTime } from '../lib/format';
 import { useMenuNav } from '../lib/nav';
 import { NowPlaying } from '../ui/NowPlaying';
+import { LevelRing } from '../ui/LevelRing';
+import { Sparkline } from '../ui/Sparkline';
+import { levelFor } from '../lib/profile';
+import { loadHistory } from '../lib/storage';
 
 const STAT_LABELS: Record<StatKey, string> = { lines: 'Lines', pieces: 'Pieces', pps: 'PPS', score: 'Score', level: 'Level' };
 
@@ -262,6 +266,38 @@ function PillButton({ children, onClick, hint, primary }: { children: ReactNode;
   );
 }
 
+/** Counts from 0 up to `target` with an ease-out, once. */
+function useCountUp(target: number, ms: number, delay = 0): number {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now() + delay;
+    const step = (now: number) => {
+      const t = Math.min(1, Math.max(0, (now - start) / ms));
+      setValue(target * (1 - (1 - t) ** 3));
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms, delay]);
+  return value;
+}
+
+/** XP pours into the level ring; a level up fills it, flips the number and starts again. */
+function XpRing({ before, gained }: { before: number; gained: number }) {
+  const total = useCountUp(gained, 1100, 700);
+  const now = levelFor(before + total);
+  return (
+    <div className="flex items-center gap-4">
+      <LevelRing level={now.level} progress={now.into / now.needed} size={52} />
+      <div>
+        <div className="tabular text-[18px] font-medium">+{Math.round(total)} XP</div>
+        <div className="label mt-0.5">{now.needed - Math.round(now.into)} to level {now.level + 1}</div>
+      </div>
+    </div>
+  );
+}
+
 function Result({ result, onRetry, onExit }: { result: SessionResult; onRetry: () => void; onExit: () => void }) {
   const config = MODE_CONFIGS[result.mode];
   const r = result.record;
@@ -269,17 +305,31 @@ function Result({ result, onRetry, onExit }: { result: SessionResult; onRetry: (
   const kpp = r.pieces > 0 ? r.inputs / r.pieces : 0;
   const timed = result.mode === 'sprint';
   const lineGoal = config.def.rules.lineGoal;
+  const counted = useCountUp(timed ? r.time : r.score, 900);
+  const history = loadHistory(result.mode);
+  const values = history.map((h) => (timed ? h.time : h.score));
+  const prev = result.previousBest;
 
   let headline: string;
   let subline: string | null = null;
   if (timed) {
-    headline = result.finished ? formatTime(r.time) : 'Topped out';
+    headline = result.finished ? formatTime(counted) : 'Topped out';
     if (!result.finished) subline = `${r.lines}/${lineGoal} lines`;
-    else if (result.previousBest && !result.personalBest) subline = `+${formatTime(r.time - result.previousBest.time)} from best`;
   } else {
-    headline = r.score.toLocaleString('en-US');
+    headline = Math.round(counted).toLocaleString('en-US');
     const status = result.finished ? (result.mode === 'marathon' ? 'Complete' : "Time's up") : 'Topped out';
     subline = `${status} · Level ${r.level} · ${r.lines} lines`;
+  }
+  // The delta against the best before this run: negative time and positive score are good.
+  let delta: { text: string; good: boolean } | null = null;
+  if (prev && (!timed || result.finished)) {
+    if (timed) {
+      const d = r.time - prev.time;
+      delta = { text: `${d < 0 ? '−' : '+'}${formatTime(Math.abs(d))}`, good: d < 0 };
+    } else {
+      const d = r.score - prev.score;
+      delta = { text: `${d >= 0 ? '+' : '−'}${Math.abs(d).toLocaleString('en-US')}`, good: d > 0 };
+    }
   }
 
   const stats: [string, string][] = timed
@@ -291,14 +341,14 @@ function Result({ result, onRetry, onExit }: { result: SessionResult; onRetry: (
     : [
         ['Time', formatTime(r.time)],
         ['PPS', formatRate(pps)],
-        ['Best', result.personalBest ? 'New' : result.previousBest ? config.formatRecord(result.previousBest) : '—'],
+        ['Best', result.personalBest ? 'New' : prev ? config.formatRecord(prev) : '—'],
       ];
 
   return (
     <Overlay>
       <div className="flex items-center justify-between">
         <span className="label">{config.def.name}</span>
-        {result.personalBest && <span className="rounded-full bg-accent px-3 py-1 text-[12px] font-semibold text-black">Personal best</span>}
+        {result.personalBest && <span className="glass-light animate-pop rounded-full px-3 py-1 text-[12px] font-semibold [animation-delay:700ms]">Personal best</span>}
       </div>
       <div
         className={`mt-6 font-medium leading-none ${
@@ -307,9 +357,22 @@ function Result({ result, onRetry, onExit }: { result: SessionResult; onRetry: (
       >
         {headline}
       </div>
-      {subline && <div className="tabular mt-3 text-[14px] text-muted">{subline}</div>}
+      <div className="mt-3 flex items-center gap-3">
+        {subline && <span className="tabular text-[14px] text-muted">{subline}</span>}
+        {delta && (
+          <span className={`animate-rise tabular shrink-0 rounded-full px-2.5 py-0.5 text-[12px] whitespace-nowrap font-semibold [animation-delay:900ms] ${delta.good ? 'bg-[#30d158]/15 text-[#30d158]' : 'bg-white/[0.06] text-muted'}`}>
+            {delta.text} vs best
+          </span>
+        )}
+      </div>
 
-      <dl className="mt-8 grid grid-cols-3 border-t border-line pt-5">
+      {values.length >= 2 && (
+        <div className="animate-fade [animation-delay:500ms]">
+          <Sparkline values={values} lowerIsBetter={timed} mark={values.length - 1} height={56} />
+        </div>
+      )}
+
+      <dl className="mt-6 grid grid-cols-3 border-t border-line pt-5">
         {stats.map(([label, value]) => (
           <div key={label}>
             <dt className="label">{label}</dt>
@@ -317,6 +380,12 @@ function Result({ result, onRetry, onExit }: { result: SessionResult; onRetry: (
           </div>
         ))}
       </dl>
+
+      {result.xp > 0 && (
+        <div className="mt-6 border-t border-line pt-5">
+          <XpRing before={result.xpBefore} gained={result.xp} />
+        </div>
+      )}
 
       <div className="mt-8 flex gap-3">
         <PillButton primary onClick={onRetry} hint="R">

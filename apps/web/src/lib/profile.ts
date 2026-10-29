@@ -52,6 +52,11 @@ export function getProfile(): Profile {
   return current;
 }
 
+export function subscribeProfile(l: () => void): () => void {
+  listeners.add(l);
+  return () => listeners.delete(l);
+}
+
 export function useProfile(): Profile {
   return useSyncExternalStore(
     (l) => {

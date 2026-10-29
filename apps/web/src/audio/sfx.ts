@@ -253,6 +253,14 @@ class Sfx {
     });
   }
 
+  /** A personal best: a bright, rising chord that hangs in the room. */
+  personalBest(): void {
+    this.play((t, p) => {
+      [0, 7, 12, 16, 19, 24].forEach((n, i) => this.strike(t + i * 0.055, p.chime, midi(ROOT + 12 + n + p.register), { gain: 0.04, length: 2.2, send: p.room }));
+      this.strike(t + 0.33, PURE, midi(ROOT + p.register), { gain: 0.03, length: 2.4 });
+    });
+  }
+
   // ── Menus ─────────────────────────────────────────────────────
 
   ui(kind: 'move' | 'select' | 'back'): void {

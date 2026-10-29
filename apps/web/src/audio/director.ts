@@ -1,6 +1,7 @@
 import type { SkinId } from '../game/skins';
 import { bpmOf, getMusicPrefs, playable, skinTrack, subscribeMusicPrefs, trackFor } from '../lib/musicPrefs';
 import { getSettings, subscribeSettings } from '../lib/settings';
+import { trackUnlocked } from '../lib/library';
 import { TRACK_BY_ID, TRACKS, type Track } from './catalog';
 import { music } from './music';
 
@@ -61,7 +62,7 @@ class Director {
    */
   private nextAfter(current: Track): Track | null {
     if (getSettings().audio.musicMode !== 'shuffle' || this.context.kind === 'menu' || this.pinned) return current;
-    const pool = TRACKS.filter((t) => t.suggest !== 'menu' && !getMusicPrefs().rejected.includes(t.id));
+    const pool = TRACKS.filter((t) => t.suggest !== 'menu' && !getMusicPrefs().rejected.includes(t.id) && trackUnlocked(t));
     const fresh = pool.filter((t) => !this.history.includes(t.id));
     const candidates = fresh.length ? fresh : pool.filter((t) => t.id !== current.id);
     if (!candidates.length) return current;
@@ -95,7 +96,7 @@ class Director {
     }
     if (audio.musicMode === 'shuffle') {
       if (!this.shuffled) {
-        const pool = playable().filter((t) => t.id !== music.current?.id);
+        const pool = playable().filter((t) => t.id !== music.current?.id && trackUnlocked(t));
         this.shuffled = pool[Math.floor(Math.random() * pool.length)] ?? null;
       }
       return music.play(this.shuffled, { bpm: this.shuffled ? bpmOf(this.shuffled) : null });

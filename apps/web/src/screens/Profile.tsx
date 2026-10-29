@@ -1,5 +1,5 @@
 import { BOTS } from '@tetra/bot';
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { SOUND_PACK_NAMES, sfx } from '../audio/sfx';
 import { MODE_CONFIGS, MODE_ORDER } from '../game/modes';
 import { hexToNumber, SKIN_ORDER, SKINS, type SkinId } from '../game/skins';
@@ -13,8 +13,12 @@ import { DemoBoard } from '../ui/DemoBoard';
 import { SkinSwatch } from '../ui/SkinSwatch';
 import { Segmented } from '../ui/controls';
 import { Icon } from '../ui/Icon';
+import { LevelRing } from '../ui/LevelRing';
+import { Sparkline } from '../ui/Sparkline';
 import { TRACKS } from '../audio/catalog';
-import { getMusicPrefs } from '../lib/musicPrefs';
+import { assignTrack, getMusicPrefs, subscribeMusicPrefs } from '../lib/musicPrefs';
+import { trackAccess, trackUnlocked } from '../lib/library';
+import { director } from '../audio/director';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 const CUP_TINT: Record<string, string> = { foundations: '#5ac8f5', contenders: '#c86bff', summit: '#ffb84a', custom: '#edebfa' };
@@ -200,69 +204,73 @@ function Records() {
   );
 }
 
-function Sparkline({ values, lowerIsBetter }: { values: number[]; lowerIsBetter: boolean }) {
-  const w = 480;
-  const h = 90;
-  if (values.length < 2)
-    return (
-      <div className="mt-5 grid h-[90px] place-items-center rounded-[18px] bg-white/[0.02] text-[13px] text-faint">
-        Play a few runs to see your curve.
-      </div>
-    );
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const pts = values.map((v, i) => {
-    const t = (v - min) / span;
-    return [(i / (values.length - 1)) * w, 8 + (lowerIsBetter ? t : 1 - t) * (h - 16)] as const;
-  });
-  const bestIndex = values.indexOf(lowerIsBetter ? min : max);
-  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="mt-5 h-[90px] w-full overflow-visible">
-      <defs>
-        <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#edebfa" stopOpacity="0.22" />
-          <stop offset="1" stopColor="#edebfa" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon points={`0,${h} ${line} ${w},${h}`} fill="url(#spark)" />
-      <polyline points={line} fill="none" stroke="#edebfa" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-      <circle cx={pts[bestIndex][0]} cy={pts[bestIndex][1]} r="4" fill="#edebfa" />
-    </svg>
-  );
-}
 
-/** Every track TETRA plays, who made it, its license and where it plays. */
+/** Every track TETRA plays: listen, pick the menu track, see who made it. */
 function Library() {
-  const { assign } = getMusicPrefs();
+  const prefs = useSyncExternalStore(subscribeMusicPrefs, getMusicPrefs);
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => () => director.pin(null), []);
+  const listen = (id: string) => {
+    const next = preview === id ? null : id;
+    setPreview(next);
+    director.pin(next);
+  };
   const slotsOf = (id: string) =>
-    Object.entries(assign)
-      .filter(([, t]) => t === id)
-      .map(([slot]) => (slot === 'menu' ? 'Menus' : (SKINS[slot as SkinId]?.name ?? slot)));
+    Object.entries(prefs.assign)
+      .filter(([slot, t]) => t === id && slot !== 'menu')
+      .map(([slot]) => SKINS[slot as SkinId]?.name ?? slot);
+  const unlocked = TRACKS.filter(trackUnlocked).length;
   return (
-    <div className="glass-panel overflow-hidden rounded-[28px]">
-      {TRACKS.map((t) => {
-        const slots = slotsOf(t.id);
-        return (
-          <div key={t.id} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-line px-6 py-4 first:border-t-0">
-            <div className="min-w-0">
-              <div className="truncate text-[16px] font-medium tracking-[-0.01em]">{t.title}</div>
-              <div className="text-[13px] text-faint">
-                {t.artist}
-                {t.album ? ` · ${t.album}` : ''}
+    <>
+      <div className="label mb-4 px-1">
+        {unlocked} / {TRACKS.length} unlocked · skins bring their tracks, levels open the menu set
+      </div>
+      <div className="glass-panel overflow-hidden rounded-[28px]">
+        {TRACKS.map((t) => {
+          const access = trackAccess(t);
+          const slots = slotsOf(t.id);
+          const isMenu = prefs.assign.menu === t.id;
+          const playing = preview === t.id;
+          return (
+            <div key={t.id} className={`flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line px-5 py-3.5 first:border-t-0 ${access.unlocked ? '' : 'opacity-45'}`}>
+              <button
+                data-nav
+                disabled={!access.unlocked}
+                onClick={() => listen(t.id)}
+                aria-label={playing ? 'Stop' : `Listen to ${t.title}`}
+                className={`grid size-10 shrink-0 place-items-center rounded-full ${playing ? 'glass-light' : 'glass'} disabled:cursor-default ${focusRing}`}
+              >
+                <Icon name={!access.unlocked ? 'lock' : playing ? 'pause' : 'play'} size={11} />
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[16px] font-medium tracking-[-0.01em]">{t.title}</div>
+                <div className="truncate text-[13px] text-faint">
+                  {t.artist}
+                  {t.album ? ` · ${t.album}` : ''}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {!access.unlocked && <span className="label">{access.hint}</span>}
+                {access.unlocked && slots.length > 0 && <span className="label text-muted">{slots.join(', ')}</span>}
+                {access.unlocked && t.suggest === 'menu' && (
+                  <button
+                    data-nav
+                    disabled={isMenu}
+                    onClick={() => assignTrack('menu', t.id)}
+                    className={`rounded-full px-3 py-1 text-[12px] font-medium ${isMenu ? 'glass-light' : 'glass'} disabled:cursor-default ${focusRing}`}
+                  >
+                    {isMenu ? 'Menu track' : 'Set as menu'}
+                  </button>
+                )}
+                <a href={t.licenseUrl} target="_blank" rel="noreferrer" className="label transition-colors hover:text-fg">
+                  {t.license}
+                </a>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              {slots.length > 0 && <span className="label text-muted">Plays in {slots.join(', ')}</span>}
-              <a href={t.licenseUrl} target="_blank" rel="noreferrer" className="glass rounded-full px-3 py-1 text-[11px] font-medium">
-                {t.license}
-              </a>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -420,30 +428,6 @@ function SkinTile({
   );
 }
 
-function LevelRing({ level, progress }: { level: number; progress: number }) {
-  const r = 70;
-  const c = 2 * Math.PI * r;
-  return (
-    <div className="relative grid size-[176px] place-items-center">
-      <svg viewBox="0 0 176 176" className="absolute inset-0 -rotate-90">
-        <circle cx="88" cy="88" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
-        <circle
-          cx="88"
-          cy="88"
-          r={r}
-          fill="none"
-          stroke="#edebfa"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeDasharray={`${progress * c} ${c}`}
-          className="transition-[stroke-dasharray] duration-1000 ease-spring"
-          style={{ filter: 'drop-shadow(0 0 10px rgba(237,235,250,0.45))' }}
-        />
-      </svg>
-      <span className="tabular text-[56px] leading-none font-medium tracking-[-0.04em]">{level}</span>
-    </div>
-  );
-}
 
 function TrophyCard({ trophy }: { trophy: Trophy }) {
   const tint = CUP_TINT[trophy.cup] ?? '#edebfa';

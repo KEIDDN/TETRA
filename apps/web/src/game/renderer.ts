@@ -477,6 +477,15 @@ export class GameRenderer {
     }
   }
 
+  /** The results moment: the room peaks once more behind the card, bigger for a personal best. */
+  climax(personalBest: boolean): void {
+    if (!this.layout || this.options.fx === 'off') return;
+    const { boardX, boardY, boardW, boardH } = this.layout;
+    const color = hexToNumber(this.palette.T);
+    this.backdrop?.celebrate(boardX + boardW / 2, boardY + boardH / 2, personalBest ? 8 : 4, color, ['I', 'O', 'T', 'S', 'Z', 'J', 'L'], boardW);
+    this.flash = personalBest ? 1 : 0.5;
+  }
+
   // ── Internals ─────────────────────────────────────────────────
 
   private celebrate(now: number): void {
