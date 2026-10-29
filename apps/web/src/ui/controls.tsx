@@ -14,14 +14,14 @@ export function Segmented<T extends string>({
   small?: boolean;
 }) {
   return (
-    <div className="hairline inline-flex shrink-0 rounded-full bg-tile p-1">
+    <div className="glass-panel inline-flex shrink-0 rounded-full p-1">
       {options.map(([id, name]) => (
         <button
           key={id}
           data-nav
           onClick={() => onChange(id)}
           className={`rounded-full font-medium transition-all duration-250 ease-spring ${focusRing} ${small ? 'px-4 py-1.5 text-[13px]' : 'px-5 py-2 text-[14px]'} ${
-            value === id ? 'bg-fg text-black' : 'text-muted hover:text-fg'
+            value === id ? 'bg-fg text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_14px_-4px_rgba(237,235,250,0.45)]' : 'text-muted hover:text-fg'
           }`}
         >
           {name}
@@ -33,12 +33,12 @@ export function Segmented<T extends string>({
 
 export function Section({ label, note, children }: { label: string; note?: string; children: ReactNode }) {
   return (
-    <section className="mt-10">
+    <section className="mt-8 first:mt-0">
       <div className="mb-3 flex items-baseline justify-between gap-4 px-1">
         <span className="label">{label}</span>
         {note && <span className="text-right text-[12px] text-faint">{note}</span>}
       </div>
-      <div className="hairline overflow-hidden rounded-[28px] bg-tile">{children}</div>
+      <div className="glass-panel overflow-hidden rounded-[26px]">{children}</div>
     </section>
   );
 }

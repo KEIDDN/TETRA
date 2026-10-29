@@ -7,6 +7,7 @@ import { gamepads } from '../game/gamepad';
 import { CUPS, skinLocked } from '../lib/tournament';
 import { SKIN_ORDER, SKINS, type Skin, type SoundPackId } from '../game/skins';
 import { SkinSwatch } from '../ui/SkinSwatch';
+import { DemoBoard } from '../ui/DemoBoard';
 import { buttonLabel, keyLabel, PAD_NAMES } from '../lib/labels';
 import { useMenuNav } from '../lib/nav';
 import {
@@ -26,7 +27,19 @@ import {
 } from '../lib/settings';
 
 type Tab = 'appearance' | 'sound' | 'controls';
+type Category = 'experience' | 'visuals' | 'sound' | 'controls' | 'handling' | 'accessibility' | 'developer';
 type Capture = { device: Device; command: Command; slot: number } | null;
+
+const CATEGORIES: [Category, string, string][] = [
+  ['experience', 'Experience', 'How TETRA sounds and feels'],
+  ['visuals', 'Visuals', 'Skin, room, effects, grid'],
+  ['sound', 'Sound', 'Volumes, music, sound pack'],
+  ['controls', 'Controls', 'Keys and buttons'],
+  ['handling', 'Handling', 'DAS, ARR, soft drop'],
+  ['accessibility', 'Accessibility', 'Flashing and motion'],
+];
+
+const FROM_TAB: Record<Tab, Category> = { appearance: 'visuals', sound: 'sound', controls: 'controls' };
 
 function usePadKind() {
   return useSyncExternalStore(
@@ -37,101 +50,241 @@ function usePadKind() {
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
-export function Settings({ onBack, onMusicLab, onExperience, initialTab = 'appearance' }: { onBack: () => void; onMusicLab?: () => void; onExperience?: () => void; initialTab?: Tab }) {
-  const [tab, setTab] = useState<Tab>(initialTab);
+type Preset = 'experience' | 'focus' | 'custom';
+
+function presetOf(s: ReturnType<typeof useSettings>): Preset {
+  const parts = [s.experience, s.audio.club, s.audio.dj, s.appearance.ambient];
+  if (parts.every(Boolean)) return 'experience';
+  if (parts.every((p) => !p)) return 'focus';
+  return 'custom';
+}
+
+/**
+ * Settings: categories on the left, the controls in the middle and, on wide
+ * screens, a board on the right that plays in your skin and room so every
+ * change is seen (and heard) at once.
+ */
+export function Settings({
+  onBack,
+  onMusicLab,
+  onExperience,
+  initialTab,
+}: {
+  onBack: () => void;
+  onMusicLab?: () => void;
+  onExperience?: () => void;
+  initialTab?: Tab;
+}) {
+  const settings = useSettings();
+  const [category, setCategory] = useState<Category>(initialTab ? FROM_TAB[initialTab] : 'experience');
   const [capture, setCapture] = useState<Capture>(null);
+  const [device, setDevice] = useState<Device>('keyboard');
   useMenuNav(onBack, capture === null);
+  const categories = settings.developer ? [...CATEGORIES, ['developer', 'Developer', 'Labs and unlocks'] as [Category, string, string]] : CATEGORIES;
+  const preset = presetOf(settings);
+  const title = categories.find(([id]) => id === category)!;
 
   return (
-    <div className="min-h-full px-5 pb-24 sm:px-10">
-      <header className="mx-auto flex h-20 w-full max-w-[760px] items-center justify-between">
-        <button
-          data-nav
-          onClick={onBack}
-          className={`-ml-4 rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors duration-150 hover:text-fg focus-visible:text-fg ${focusRing}`}
-        >
-          ← Back <span className="label ml-2">Esc</span>
+    <div className="fixed inset-0 flex overflow-hidden">
+      <aside className="flex w-[300px] shrink-0 flex-col border-r border-line px-6 py-6">
+        <button data-nav onClick={onBack} className={`glass -ml-1 self-start rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
+          ← Back <span className="ml-1 font-mono text-[11px] text-white/40">Esc</span>
         </button>
-        <span className="label">Settings</span>
-      </header>
+        <h1 className="mt-10 text-[40px] leading-none font-[520] tracking-[-0.045em]">Settings</h1>
 
-      <main className="animate-rise mx-auto w-full max-w-[760px]">
-        <h1 className="mt-6 text-[clamp(44px,8vw,72px)] font-[480] leading-none tracking-[-0.045em]">Settings</h1>
-        <ExperienceCard onAbout={onExperience} />
-        <div className="mt-10">
-          <Segmented
-            value={tab}
-            onChange={setTab}
-            options={[
-              ['appearance', 'Appearance'],
-              ['sound', 'Sound'],
-              ['controls', 'Controls'],
-            ]}
-          />
+        <div className="mt-8">
+          <div className="label mb-3">Preset</div>
+          <div className="glass-panel grid grid-cols-3 rounded-full p-1">
+            {(
+              [
+                ['experience', 'Experience'],
+                ['focus', 'Focus'],
+                ['custom', 'Custom'],
+              ] as [Preset, string][]
+            ).map(([id, name]) => (
+              <button
+                key={id}
+                data-nav
+                disabled={id === 'custom'}
+                onClick={() => setExperience(id === 'experience')}
+                className={`rounded-full py-2 text-[13px] font-medium transition-all duration-300 ease-spring disabled:cursor-default ${focusRing} ${
+                  preset === id ? 'bg-fg text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]' : 'text-muted enabled:hover:text-fg'
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-[12px] leading-relaxed text-faint">
+            {preset === 'experience'
+              ? 'Sound, light and play as one. How we play TETRA.'
+              : preset === 'focus'
+                ? 'For training: no rooms, no club, instant restarts.'
+                : 'Your own mix of the two.'}
+          </p>
         </div>
 
-        <div key={tab} className="animate-fade">
-          {tab === 'appearance' && <AppearancePanel />}
-          {tab === 'sound' && <SoundPanel />}
-          {tab === 'controls' && <ControlsPanel capture={capture} setCapture={setCapture} />}
-        </div>
+        <nav className="mt-8 flex flex-col gap-1">
+          {categories.map(([id, name, hint]) => (
+            <button
+              key={id}
+              data-nav
+              onClick={() => setCategory(id)}
+              onFocus={() => setCategory(id)}
+              className={`group relative rounded-[16px] px-4 py-2.5 text-left transition-colors duration-200 ${focusRing} ${category === id ? 'glass-panel' : 'hover:bg-white/[0.04]'}`}
+            >
+              <span className={`block text-[15px] font-medium tracking-[-0.01em] ${category === id ? 'text-fg' : 'text-muted group-hover:text-fg'}`}>
+                {name}
+              </span>
+              <span className="block text-[12px] text-faint">{hint}</span>
+            </button>
+          ))}
+        </nav>
 
-        <DeveloperSection onMusicLab={onMusicLab} />
+        <button
+          onClick={() => {
+            if (window.confirm('Reset all settings to their defaults?')) resetSettings();
+          }}
+          className={`mt-auto self-start text-[12px] font-medium text-faint transition-colors hover:text-fg ${focusRing}`}
+        >
+          Reset to defaults
+        </button>
+      </aside>
 
-        <div className="mt-10 flex justify-end">
-          <button
-            data-nav
-            onClick={() => {
-              if (window.confirm('Reset all settings to their defaults?')) resetSettings();
-            }}
-            className={`rounded-full px-5 py-2.5 text-[14px] font-medium text-muted shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] transition-colors hover:text-fg ${focusRing}`}
-          >
-            Reset to defaults
-          </button>
+      <main className="min-w-0 flex-1 overflow-y-auto px-10 py-10">
+        <div key={category} className="animate-rise mx-auto w-full max-w-[680px] pb-16">
+          <div className="label">{title[1]}</div>
+          <p className="mt-2 mb-8 text-[22px] font-[480] tracking-[-0.025em] text-muted">{title[2]}</p>
+          {category === 'experience' && <ExperiencePanel onAbout={onExperience} />}
+          {category === 'visuals' && <AppearancePanel />}
+          {category === 'sound' && <SoundPanel />}
+          {category === 'controls' && (
+            <ControlsPanel device={device} setDevice={setDevice} capture={capture} setCapture={setCapture} part="bindings" />
+          )}
+          {category === 'handling' && (
+            <ControlsPanel device={device} setDevice={setDevice} capture={capture} setCapture={setCapture} part="handling" />
+          )}
+          {category === 'accessibility' && <AccessibilityPanel />}
+          {category === 'developer' && <DeveloperSection onMusicLab={onMusicLab} />}
         </div>
       </main>
+
+      <LivePreview />
     </div>
   );
 }
 
-// ── TETRA Experience ────────────────────────────────────────────
-
-/** The master switch, on top of everything. */
-function ExperienceCard({ onAbout }: { onAbout?: () => void }) {
-  const { experience } = useSettings();
+/** A board that plays itself with every current setting, room included. */
+function LivePreview() {
+  const { appearance } = useSettings();
+  const skin = SKINS[appearance.skin];
   return (
-    <section
-      className="relative mt-10 overflow-hidden rounded-[32px] p-7 transition-[box-shadow] duration-500"
-      style={{
-        background: 'linear-gradient(135deg, #17171b 0%, #0e0e10 60%)',
-        boxShadow: experience ? 'inset 0 0 0 1px rgba(237,235,250,0.22), 0 40px 100px -60px rgba(237,235,250,0.5)' : 'inset 0 0 0 1px rgba(255,255,255,0.07)',
-      }}
-    >
-      <div aria-hidden className={`exp-glow pointer-events-none absolute -top-24 -right-16 size-72 rounded-full blur-3xl transition-opacity duration-700 ${experience ? 'opacity-100' : 'opacity-0'}`} />
-      <div className="relative flex items-start justify-between gap-6">
-        <div>
-          <div className="label">TETRA Experience</div>
-          <div className="mt-2 text-[28px] leading-tight font-medium tracking-[-0.03em]">{experience ? 'Sound and light, all in.' : 'Practice room.'}</div>
-          <p className="mt-2 max-w-[440px] text-[14px] leading-relaxed text-muted">
-            Club sound, binaural on headphones, the game playing DJ on the music, and scenes that live with every beat.
-          </p>
-          {onAbout && (
-            <button data-nav onClick={onAbout} className={`mt-4 text-[13px] font-medium text-fg underline-offset-4 hover:underline ${focusRing}`}>
-              What is the Experience →
-            </button>
-          )}
+    <section className="relative hidden w-[min(34vw,520px)] shrink-0 border-l border-line xl:block">
+      <div className="absolute inset-5 overflow-hidden rounded-[36px] bg-black shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+        <DemoBoard mode="endless" skin={appearance.skin} live className="absolute inset-0" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-6">
+          <span className="glass-panel flex items-center gap-2 rounded-full px-3 py-1.5">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#30d158] opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-[#30d158]" />
+            </span>
+            <span className="label text-muted">Live preview</span>
+          </span>
+          <span className="glass-panel rounded-full px-3 py-1.5 text-[12px] font-medium">{skin.name}</span>
         </div>
-        <button
-          data-nav
-          role="switch"
-          aria-checked={experience}
-          onClick={() => setExperience(!experience)}
-          className={`relative h-8 w-14 shrink-0 rounded-full transition-colors duration-300 ${experience ? 'bg-accent' : 'bg-white/15'} ${focusRing}`}
-        >
-          <span className={`absolute top-1 left-1 size-6 rounded-full bg-black transition-transform duration-300 ease-spring ${experience ? 'translate-x-6' : ''}`} />
-        </button>
       </div>
     </section>
+  );
+}
+
+// ── Experience ──────────────────────────────────────────────────
+
+function ExperiencePanel({ onAbout }: { onAbout?: () => void }) {
+  const { audio, experience } = useSettings();
+  const set = (patch: Partial<typeof audio>) => updateSettings((s) => ({ ...s, audio: { ...s.audio, ...patch } }));
+  return (
+    <>
+      <section className="glass-panel relative overflow-hidden rounded-[30px] p-7">
+        <div
+          aria-hidden
+          className={`exp-glow pointer-events-none absolute -top-24 -right-16 size-72 rounded-full blur-3xl transition-opacity duration-700 ${experience ? 'opacity-100' : 'opacity-0'}`}
+        />
+        <div className="relative flex items-start justify-between gap-6">
+          <div>
+            <div className="text-[26px] leading-tight font-[520] tracking-[-0.03em]">{experience ? 'The Experience is on.' : 'Focus is on.'}</div>
+            <p className="mt-2 max-w-[420px] text-[14px] leading-relaxed text-muted">
+              {experience
+                ? 'Club sound, binaural on headphones, a live DJ on your game, rooms that live with every beat, and the intro before each game.'
+                : 'A quiet practice room: no rooms, no club, no intro. Instant restarts, nothing between you and the stack.'}
+            </p>
+            {onAbout && (
+              <button data-nav onClick={onAbout} className={`mt-4 text-[13px] font-medium text-fg underline-offset-4 hover:underline ${focusRing}`}>
+                What is the Experience →
+              </button>
+            )}
+          </div>
+          <button
+            data-nav
+            role="switch"
+            aria-checked={experience}
+            onClick={() => setExperience(!experience)}
+            className={`relative h-8 w-14 shrink-0 rounded-full transition-colors duration-300 ${experience ? 'bg-accent' : 'bg-white/15'} ${focusRing}`}
+          >
+            <span
+              className={`absolute top-1 left-1 size-6 rounded-full bg-black transition-transform duration-300 ease-spring ${experience ? 'translate-x-6' : ''}`}
+            />
+          </button>
+        </div>
+      </section>
+
+      <Section label="Sound of the Experience">
+        <Row name="Listening on" hint={audio.output === 'headphones' ? 'Binaural: the room around you' : 'Stereo, wide, club master'}>
+          <Segmented
+            small
+            value={audio.output}
+            onChange={(output) => set({ output })}
+            options={[
+              ['headphones', 'Headphones'],
+              ['speakers', 'Speakers'],
+            ]}
+          />
+        </Row>
+        <ToggleRow
+          name="Club sound"
+          hint="Sub, glue, width and a concrete room around the music"
+          value={audio.club}
+          onChange={(club) => set({ club })}
+        />
+        <ToggleRow
+          name="Live DJ"
+          hint="Your stack, combos and big clears play the music's filter and delay"
+          value={audio.dj}
+          onChange={(dj) => set({ dj })}
+        />
+      </Section>
+    </>
+  );
+}
+
+// ── Accessibility ───────────────────────────────────────────────
+
+function AccessibilityPanel() {
+  const { appearance } = useSettings();
+  const set = (patch: Partial<AppearanceSettings>) => updateSettings((s) => ({ ...s, appearance: { ...s.appearance, ...patch } }));
+  return (
+    <Section label="Flashing">
+      <ToggleRow
+        name="Reduce flashing"
+        hint="No strobes on drops and softer flashes. Recommended if you are sensitive to flashing lights"
+        value={appearance.reduceFlashing}
+        onChange={(reduceFlashing) => set({ reduceFlashing })}
+      />
+      <p className="border-t border-line px-6 py-4 text-[12px] leading-relaxed text-faint sm:px-7">
+        Photosensitivity notice: with the room on Full, scenes can flash and pulse with the music, including short strobes on drops. If you or anyone
+        watching has epilepsy or is sensitive to flashing lights, turn on Reduce flashing or set the room to Calm. TETRA also follows your system's
+        reduced motion setting.
+      </p>
+    </Section>
   );
 }
 
@@ -164,10 +317,20 @@ function AppearancePanel() {
             ]}
           />
         </Row>
-        <ToggleRow name="Action text" hint="T-SPIN DOUBLE, B2B, combos" value={appearance.actionText} onChange={(actionText) => set({ actionText })} />
-        <ToggleRow name="Smooth falling" hint="Glide between rows instead of stepping" value={appearance.smoothFall} onChange={(smoothFall) => set({ smoothFall })} />
+        <ToggleRow
+          name="Action text"
+          hint="T-SPIN DOUBLE, B2B, combos"
+          value={appearance.actionText}
+          onChange={(actionText) => set({ actionText })}
+        />
+        <ToggleRow
+          name="Smooth falling"
+          hint="Glide between rows instead of stepping"
+          value={appearance.smoothFall}
+          onChange={(smoothFall) => set({ smoothFall })}
+        />
         <ToggleRow name="Ghost piece" hint="Shows where the piece will land" value={appearance.ghost} onChange={(ghost) => set({ ghost })} />
-        <Row name="Background" hint="Each skin's scene behind the board, reacting to your play">
+        <Row name="Room" hint="Each skin's light behind the board, reacting to your play and the music">
           <Segmented
             small
             value={appearance.ambient ? appearance.background : 'off'}
@@ -179,7 +342,10 @@ function AppearancePanel() {
             ]}
           />
         </Row>
-        <Row name="Scene quality" hint={appearance.sceneQuality === 'auto' ? 'Adapts to your device so the game always runs smooth' : 'Fixed resolution for the scenes'}>
+        <Row
+          name="Scene quality"
+          hint={appearance.sceneQuality === 'auto' ? 'Adapts to your device so the game always runs smooth' : 'Fixed resolution for the scenes'}
+        >
           <Segmented
             small
             value={appearance.sceneQuality}
@@ -192,16 +358,6 @@ function AppearancePanel() {
             ]}
           />
         </Row>
-        <ToggleRow
-          name="Reduce flashing"
-          hint="No strobes on drops and softer flashes. Recommended if you are sensitive to flashing lights"
-          value={appearance.reduceFlashing}
-          onChange={(reduceFlashing) => set({ reduceFlashing })}
-        />
-        <p className="border-t border-line px-6 py-4 text-[12px] leading-relaxed text-faint sm:px-7">
-          Photosensitivity notice: with Background on Full, scenes can flash and pulse with the music, including short strobes on drops. If you or
-          anyone watching has epilepsy or is sensitive to flashing lights, turn on Reduce flashing or set Background to Calm.
-        </p>
         <Row name="Grid" hint="Auto lets each skin choose">
           <Segmented<GridMode>
             small
@@ -222,7 +378,6 @@ function AppearancePanel() {
 
 /** A small stack for the gallery, piece by piece (y-up, 3 rows). */
 function SkinCard({ skin, selected, locked, onSelect }: { skin: Skin; selected: boolean; locked: boolean; onSelect: () => void }) {
-
   return (
     <button
       data-nav
@@ -242,7 +397,9 @@ function SkinCard({ skin, selected, locked, onSelect }: { skin: Skin; selected: 
             }`}
           />
         </div>
-        <div className="mt-1 text-[12px] leading-snug text-faint">{locked ? `Win ${CUPS.find((c) => c.reward === skin.id)?.name} to unlock` : skin.description}</div>
+        <div className="mt-1 text-[12px] leading-snug text-faint">
+          {locked ? `Win ${CUPS.find((c) => c.reward === skin.id)?.name} to unlock` : skin.description}
+        </div>
       </div>
     </button>
   );
@@ -286,22 +443,6 @@ function SoundPanel() {
         />
       </Section>
 
-      <Section label="Experience sound" note="Part of the TETRA Experience.">
-        <Row name="Listening on" hint={audio.output === 'headphones' ? 'Binaural: the room around you' : 'Stereo, wide, club master'}>
-          <Segmented
-            small
-            value={audio.output}
-            onChange={(output) => set({ output })}
-            options={[
-              ['headphones', 'Headphones'],
-              ['speakers', 'Speakers'],
-            ]}
-          />
-        </Row>
-        <ToggleRow name="Club sound" hint="Sub, glue, width and a concrete room around the music" value={audio.club} onChange={(club) => set({ club })} />
-        <ToggleRow name="Live DJ" hint="Your stack, combos and big clears play the music's filter and delay" value={audio.dj} onChange={(dj) => set({ dj })} />
-      </Section>
-
       <Section label="Music" note="Hypnotic techno for the game, deep ambient for the menus.">
         <SliderRow
           name="Music volume"
@@ -313,7 +454,16 @@ function SoundPanel() {
           display={(v) => (v === 0 ? 'Off' : `${Math.round(v * 100)}%`)}
           onChange={(music) => set({ music })}
         />
-        <Row name="In game" hint={audio.musicMode === 'skin' ? "Each skin plays its own track" : audio.musicMode === 'shuffle' ? 'Any track, one after another' : 'Menus only'}>
+        <Row
+          name="In game"
+          hint={
+            audio.musicMode === 'skin'
+              ? 'Each skin plays its own track'
+              : audio.musicMode === 'shuffle'
+                ? 'Any track, one after another'
+                : 'Menus only'
+          }
+        >
           <Segmented
             small
             value={audio.musicMode}
@@ -353,10 +503,21 @@ function SoundPanel() {
 
 // ── Controls ────────────────────────────────────────────────────
 
-function ControlsPanel({ capture, setCapture }: { capture: Capture; setCapture: (c: Capture) => void }) {
+function ControlsPanel({
+  device,
+  setDevice,
+  capture,
+  setCapture,
+  part,
+}: {
+  device: Device;
+  setDevice: (d: Device) => void;
+  capture: Capture;
+  setCapture: (c: Capture) => void;
+  part: 'bindings' | 'handling';
+}) {
   const settings = useSettings();
   const padKind = usePadKind();
-  const [device, setDevice] = useState<Device>('keyboard');
 
   // Keyboard capture: runs before every other listener so the key isn't also handled as navigation.
   useEffect(() => {
@@ -405,7 +566,7 @@ function ControlsPanel({ capture, setCapture }: { capture: Capture; setCapture: 
 
   return (
     <>
-      <div className="mt-10 flex items-center justify-between gap-4">
+      <div className="mb-8 flex items-center justify-between gap-4">
         <Segmented
           small
           value={device}
@@ -427,60 +588,62 @@ function ControlsPanel({ capture, setCapture }: { capture: Capture; setCapture: 
         </span>
       </div>
 
-      <Section label="Handling" note="Same units as TETR.IO. One frame is 16.7 ms.">
-        <SliderRow
-          name="DAS"
-          hint="Delay before a held direction starts repeating"
-          min={1}
-          max={20}
-          step={0.1}
-          value={handling.das / FRAME_MS}
-          display={(f) => `${f.toFixed(1)}F`}
-          sub={(f) => `${Math.round(f * FRAME_MS)} ms`}
-          onChange={(f) => setHandling({ das: f * FRAME_MS })}
-        />
-        <SliderRow
-          name="ARR"
-          hint="Time between repeated moves. 0 is instant"
-          min={0}
-          max={5}
-          step={0.1}
-          value={handling.arr / FRAME_MS}
-          display={(f) => `${f.toFixed(1)}F`}
-          sub={(f) => `${Math.round(f * FRAME_MS)} ms`}
-          onChange={(f) => setHandling({ arr: f * FRAME_MS })}
-        />
-        <SliderRow
-          name="SDF"
-          hint="How much faster soft drop falls"
-          min={5}
-          max={41}
-          step={1}
-          value={Number.isFinite(handling.sdf) ? handling.sdf : 41}
-          display={(v) => (v >= 41 ? '∞' : `${v}×`)}
-          sub={(v) => (v >= 41 ? 'instant' : 'gravity')}
-          onChange={(v) => setHandling({ sdf: v >= 41 ? Infinity : v })}
-        />
-        <SliderRow
-          name="DCD"
-          hint="Pause before a charged DAS moves a new piece"
-          min={0}
-          max={20}
-          step={0.1}
-          value={handling.dcd / FRAME_MS}
-          display={(f) => `${f.toFixed(1)}F`}
-          sub={(f) => `${Math.round(f * FRAME_MS)} ms`}
-          onChange={(f) => setHandling({ dcd: f * FRAME_MS })}
-        />
-        <ToggleRow
-          name="Cancel DAS on direction change"
-          hint="Pressing the other direction restarts the charge"
-          value={handling.cancelDasOnDirectionChange}
-          onChange={(v) => setHandling({ cancelDasOnDirectionChange: v })}
-        />
-      </Section>
+      {part === 'handling' && (
+        <Section label="Handling" note="Same units as TETR.IO. One frame is 16.7 ms.">
+          <SliderRow
+            name="DAS"
+            hint="Delay before a held direction starts repeating"
+            min={1}
+            max={20}
+            step={0.1}
+            value={handling.das / FRAME_MS}
+            display={(f) => `${f.toFixed(1)}F`}
+            sub={(f) => `${Math.round(f * FRAME_MS)} ms`}
+            onChange={(f) => setHandling({ das: f * FRAME_MS })}
+          />
+          <SliderRow
+            name="ARR"
+            hint="Time between repeated moves. 0 is instant"
+            min={0}
+            max={5}
+            step={0.1}
+            value={handling.arr / FRAME_MS}
+            display={(f) => `${f.toFixed(1)}F`}
+            sub={(f) => `${Math.round(f * FRAME_MS)} ms`}
+            onChange={(f) => setHandling({ arr: f * FRAME_MS })}
+          />
+          <SliderRow
+            name="SDF"
+            hint="How much faster soft drop falls"
+            min={5}
+            max={41}
+            step={1}
+            value={Number.isFinite(handling.sdf) ? handling.sdf : 41}
+            display={(v) => (v >= 41 ? '∞' : `${v}×`)}
+            sub={(v) => (v >= 41 ? 'instant' : 'gravity')}
+            onChange={(v) => setHandling({ sdf: v >= 41 ? Infinity : v })}
+          />
+          <SliderRow
+            name="DCD"
+            hint="Pause before a charged DAS moves a new piece"
+            min={0}
+            max={20}
+            step={0.1}
+            value={handling.dcd / FRAME_MS}
+            display={(f) => `${f.toFixed(1)}F`}
+            sub={(f) => `${Math.round(f * FRAME_MS)} ms`}
+            onChange={(f) => setHandling({ dcd: f * FRAME_MS })}
+          />
+          <ToggleRow
+            name="Cancel DAS on direction change"
+            hint="Pressing the other direction restarts the charge"
+            value={handling.cancelDasOnDirectionChange}
+            onChange={(v) => setHandling({ cancelDasOnDirectionChange: v })}
+          />
+        </Section>
+      )}
 
-      {device === 'gamepad' && (
+      {part === 'handling' && device === 'gamepad' && (
         <Section label="Stick">
           <ToggleRow
             name="Use left stick"
@@ -501,42 +664,44 @@ function ControlsPanel({ capture, setCapture }: { capture: Capture; setCapture: 
         </Section>
       )}
 
-      <Section
-        label={device === 'keyboard' ? 'Keys' : 'Buttons'}
-        note={capture ? 'Waiting for input · Esc cancels · Backspace clears' : 'Select a slot, then press the new input.'}
-      >
-        {COMMANDS.map(({ id, label: name }) => {
-          const keys: (string | number)[] = settings[device].bindings[id].filter(
-            (k) => device === 'keyboard' || settings.gamepad.stick || !(typeof k === 'number' && k >= STICK_LEFT && k <= STICK_UP),
-          );
-          return (
-            <Row key={id} name={name}>
-              <div className="flex gap-2">
-                {Array.from({ length: MAX_BINDINGS }, (_, slot) => {
-                  const active = capture?.device === device && capture.command === id && capture.slot === Math.min(slot, keys.length);
-                  const key = keys[slot];
-                  return (
-                    <button
-                      key={slot}
-                      data-nav
-                      onClick={() => setCapture({ device, command: id, slot: Math.min(slot, keys.length) })}
-                      className={`tabular h-9 min-w-[88px] rounded-full px-4 text-[13px] font-medium transition-all duration-200 ease-spring ${focusRing} ${
-                        active
-                          ? 'animate-pulse bg-accent text-black'
-                          : key !== undefined
-                            ? 'hairline bg-white/[0.06] hover:bg-white/[0.1]'
-                            : 'text-faint shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] hover:text-muted'
-                      }`}
-                    >
-                      {active ? 'Press…' : key !== undefined ? label(key) : '+'}
-                    </button>
-                  );
-                })}
-              </div>
-            </Row>
-          );
-        })}
-      </Section>
+      {part === 'bindings' && (
+        <Section
+          label={device === 'keyboard' ? 'Keys' : 'Buttons'}
+          note={capture ? 'Waiting for input · Esc cancels · Backspace clears' : 'Select a slot, then press the new input.'}
+        >
+          {COMMANDS.map(({ id, label: name }) => {
+            const keys: (string | number)[] = settings[device].bindings[id].filter(
+              (k) => device === 'keyboard' || settings.gamepad.stick || !(typeof k === 'number' && k >= STICK_LEFT && k <= STICK_UP),
+            );
+            return (
+              <Row key={id} name={name}>
+                <div className="flex gap-2">
+                  {Array.from({ length: MAX_BINDINGS }, (_, slot) => {
+                    const active = capture?.device === device && capture.command === id && capture.slot === Math.min(slot, keys.length);
+                    const key = keys[slot];
+                    return (
+                      <button
+                        key={slot}
+                        data-nav
+                        onClick={() => setCapture({ device, command: id, slot: Math.min(slot, keys.length) })}
+                        className={`tabular h-9 min-w-[88px] rounded-full px-4 text-[13px] font-medium transition-all duration-200 ease-spring ${focusRing} ${
+                          active
+                            ? 'animate-pulse bg-accent text-black'
+                            : key !== undefined
+                              ? 'hairline bg-white/[0.06] hover:bg-white/[0.1]'
+                              : 'text-faint shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] hover:text-muted'
+                        }`}
+                      >
+                        {active ? 'Press…' : key !== undefined ? label(key) : '+'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Row>
+            );
+          })}
+        </Section>
+      )}
     </>
   );
 }
@@ -565,4 +730,3 @@ function DeveloperSection({ onMusicLab }: { onMusicLab?: () => void }) {
     </Section>
   );
 }
-

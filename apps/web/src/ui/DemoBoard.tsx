@@ -6,7 +6,7 @@ import { botHandling, BotPilot, solo } from '../game/pilot';
 import { computeDemoLayout } from '../game/layout';
 import { GameRenderer } from '../game/renderer';
 import { resolveGrid, SKINS, type SkinId } from '../game/skins';
-import { getSettings } from '../lib/settings';
+import { getSettings, subscribeSettings } from '../lib/settings';
 
 export type DemoMode = ModeId | 'versus';
 
@@ -28,15 +28,17 @@ interface Props {
   /** A line clear happened; `y` is 0–1 down the board. */
   onClear?: (power: number, y: number) => void;
   onStats?: (stats: GameStats) => void;
+  /** Settings preview: every visual setting applies live, room included. */
+  live?: boolean;
 }
 
 /** A game that plays itself in the player's skin: the home screen's hero. */
-export function DemoBoard({ mode, skin, bot, className, onClear, onStats }: Props) {
+export function DemoBoard({ mode, skin, bot, className, onClear, onStats, live = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const controls = useRef<{ setMode(mode: DemoMode): void; setSkin(skin: SkinId): void; restart(): void } | null>(null);
   const callbacks = useRef({ onClear, onStats });
   callbacks.current = { onClear, onStats };
-  const initial = useRef({ mode, skin });
+  const initial = useRef({ mode, skin, live });
   const botRef = useRef(bot);
   botRef.current = bot;
 
@@ -53,9 +55,24 @@ export function DemoBoard({ mode, skin, bot, className, onClear, onStats }: Prop
       const applySkin = (id: SkinId) => {
         const { appearance } = getSettings();
         const s = SKINS[id];
-        r.setOptions({ skin: s, fx: appearance.fx === 'off' ? 'off' : 'subtle', smoothFall: true, ghost: false, grid: resolveGrid(appearance.grid, s), ambient: false });
+        if (initial.current.live) {
+          r.setOptions({
+            skin: s,
+            fx: appearance.fx,
+            smoothFall: appearance.smoothFall,
+            ghost: appearance.ghost,
+            grid: resolveGrid(appearance.grid, s),
+            ambient: appearance.ambient && appearance.fx !== 'off',
+            background: appearance.background,
+            reduceFlashing: appearance.reduceFlashing,
+            sceneQuality: appearance.sceneQuality,
+          });
+        } else {
+          r.setOptions({ skin: s, fx: appearance.fx === 'off' ? 'off' : 'subtle', smoothFall: true, ghost: false, grid: resolveGrid(appearance.grid, s), ambient: false });
+        }
       };
       applySkin(initial.current.skin);
+      const unsubscribe = initial.current.live ? subscribeSettings(() => applySkin(getSettings().appearance.skin)) : () => {};
       const relayout = () => r.setLayout(computeDemoLayout(host.clientWidth, host.clientHeight));
       relayout();
       observer = new ResizeObserver(relayout);
@@ -80,7 +97,10 @@ export function DemoBoard({ mode, skin, bot, className, onClear, onStats }: Prop
         r.reset();
       };
       reset(performance.now());
-      cleanup = () => disposePlayer();
+      cleanup = () => {
+        disposePlayer();
+        unsubscribe();
+      };
       controls.current = {
         restart: () => reset(performance.now()),
         setMode(next) {
