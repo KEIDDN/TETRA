@@ -58,7 +58,10 @@ export function Home({
   onSignIn,
   onSettings,
   onLegal,
+  onBack,
 }: {
+  /** Desktop: Esc on the menu goes back to the title screen. */
+  onBack?: () => void;
   onLegal: (doc: 'terms' | 'privacy') => void;
   onExperience: () => void;
   onOxia: () => void;
@@ -98,7 +101,7 @@ export function Home({
     lattice.ripple(window.innerWidth / 2, window.innerHeight - 40, 4, lattice.palette[piece]);
   };
   // ←→ change the skin only once the skins are on screen.
-  useMenuNav(setup ? () => leaveSetup() : undefined, true, setup ? cycleSkin : undefined);
+  useMenuNav(setup ? () => leaveSetup() : onBack, true, setup ? cycleSkin : undefined);
 
   useEffect(() => {
     firstRef.current?.focus({ preventScroll: true });

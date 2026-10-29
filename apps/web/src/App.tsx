@@ -1,5 +1,5 @@
 import type { ModeId } from '@tetra/engine';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { sfx } from './audio/sfx';
 import { gamepads } from './game/gamepad';
@@ -11,26 +11,47 @@ import { director } from './audio/director';
 import { getSettings as readSettings } from './lib/settings';
 import { Home } from './screens/Home';
 import { Play } from './screens/Play';
-import { Settings } from './screens/Settings';
 import { VersusPlay } from './screens/VersusPlay';
-import { VersusSelect } from './screens/VersusSelect';
-import { BotEditor } from './screens/BotEditor';
 import { getCustomBots } from './lib/customBots';
-import { Tournaments } from './screens/Tournaments';
-import { TournamentBuilder } from './screens/TournamentBuilder';
-import { Bracket } from './screens/Bracket';
-import { Profile, type ProfileSection } from './screens/Profile';
-import { MusicLab } from './screens/MusicLab';
-import { Experience } from './screens/Experience';
-import { Oxia } from './screens/Oxia';
-import { Download } from './screens/Download';
-import { Account } from './screens/Account';
-import { Landing } from './screens/Landing';
-import { Legal, type LegalDoc } from './screens/Legal';
+import type { ProfileSection } from './screens/Profile';
+import { Title } from './screens/Title';
+import { desktop } from './lib/platform';
+import type { LegalDoc } from './screens/Legal';
 import { accountsEnabled, getAccount, useAccount } from './lib/account';
 import { load, save } from './lib/storage';
 import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
+
+// Screens load when first opened (and quietly in the background once the first one is up), so start-up stays light.
+const loadSettings = () => import('./screens/Settings');
+const Settings = lazy(() => loadSettings().then((m) => ({ default: m.Settings })));
+const loadVersusSelect = () => import('./screens/VersusSelect');
+const VersusSelect = lazy(() => loadVersusSelect().then((m) => ({ default: m.VersusSelect })));
+const loadBotEditor = () => import('./screens/BotEditor');
+const BotEditor = lazy(() => loadBotEditor().then((m) => ({ default: m.BotEditor })));
+const loadTournaments = () => import('./screens/Tournaments');
+const Tournaments = lazy(() => loadTournaments().then((m) => ({ default: m.Tournaments })));
+const loadTournamentBuilder = () => import('./screens/TournamentBuilder');
+const TournamentBuilder = lazy(() => loadTournamentBuilder().then((m) => ({ default: m.TournamentBuilder })));
+const loadBracket = () => import('./screens/Bracket');
+const Bracket = lazy(() => loadBracket().then((m) => ({ default: m.Bracket })));
+const loadMusicLab = () => import('./screens/MusicLab');
+const MusicLab = lazy(() => loadMusicLab().then((m) => ({ default: m.MusicLab })));
+const loadExperience = () => import('./screens/Experience');
+const Experience = lazy(() => loadExperience().then((m) => ({ default: m.Experience })));
+const loadOxia = () => import('./screens/Oxia');
+const Oxia = lazy(() => loadOxia().then((m) => ({ default: m.Oxia })));
+const loadDownload = () => import('./screens/Download');
+const Download = lazy(() => loadDownload().then((m) => ({ default: m.Download })));
+const loadAccount = () => import('./screens/Account');
+const Account = lazy(() => loadAccount().then((m) => ({ default: m.Account })));
+const loadLanding = () => import('./screens/Landing');
+const Landing = lazy(() => loadLanding().then((m) => ({ default: m.Landing })));
+const loadLegal = () => import('./screens/Legal');
+const Legal = lazy(() => loadLegal().then((m) => ({ default: m.Legal })));
+const loadProfile = () => import('./screens/Profile');
+const Profile = lazy(() => loadProfile().then((m) => ({ default: m.Profile })));
+const PRELOAD = [loadSettings, loadVersusSelect, loadBotEditor, loadTournaments, loadTournamentBuilder, loadBracket, loadMusicLab, loadExperience, loadOxia, loadDownload, loadAccount, loadLanding, loadLegal, loadProfile];
 
 const VIEW_TRANSITIONS = typeof document !== 'undefined' && 'startViewTransition' in document;
 
@@ -44,6 +65,7 @@ type Screen =
   | { name: 'download' }
   | { name: 'account'; back?: boolean }
   | { name: 'landing' }
+  | { name: 'title' }
   | { name: 'legal'; doc: LegalDoc }
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
@@ -58,9 +80,16 @@ type Screen =
 export function App() {
   // First visit: the landing, then the Experience, then (with accounts) sign in or play as guest.
   // Later launches ask once if they never chose.
-  const [screen, setScreenNow] = useState<Screen>(() =>
-    !load('onboarded', false) ? { name: 'landing' } : accountsEnabled && getAccount().mode === 'unknown' ? { name: 'account' } : { name: 'home' },
-  );
+  // The desktop app opens on its title screen, and goes straight into the Experience the very first time.
+  const [screen, setScreenNow] = useState<Screen>(() => {
+    if (!load('onboarded', false)) {
+      if (!desktop) return { name: 'landing' };
+      save('onboarded', true);
+      return { name: 'experience', firstRun: true };
+    }
+    if (desktop) return { name: 'title' };
+    return accountsEnabled && getAccount().mode === 'unknown' ? { name: 'account' } : { name: 'home' };
+  });
   // Pages you step into and out of (downloads, legal, the studio) go back to wherever you came from.
   const previous = useRef<Screen[]>([]);
   const account = useAccount();
@@ -79,6 +108,7 @@ export function App() {
     setScreen(next);
   };
   const back = () => setScreen(previous.current.pop() ?? { name: 'home' });
+  const backOrHome = () => (previous.current.length ? back() : home());
   const finishOnboarding = () => {
     save('onboarded', true);
     home();
@@ -96,6 +126,24 @@ export function App() {
       setScreenNow({ name: 'home' });
     }
   }, [screen.name, account.mode]);
+
+  // First screen drawn: the desktop splash can go, and the other screens load while nobody is waiting on them.
+  useEffect(() => {
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => {
+        // The title screen says so itself, once its 3D is drawing.
+        if (screen.name !== 'title') desktop?.ready?.();
+      });
+    });
+    const idle = window.requestIdleCallback ?? ((fn: () => void) => window.setTimeout(fn, 1500));
+    const warm = window.setTimeout(() => idle(() => PRELOAD.forEach((load) => void load())), 2500);
+    return () => {
+      cancelAnimationFrame(id);
+      clearTimeout(warm);
+    };
+    // Only the first screen counts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Browsers only allow audio after a gesture: unlock on the first one.
   useEffect(() => {
@@ -119,7 +167,7 @@ export function App() {
       content = (
         <Settings
           initialTab={screen.tab}
-          onBack={home}
+          onBack={backOrHome}
           onMusicLab={() => setScreen({ name: 'musiclab' })}
           onExperience={() => setScreen({ name: 'experience', back: 'settings' })}
         />
@@ -174,13 +222,25 @@ export function App() {
     case 'oxia':
       content = <Oxia onBack={back} onExperience={() => setScreen({ name: 'experience' })} onLegal={(doc) => visit({ name: 'legal', doc })} />;
       break;
+    case 'title':
+      content = (
+        <Title
+          onPlay={() => (accountsEnabled && getAccount().mode === 'unknown' ? visit({ name: 'account', back: true }) : home())}
+          onSettings={() => visit({ name: 'settings' })}
+        />
+      );
+      break;
     case 'legal':
       content = <Legal doc={screen.doc} onBack={back} />;
       break;
     case 'landing':
       content = (
         <Landing
-          onEnter={() => setScreen({ name: 'experience', firstRun: true })}
+          onEnter={() => {
+            // Once is enough: from here on the Experience waits in the top bar.
+            save('onboarded', true);
+            setScreen({ name: 'experience', firstRun: true });
+          }}
           onSignIn={() => visit({ name: 'account', back: true })}
           onDownload={() => visit({ name: 'download' })}
           onWhy={() => visit({ name: 'oxia' })}
@@ -264,6 +324,7 @@ export function App() {
           onDownload={() => visit({ name: 'download' })}
           onSignIn={() => visit({ name: 'account', back: true })}
           onLegal={(doc) => visit({ name: 'legal', doc })}
+          onBack={desktop ? () => setScreen({ name: 'title' }) : undefined}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );
@@ -272,12 +333,12 @@ export function App() {
   return (
     <>
       <div key={screen.name} className={`min-h-full ${VIEW_TRANSITIONS ? '' : 'animate-fade'}`}>
-        {content}
+        <Suspense fallback={null}>{content}</Suspense>
       </div>
-      {!['play', 'match', 'bout', 'experience', 'oxia', 'account', 'download', 'landing', 'legal'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
+      {!['play', 'match', 'bout', 'experience', 'oxia', 'account', 'download', 'landing', 'legal', 'title'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
       {!['play', 'match', 'bout'].includes(screen.name) && <UpdateBanner />}
       <Toasts />
-      {screen.name === 'home' && <LogoIntro />}
+      {screen.name === 'home' && !desktop && <LogoIntro />}
     </>
   );
 }

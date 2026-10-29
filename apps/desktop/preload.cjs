@@ -15,4 +15,6 @@ contextBridge.exposeInMainWorld('tetraDesktop', {
     return () => ipcRenderer.removeListener('update', handler);
   },
   installUpdate: () => ipcRenderer.send('install-update'),
+  ready: () => ipcRenderer.send('app-ready'),
+  quit: () => ipcRenderer.send('quit'),
 });

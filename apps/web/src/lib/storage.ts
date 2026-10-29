@@ -63,6 +63,8 @@ export function snapshot(): Record<string, unknown> {
 export function restore(data: Record<string, unknown>): void {
   clearData();
   for (const [key, value] of Object.entries(data)) if (!LOCAL_ONLY.has(key)) localStorage.setItem(PREFIX + key, JSON.stringify(value));
+  // An account that has played before has seen the Experience: don't open on it again on this device.
+  localStorage.setItem(PREFIX + 'onboarded', 'true');
 }
 
 /** Forgets every stat and setting on this device (local-only keys survive). */

@@ -27,6 +27,7 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "splash.html",
       "web/**/*"
     ],
     "protocols": [

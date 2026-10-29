@@ -7,6 +7,9 @@ export interface DesktopBridge {
   onAuthCallback(listener: (url: string) => void): () => void;
   onUpdate?(listener: (update: DesktopUpdate) => void): () => void;
   installUpdate?(): void;
+  /** The first screen is drawn: the loading screen can go. */
+  ready?(): void;
+  quit?(): void;
 }
 
 /** A newer TETRA: ready to restart into (Windows), or to download (macOS). */

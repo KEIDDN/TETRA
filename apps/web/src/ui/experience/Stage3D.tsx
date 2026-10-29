@@ -3,7 +3,7 @@ import { music } from '../../audio/music';
 import type { ExperienceScene, Formation } from './ExperienceScene';
 
 /** The Experience's 3D blocks as a backdrop, moving with whatever music plays. Three.js loads with it. */
-export function Stage3D({ formation, className = '' }: { formation: Formation; className?: string }) {
+export function Stage3D({ formation, className = '', onReady }: { formation: Formation; className?: string; onReady?: () => void }) {
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<ExperienceScene | null>(null);
 
@@ -16,6 +16,8 @@ export function Stage3D({ formation, className = '' }: { formation: Formation; c
       next.stagger = 4;
       next.formation = formation;
       scene.current = next;
+      // A couple of frames in, its shaders are compiled and it is drawing.
+      requestAnimationFrame(() => requestAnimationFrame(() => onReady?.()));
     });
     let raf = 0;
     const tick = () => {

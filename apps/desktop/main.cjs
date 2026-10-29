@@ -14,7 +14,55 @@ if (process.defaultApp) app.setAsDefaultProtocolClient('tetra', process.execPath
 else app.setAsDefaultProtocolClient('tetra');
 
 let win = null;
+let splash = null;
 let pendingLink = null;
+
+// Smooth from the first frame: use the GPU even where Chromium is cautious, and draw on it.
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+
+/** The loading screen: shown at once, while the game loads behind it. */
+const SPLASH_MIN_MS = 2400;
+let splashShownAt = 0;
+
+function createSplash() {
+  splash = new BrowserWindow({
+    width: 560,
+    height: 360,
+    frame: false,
+    resizable: false,
+    movable: true,
+    show: false,
+    center: true,
+    backgroundColor: '#000000',
+    skipTaskbar: true,
+    alwaysOnTop: false,
+    webPreferences: { sandbox: true, contextIsolation: true },
+  });
+  splash.once('ready-to-show', () => {
+    splash?.show();
+    splashShownAt = Date.now();
+  });
+  splash.on('closed', () => (splash = null));
+  void splash.loadFile(path.join(__dirname, 'splash.html'));
+}
+
+/** Swaps the splash for the game once both are ready, never sooner than the splash's own animation. */
+let revealed = false;
+function reveal() {
+  if (revealed || !win) return;
+  revealed = true;
+  const wait = Math.max(0, SPLASH_MIN_MS - (Date.now() - (splashShownAt || Date.now())));
+  setTimeout(() => {
+    if (!win) return;
+    win.show();
+    win.focus();
+    if (pendingLink) deliver(pendingLink);
+    pendingLink = null;
+    setTimeout(() => splash?.close(), 120);
+  }, wait);
+}
 
 function deliver(url) {
   if (!url || !url.startsWith('tetra://')) return;
@@ -35,6 +83,7 @@ app.on('open-url', (event, url) => {
 });
 
 function createWindow() {
+  revealed = false;
   win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -53,11 +102,8 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
-  win.once('ready-to-show', () => {
-    win.show();
-    if (pendingLink) deliver(pendingLink);
-    pendingLink = null;
-  });
+  // The game says when its first screen is drawn; a fallback covers a page that never does.
+  setTimeout(reveal, 10_000);
   win.on('closed', () => (win = null));
   // Anything that opens a new window (links, credits) goes to the system browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -73,6 +119,9 @@ function createWindow() {
   void win.loadURL('app://tetra/');
 }
 
+ipcMain.on('app-ready', () => reveal());
+ipcMain.on('quit', () => app.quit());
+
 ipcMain.on('open-external', (_event, url) => {
   if (typeof url === 'string' && /^https:\/\//.test(url)) void shell.openExternal(url);
 });
@@ -87,6 +136,7 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(file).toString());
   });
   deliver(process.argv.find((a) => a.startsWith('tetra://')));
+  createSplash();
   createWindow();
   checkForUpdates();
   app.on('activate', () => {
