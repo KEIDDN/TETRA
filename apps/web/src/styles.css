@@ -562,3 +562,25 @@ body {
     opacity: 0.35;
   }
 }
+
+/* Experience v2: brutalist details. */
+.exp-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgb(255 255 255 / 0.85);
+}
+.exp-index {
+  font-size: clamp(160px, 22vw, 360px);
+  line-height: 0.8;
+  font-weight: 600;
+  letter-spacing: -0.06em;
+  color: transparent;
+  -webkit-text-stroke: 1px rgb(255 255 255 / 0.14);
+}
+.exp-marquee {
+  animation: exp-marquee 38s linear infinite;
+}
+@keyframes exp-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
