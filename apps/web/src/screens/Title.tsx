@@ -4,6 +4,7 @@ import { useMenuNav } from '../lib/nav';
 import { PATCH_NOTES } from '../lib/patchNotes';
 import { desktop } from '../lib/platform';
 import { Glyph } from '../ui/Glyph';
+import { openBugReport, useBugReportOpen } from '../lib/feedback';
 import { Icon } from '../ui/Icon';
 import { Stage3D } from '../ui/experience/Stage3D';
 
@@ -18,7 +19,8 @@ export function Title({ onPlay, onSettings }: { onPlay: () => void; onSettings: 
   const [quitting, setQuitting] = useState(false);
   const [notes, setNotes] = useState(false);
   const account = useAccount();
-  useMenuNav(() => setQuitting(true), !quitting && !notes);
+  const reporting = useBugReportOpen();
+  useMenuNav(() => setQuitting(true), !quitting && !notes && !reporting);
   useEffect(() => {
     play.current?.focus({ preventScroll: true });
     // The splash stays up until the 3D is drawing, so nothing stutters on the way in.
@@ -100,6 +102,13 @@ export function Title({ onPlay, onSettings }: { onPlay: () => void; onSettings: 
           </span>
         </span>
         <span className="flex items-center gap-6">
+          <button
+            data-nav
+            onClick={openBugReport}
+            className={`glass flex items-center gap-2 rounded-full py-2 pr-4 pl-3.5 font-sans text-[13px] font-medium tracking-normal text-fg normal-case ${focusRing}`}
+          >
+            <Icon name="feedback" size={11} /> Report a bug
+          </button>
           <button
             data-nav
             onClick={() => setNotes(true)}

@@ -8,6 +8,7 @@ import { skinLocked } from '../lib/tournament';
 import { SKIN_ORDER, SKINS, type Skin, type SoundPackId } from '../game/skins';
 import { SkinSwatch } from '../ui/SkinSwatch';
 import { DemoBoard } from '../ui/DemoBoard';
+import { BugReportForm } from '../ui/BugReport';
 import { TRACKS } from '../audio/catalog';
 import { skinUnlockHint } from '../lib/achievements';
 import { ControllerPreview, KeyboardPreview, SUPPORTED_PADS } from '../ui/ControlsPreview';
@@ -32,7 +33,7 @@ import {
 } from '../lib/settings';
 
 type Tab = 'appearance' | 'sound' | 'controls';
-type Category = 'experience' | 'visuals' | 'sound' | 'controls' | 'handling' | 'accessibility' | 'developer';
+type Category = 'experience' | 'visuals' | 'sound' | 'controls' | 'handling' | 'accessibility' | 'feedback' | 'developer';
 type Capture = { device: Device; command: Command; slot: number } | null;
 
 const CATEGORIES: [Category, string, string][] = [
@@ -42,6 +43,7 @@ const CATEGORIES: [Category, string, string][] = [
   ['controls', 'Controls', 'Keys and buttons'],
   ['handling', 'Handling', 'DAS, ARR, soft drop'],
   ['accessibility', 'Accessibility', 'Flashing and motion'],
+  ['feedback', 'Report a bug', 'Bugs, glitches and ideas'],
 ];
 
 const FROM_TAB: Record<Tab, Category> = { appearance: 'visuals', sound: 'sound', controls: 'controls' };
@@ -179,6 +181,7 @@ export function Settings({
             <ControlsPanel device={device} setDevice={setDevice} capture={capture} setCapture={setCapture} part="handling" />
           )}
           {category === 'accessibility' && <AccessibilityPanel />}
+          {category === 'feedback' && <BugReportForm />}
           {category === 'developer' && <DeveloperSection onMusicLab={onMusicLab} />}
         </div>
       </main>

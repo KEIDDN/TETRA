@@ -18,6 +18,7 @@ import { useAccount } from '../lib/account';
 import { Icon } from '../ui/Icon';
 import { Logo } from '../ui/Logo';
 import { Glyph } from '../ui/Glyph';
+import { openBugReport, useBugReportOpen } from '../lib/feedback';
 import { SkinPicker } from '../ui/SkinPicker';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
@@ -101,7 +102,8 @@ export function Home({
     lattice.ripple(window.innerWidth / 2, window.innerHeight - 40, 4, lattice.palette[piece]);
   };
   // ←→ change the skin only once the skins are on screen.
-  useMenuNav(setup ? () => leaveSetup() : onBack, true, setup ? cycleSkin : undefined);
+  const reporting = useBugReportOpen();
+  useMenuNav(setup ? () => leaveSetup() : onBack, !reporting, setup ? cycleSkin : undefined);
 
   useEffect(() => {
     firstRef.current?.focus({ preventScroll: true });
@@ -356,6 +358,9 @@ export function Home({
             )}
           </div>
           <div className="flex items-center gap-5">
+            <button onClick={openBugReport} className={`label flex items-center gap-1.5 rounded-sm transition-colors hover:text-fg ${focusRing}`}>
+              <Icon name="feedback" size={10} /> Report a bug
+            </button>
             <button onClick={() => onLegal('terms')} className={`label rounded-sm transition-colors hover:text-fg ${focusRing}`}>
               Terms
             </button>

@@ -19,6 +19,8 @@ import { desktop } from './lib/platform';
 import type { LegalDoc } from './screens/Legal';
 import { accountsEnabled, askedForReset, getAccount, useAccount, useRecovering } from './lib/account';
 import { NamePrompt } from './ui/NamePrompt';
+import { BugReportDialog } from './ui/BugReport';
+import { useBugReportOpen } from './lib/feedback';
 import { useProfile } from './lib/profile';
 import { load, save } from './lib/storage';
 import { updateSettings } from './lib/settings';
@@ -98,6 +100,7 @@ export function App() {
   const account = useAccount();
   const recovering = useRecovering();
   const profile = useProfile();
+  const reportOpen = useBugReportOpen();
   // Screens change inside a view transition: the old one settles back, the new one rises, shared elements fly between them.
   const setScreen = (next: Screen) => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -359,6 +362,7 @@ export function App() {
       )}
       {/* Signed in without a player name yet (Google, Apple, or an older account): ask once. */}
       {account.mode === 'user' && profile.name === 'Player' && !recovering && !['play', 'match', 'bout', 'experience'].includes(screen.name) && <NamePrompt />}
+      {reportOpen && <BugReportDialog />}
       <Toasts />
       {screen.name === 'home' && !desktop && <LogoIntro />}
     </>

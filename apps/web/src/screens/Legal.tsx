@@ -6,7 +6,7 @@ const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/7
 
 export type LegalDoc = 'terms' | 'privacy';
 
-const UPDATED = 'October 29, 2026';
+const UPDATED = 'October 30, 2026';
 /** Where players can write to OXIA Labs about their data. Empty until there is a public address. */
 export const LEGAL_CONTACT = '';
 
@@ -129,6 +129,14 @@ function Privacy() {
           </li>
         </ul>
         <p>Each of them only handles what it needs to do its part.</p>
+      </Section>
+
+      <Section title="Bug reports">
+        <p>
+          If you send a report from the game, we receive what you write, your email if you add it, and, if you leave the box ticked, technical details
+          (TETRA version, device, browser, screen size, skin and settings). It's stored in our database and delivered to our inbox by <b>FormSubmit</b>. We
+          use it only to fix TETRA and to reply to you.
+        </p>
       </Section>
 
       <Section title="Cookies">

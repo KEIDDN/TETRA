@@ -10,6 +10,25 @@ export interface Release {
 
 export const PATCH_NOTES: Release[] = [
   {
+    version: '1.1.3',
+    date: 'November 2026',
+    title: 'Playtest',
+    intro: "TETRA is opening up to playtesters. Spot something off? Tell us from inside the game, it lands straight in the studio's inbox.",
+    sections: [
+      {
+        heading: 'New',
+        notes: [
+          'Report a bug from Settings, the main menu or the title screen: bugs, visual glitches or ideas, with an optional email so we can reply.',
+          'Reports can include your version and device details, so we can reproduce what you saw. You choose.',
+        ],
+      },
+      {
+        heading: 'Improved',
+        notes: ['The first update to install itself on Mac. If you are reading this after a Restart, it worked.'],
+      },
+    ],
+  },
+  {
     version: '1.1.2',
     date: 'November 2026',
     title: 'Seamless',
