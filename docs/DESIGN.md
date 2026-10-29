@@ -373,3 +373,10 @@ References: offsuit.app, Apple, Tetris Effect, Teenage Engineering, Nothing, Lum
 - Stats are local for now; online sync comes later.
 
 Order: voice → Experience + OXIA → wheel + game intro → Settings → Profile → glass everywhere → icons. Desktop first.
+
+### 9h. Done after v3
+- **Results**: the number counts up; the room peaks behind the card; the delta against your best; a curve of recent runs; a personal-best chord and badge; XP pours into the level ring. Winning a cup gets a full-screen "Champion." with minos raining in your skin's colours.
+- **Music library**: each skin's track unlocks with the skin. The first menu track is free; the others open at levels 3, 5, 8 and 12. You can listen in place and choose the menu track. Shuffle only plays unlocked tracks.
+- **Logo intro**: once per session, the mark builds from minos (~1.2 s, skippable).
+- **Motion**: screens change in view transitions, and the level ring flies from Home to Profile.
+- **Generative techno**: parked. It can't be auditioned here, and the owner worried it would sound amateur next to the curated set.

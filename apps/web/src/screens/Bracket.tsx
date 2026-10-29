@@ -1,5 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useMenuNav } from '../lib/nav';
+import { load, save } from '../lib/storage';
+import { ChampionCelebration } from '../ui/ChampionCelebration';
 import {
   abandonTournament,
   champion,
@@ -29,11 +31,14 @@ export function Bracket({ onBack, onBout }: { onBack: () => void; onBout: (r: nu
   const [, setTick] = useState(0);
   useEffect(() => runner.subscribe(() => setTick((n) => n + 1)), []);
   useEffect(() => runner.kick(), []);
+  const [celebrated, setCelebrated] = useState(false);
   useMenuNav(onBack, true);
 
   if (!t) return null;
   const mine = yourBout(t);
   const winner = champion(t);
+  const celebrateKey = `celebrated.${t.id}`;
+  const celebrate = !!winner && winner.bot === null && !load(celebrateKey, false) && !celebrated;
   const rounds = t.rounds.length;
   const height = t.rounds[0].length * SLOT;
   const width = rounds * CARD_W + (rounds - 1) * GAP_X + CARD_W * 0.9;
@@ -45,6 +50,15 @@ export function Bracket({ onBack, onBout }: { onBack: () => void; onBout: (r: nu
 
   return (
     <div className="fixed inset-0 overflow-y-auto">
+      {celebrate && (
+        <ChampionCelebration
+          cup={t.name}
+          onDone={() => {
+            save(celebrateKey, true);
+            setCelebrated(true);
+          }}
+        />
+      )}
       <div aria-hidden className="pointer-events-none fixed inset-0" style={{ background: `radial-gradient(60% 50% at 20% 0%, ${(winner && winner.color) || '#edebfa'}14, transparent 70%)` }} />
       <div className="relative mx-auto w-full max-w-[1320px] px-6 pb-20 sm:px-10">
         <header className="flex h-24 items-center justify-between">
