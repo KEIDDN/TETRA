@@ -1,7 +1,7 @@
 import type { SkinId } from '../game/skins';
-import { bpmOf, playable, subscribeMusicPrefs, trackFor } from '../lib/musicPrefs';
+import { bpmOf, getMusicPrefs, playable, subscribeMusicPrefs, trackFor } from '../lib/musicPrefs';
 import { getSettings, subscribeSettings } from '../lib/settings';
-import { TRACK_BY_ID, type Track } from './catalog';
+import { TRACK_BY_ID, TRACKS, type Track } from './catalog';
 import { music } from './music';
 
 type Context = { kind: 'menu' } | { kind: 'game'; skin: SkinId };
@@ -19,10 +19,9 @@ class Director {
   constructor() {
     subscribeSettings(() => this.apply());
     subscribeMusicPrefs(() => this.apply());
-    music.onEnded(() => {
-      this.shuffled = null;
-      this.apply();
-    });
+    // No track ever loops back on itself: near the end, the next one is mixed in like a DJ set.
+    music.onNearEnd(() => this.continueSet());
+    music.onEnded(() => this.continueSet(true));
     this.apply();
   }
 
@@ -39,6 +38,32 @@ class Director {
     this.context = { kind: 'game', skin };
     this.shuffled = null;
     this.apply();
+  }
+
+  /** Recently played, so the set doesn't repeat itself. */
+  private history: string[] = [];
+
+  private continueSet(abrupt = false): void {
+    const current = music.current;
+    if (!current) return;
+    this.history = [current.id, ...this.history.filter((id) => id !== current.id)].slice(0, 4);
+    const next = this.nextAfter(current);
+    if (!next) return;
+    this.shuffled = next;
+    if (abrupt) music.play(next, { bpm: bpmOf(next), fade: 0.8 });
+    else music.mixTo(next, bpmOf(next));
+  }
+
+  /** The next track of the set: same room (menu or game), not recently heard, closest in tempo. */
+  private nextAfter(current: Track): Track | null {
+    const menu = this.context.kind === 'menu' && !this.pinned;
+    const pool = TRACKS.filter((t) => (menu ? t.suggest === 'menu' : t.suggest !== 'menu') && !getMusicPrefs().rejected.includes(t.id));
+    const fresh = pool.filter((t) => !this.history.includes(t.id));
+    const candidates = fresh.length ? fresh : pool.filter((t) => t.id !== current.id);
+    if (!candidates.length) return current;
+    const bpm = bpmOf(current) ?? 124;
+    candidates.sort((a, b) => Math.abs((bpmOf(a) ?? bpm) - bpm) - Math.abs((bpmOf(b) ?? bpm) - bpm) + (Math.random() - 0.5) * 4);
+    return candidates[0];
   }
 
   /** Lab: play this track everywhere until unpinned. */
@@ -58,7 +83,7 @@ class Director {
     if (this.pinned) return music.play(this.pinned, { bpm: bpmOf(this.pinned) });
     if (!audio.enabled || audio.music === 0 || audio.musicMode === 'off') return music.play(null);
     if (this.context.kind === 'menu') {
-      const t = trackFor('menu');
+      const t = this.shuffled && this.shuffled.suggest === 'menu' && music.current?.id === this.shuffled.id ? this.shuffled : trackFor('menu');
       music.prefetch(t);
       // Fetch the next game's music while the player is still choosing.
       if (audio.musicMode === 'skin') music.prefetch(trackFor(getSettings().appearance.skin) ?? trackFor('studio'));
@@ -69,9 +94,11 @@ class Director {
         const pool = playable().filter((t) => t.id !== music.current?.id);
         this.shuffled = pool[Math.floor(Math.random() * pool.length)] ?? null;
       }
-      return music.play(this.shuffled, { bpm: this.shuffled ? bpmOf(this.shuffled) : null, loop: false });
+      return music.play(this.shuffled, { bpm: this.shuffled ? bpmOf(this.shuffled) : null });
     }
     const t = trackFor(this.context.skin) ?? trackFor('studio');
+    // Once the set has moved past the skin's track, settings changes keep the set going.
+    if (this.shuffled && music.current?.id === this.shuffled.id) return;
     music.play(t, { bpm: t ? bpmOf(t) : null });
   }
 }

@@ -31,7 +31,23 @@ const SILENT: AudioBands = { low: 0, mid: 0, high: 0, beat: 0, kick: 0, hat: 0, 
 interface Deck {
   el: HTMLAudioElement;
   gain: GainNode | null;
+  /** The deck's low shelf: the DJ's bass knob, for swapping basslines mid-mix. */
+  bass: BiquadFilterNode | null;
   track: Track | null;
+}
+
+/** Seconds before a track's end at which the next one starts mixing in. */
+const MIX_LEAD = 22;
+
+/** Equal-power fade curves: the sum stays at full energy through the whole mix. */
+function curve(fadeIn: boolean): Float32Array<ArrayBuffer> {
+  const n = 64;
+  const c = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = i / (n - 1);
+    c[i] = fadeIn ? Math.sin((x * Math.PI) / 2) : Math.cos((x * Math.PI) / 2);
+  }
+  return c;
 }
 
 /**
@@ -58,6 +74,9 @@ class Music {
   private cacheOrder: string[] = [];
   private ready = new Map<string, string>();
   private endedListeners = new Set<() => void>();
+  private nearEndListeners = new Set<() => void>();
+  private mixing = false;
+  private mixTimer = 0;
 
   // Analysis state.
   private bands: AudioBands = { ...SILENT };
@@ -85,19 +104,28 @@ class Music {
   }
 
   /** Plays `track` (null fades out), crossfading over `fade` seconds. Safe to call before audio unlocks. */
-  play(track: Track | null, { bpm = track?.bpm ?? null, loop = true, fade = 1.6 } = {}): void {
+  play(track: Track | null, { bpm = track?.bpm ?? null, loop = false, fade = 1.6, mix = false } = {}): void {
     if (track?.id === this.wanted.track?.id && loop === this.wanted.loop) {
       this.wanted.bpm = bpm;
       return;
     }
     this.wanted = { track, bpm, loop };
+    clearTimeout(this.mixTimer);
+    this.mixing = false;
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
     const out = this.decks[this.active];
     if (out.gain) {
       out.gain.gain.cancelScheduledValues(now);
       out.gain.gain.setValueAtTime(out.gain.gain.value, now);
-      out.gain.gain.linearRampToValueAtTime(0, now + fade);
+      if (mix) out.gain.gain.setValueCurveAtTime(curve(false).map((v) => v * out.gain!.gain.value), now + 0.005, fade);
+      else out.gain.gain.linearRampToValueAtTime(0, now + fade);
+    }
+    // Bass swap: halfway through a mix the outgoing bassline is cut as the incoming one comes in.
+    if (mix && out.bass) {
+      out.bass.gain.cancelScheduledValues(now);
+      out.bass.gain.setValueAtTime(0, now + fade * 0.45);
+      out.bass.gain.linearRampToValueAtTime(-26, now + fade * 0.55);
     }
     const leaving = out;
     setTimeout(() => {
@@ -107,12 +135,15 @@ class Music {
     this.active = 1 - this.active;
     const deck = this.decks[this.active];
     deck.track = track;
-    this.lastBeat = -1;
+    // A DJ mix keeps the room's clock running; a fresh start resets it.
+    if (!mix) {
+      this.lastBeat = -1;
+      this.beatCount = 0;
+      this.breakBeats = 0;
+      this.kickPresence = 1;
+      this.bands.phraseIndex = 0;
+    }
     this.peaks = [0.05, 0.05, 0.05];
-    this.beatCount = 0;
-    this.breakBeats = 0;
-    this.kickPresence = 1;
-    this.bands.phraseIndex = 0;
     this.listeners.forEach((l) => l(track));
     if (!track) return;
     // In memory already: no network wait. Otherwise stream it, and switch to the download if it lands before playback starts.
@@ -129,8 +160,43 @@ class Music {
     deck.el.currentTime = 0;
     deck.gain!.gain.cancelScheduledValues(now);
     deck.gain!.gain.setValueAtTime(0, now);
-    deck.gain!.gain.linearRampToValueAtTime(1, now + fade);
+    if (mix) deck.gain!.gain.setValueCurveAtTime(curve(true), now + 0.005, fade);
+    else deck.gain!.gain.linearRampToValueAtTime(1, now + fade);
+    deck.bass!.gain.cancelScheduledValues(now);
+    deck.bass!.gain.setValueAtTime(mix ? -26 : 0, now);
+    if (mix) {
+      deck.bass!.gain.setValueAtTime(-26, now + fade * 0.45);
+      deck.bass!.gain.linearRampToValueAtTime(0, now + fade * 0.55);
+    }
     void deck.el.play().catch(() => {});
+  }
+
+  /**
+   * Mixes into `track` like a DJ would: on the next downbeat, over eight bars
+   * of the current tempo, equal-power, swapping basslines halfway.
+   */
+  mixTo(track: Track, bpm: number | null): void {
+    if (!this.ctx || this.mixing) return;
+    this.mixing = true;
+    const period = this.wanted.bpm ? 60 / this.wanted.bpm : 0.48;
+    const now = this.ctx.currentTime;
+    const el = this.decks[this.active].el;
+    const left = Number.isFinite(el.duration) ? el.duration - el.currentTime : MIX_LEAD;
+    // Wait for the top of the next bar so the incoming track lands on the one.
+    let wait = 0;
+    if (this.lastBeat > 0) {
+      const beatsToBar = (4 - this.bands.beatInBar) % 4 || 4;
+      wait = Math.max(0, this.lastBeat + beatsToBar * period - now);
+    }
+    const fade = Math.max(4, Math.min(period * 32, left - wait - 1));
+    this.prefetch(track);
+    this.mixTimer = window.setTimeout(() => this.play(track, { bpm, fade, mix: true }), wait * 1000);
+  }
+
+  /** Fires once per track, ~20 s before its end: time to choose what comes next. */
+  onNearEnd(l: () => void): () => void {
+    this.nearEndListeners.add(l);
+    return () => this.nearEndListeners.delete(l);
   }
 
   /** Downloads `track` in the background (kept for the next few plays). */
@@ -291,7 +357,7 @@ class Music {
     el.addEventListener('ended', () => {
       if (el === this.decks[this.active].el) this.endedListeners.forEach((l) => l());
     });
-    return { el, gain: null, track: null };
+    return { el, gain: null, bass: null, track: null };
   }
 
   private attach(ctx: AudioContext): void {
@@ -311,9 +377,27 @@ class Music {
     for (const deck of this.decks) {
       deck.gain = ctx.createGain();
       deck.gain.gain.value = 0;
-      ctx.createMediaElementSource(deck.el).connect(deck.gain);
+      deck.bass = ctx.createBiquadFilter();
+      deck.bass.type = 'lowshelf';
+      deck.bass.frequency.value = 180;
+      deck.bass.gain.value = 0;
+      ctx.createMediaElementSource(deck.el).connect(deck.bass).connect(deck.gain);
       deck.gain.connect(this.bus);
     }
+    // Watch the playing track's clock: near its end, ask what comes next.
+    let warned: HTMLAudioElement | null = null;
+    let warnedSrc = '';
+    setInterval(() => {
+      const deck = this.decks[this.active];
+      const el = deck.el;
+      if (!deck.track || el.paused || !Number.isFinite(el.duration) || el.loop) return;
+      if (warned === el && warnedSrc === el.src) return;
+      if (el.duration - el.currentTime <= MIX_LEAD) {
+        warned = el;
+        warnedSrc = el.src;
+        this.nearEndListeners.forEach((l) => l());
+      }
+    }, 250);
     // Whatever was asked for before the first gesture starts now.
     const wanted = this.wanted;
     this.wanted = { track: null, bpm: null, loop: true };
