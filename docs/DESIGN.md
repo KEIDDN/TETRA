@@ -247,3 +247,62 @@ Cada hito es jugable y se revisa antes de pasar al siguiente.
   - Each round has its own first-to setting.
   - Seeding by level or random.
   - "Play in it" can be turned off to only watch.
+
+## 8. Premium pass (agreed in the third grill round)
+
+### 8a. Per-skin scenes (in game only)
+- Each skin has its own scene behind the board, in the spirit of Tetris Effect's stages.
+- Scenes are built from a few reusable engines: Studio keeps the lattice, and the others are full-screen GLSL scenes with shared helpers.
+- Scenes react to:
+  - line clears (bigger for bigger clears), spins, back-to-back and combo;
+  - level, in modes that have levels;
+  - danger and incoming garbage;
+  - music: a live analyser for low, mid and high bands, plus a pulse quantised to each track's BPM.
+- Brightness is capped at about 15–20 % behind the board, and the board area itself stays near black.
+- There is a setting: Background Off / Calm / Full.
+- Menus keep the neutral lattice and never show the skin's scene.
+
+| Skin | Scene |
+| --- | --- |
+| Studio | Refined lattice (TETRA's home). |
+| Clay | Soft pastel blobs drifting slowly. |
+| Gem | Faceted glints and rotating caustics. |
+| Crystal | Refracting prisms; clears scatter the spectrum. |
+| Neon | Perspective grid to the horizon, pulsing with the bass. |
+| Aurora | Waving aurora curtains; quads light them up. |
+| Ember | Rising embers and sparks; combos stoke the fire. |
+| Bevel | Drifting isometric geometry; the most sober. |
+| Wire | Wireframe cubes rotating in the void. |
+| NES | 8-bit starfield with parallax. |
+| Game Boy | Scrolling four-green pattern. |
+| Mono | Film grain and halo; almost nothing. |
+
+### 8b. Music
+- Recorded electronic, ambient and IDM tracks.
+- Licenses: CC0, CC BY, CC BY-NC or CC BY-SA. Never ND, so that tracks can loop and crossfade. TETRA is never monetised.
+- Curation: Claude shortlists 20–30 tracks with verified licenses. The owner picks them in a developer-only Music lab, listening while playing each skin.
+- Assignment is per skin, with a Music setting of Skin / Shuffle / Off.
+- One minimal menu track plays continuously across menus and crossfades into the game. Any unlocked track can be set as the menu track. Menu UI sounds stay as they are, on top of the music.
+- Music plays in every mode, with separate volumes for music and effects.
+- "Now playing" shows for about 3 s in a corner when a game starts.
+
+### 8c. Music library
+- A Music section in the profile, next to Skins.
+- Each skin's track unlocks with the skin. The rest unlock through profile levels and a few achievements, with 6–8 tracks free from the start.
+- A Credits page lists every author, license and link, reachable from Settings and the profile.
+
+### 8d. Developer mode
+- It always unlocks everything: cups, bots, skins and music.
+- A mono "DEV" tag with an amber dot sits in the header next to the level chip on every menu (never in game). Tapping it offers to leave developer mode.
+
+### 8e. Design work, in order
+1. Scenes.
+2. Music engine and Music lab.
+3. Music library, unlocks and credits.
+4. Results screens: the main number counts up, the scene climaxes, the delta against your PB is shown, a PB badge and sound play, mini-charts appear and the XP flows into the level ring. Winning a tournament gets a full-screen celebration.
+5. A single motion system: two or three springs and shared-element transitions.
+6. A ~1.2 s intro in which the logo is built from minos (once per session, skippable), plus a larger wordmark and an isomark that recolours subtly.
+7. A custom set of about 20 icons on the mino grid.
+8. Settings rebuilt with a sidebar and a live preview board.
+
+References: offsuit.app, Apple, Tetris Effect, Teenage Engineering, Nothing, Lumines. Dark theme only.

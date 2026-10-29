@@ -69,6 +69,7 @@ export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
         ghost: appearance.ghost,
         grid: resolveGrid(appearance.grid, skin),
         ambient: appearance.ambient && appearance.fx !== 'off',
+        background: appearance.background,
       });
       const relayout = () => {
         const next = computeLayout(host.clientWidth, host.clientHeight);

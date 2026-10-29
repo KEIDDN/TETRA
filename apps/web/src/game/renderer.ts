@@ -12,6 +12,7 @@ import {
 } from '@tetra/engine';
 import { Application, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js';
 import { Lattice, type Echo } from './ambient';
+import { isShaderScene, ShaderScene } from './scenes/shaderScene';
 import { easeOut, easeOutBack, FlowLight, Particles, SpritePool, spriteTween, Tweens, type FxLevel } from './fx';
 import type { Layout } from './layout';
 import { hexToNumber, paintBlock, SKINS, type BlockKind, type GridStyle, type Palette, type Skin } from './skins';
@@ -22,9 +23,14 @@ export interface RenderOptions {
   smoothFall: boolean;
   ghost: boolean;
   grid: GridStyle;
-  /** Reactive ambient light behind the board. */
+  /** Reactive ambient light behind the board: the skin's scene. */
   ambient: boolean;
+  /** How strong the scene is when on. */
+  background?: 'calm' | 'full';
 }
+
+/** Brightness ceilings for scenes: they never compete with the board. */
+const SCENE_CAP = { calm: 0.11, full: 0.2 };
 
 /** Rows above the visible field that are still drawn (spawn area). */
 const OVERFLOW_ROWS = 3;
@@ -76,6 +82,8 @@ export class GameRenderer {
   private dotSprites: Sprite[] = [];
   private echoShapes = new Map<Echo, Graphics>();
   private ambient: Lattice | null = null;
+  /** Skins other than Studio have a shader scene instead of the lattice. */
+  private scene: ShaderScene | null = null;
   private latticeDrawn = false;
 
   /** Block textures by kind, link mask and ghost flag, painted on first use. */
@@ -203,6 +211,8 @@ export class GameRenderer {
   }
 
   destroy(): void {
+    this.scene?.destroy();
+    this.scene = null;
     for (const t of this.textures.values()) t.destroy(true);
     if (this.shared) for (const t of Object.values(this.shared)) t.destroy(true);
     this.app.destroy({ removeView: true }, { children: true });
@@ -285,7 +295,7 @@ export class GameRenderer {
         this.bump.v += Math.min(e.distance + 2, 14) * cell * (full ? 1.6 : 0.8);
         const lowest = Math.min(...e.cells.map(([, y]) => y));
         const xs = e.cells.map(([x]) => x);
-        this.ambient?.ripple(boardX + ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cell, rowY(lowest) + cell, 0.5 + Math.min(e.distance, 20) * 0.02);
+        this.backdrop?.ripple(boardX + ((Math.min(...xs) + Math.max(...xs) + 1) / 2) * cell, rowY(lowest) + cell, 0.5 + Math.min(e.distance, 20) * 0.02);
         break;
       }
       case 'lock': {
@@ -348,8 +358,8 @@ export class GameRenderer {
         const pieceColor = hexToNumber(this.palette[info.piece]);
         if (big) {
           const kinds = [...new Set(rows.flatMap((r) => r.cells.map((c) => CODE_PIECE[c]).filter((k): k is PieceType => !!k)))];
-          this.ambient?.celebrate(cx, cy, power, pieceColor, kinds.length ? kinds : [info.piece], (BOARD_WIDTH * cell) / 2);
-        } else this.ambient?.ripple(cx, cy, power, pieceColor);
+          this.backdrop?.celebrate(cx, cy, power, pieceColor, kinds.length ? kinds : [info.piece], (BOARD_WIDTH * cell) / 2);
+        } else this.backdrop?.ripple(cx, cy, power, pieceColor);
         if (big) {
           this.flash = 1;
           this.shake = { amp: cell * (full ? 0.14 : 0.07) * (info.perfectClear ? 1.6 : 1), start: now, duration: full ? 320 : 220 };
@@ -375,7 +385,7 @@ export class GameRenderer {
       case 'garbageRise':
         // The stack is shoved up from below.
         this.bump.v -= cell * (full ? 10 : 6) * Math.min(4, e.lines);
-        this.ambient?.ripple(boardX + (BOARD_WIDTH * cell) / 2, this.layout.boardY + this.layout.boardH, 2 + e.lines * 0.5, DANGER);
+        this.backdrop?.ripple(boardX + (BOARD_WIDTH * cell) / 2, this.layout.boardY + this.layout.boardH, 2 + e.lines * 0.5, DANGER);
         break;
       case 'attack': {
         const sent = e.lines.reduce((a, b) => a + b, 0);
@@ -384,7 +394,7 @@ export class GameRenderer {
       }
       case 'levelUp':
         this.flash = Math.max(this.flash, 0.8);
-        this.ambient?.ripple(boardX + (BOARD_WIDTH * cell) / 2, this.layout.boardY + this.layout.boardH / 2, 5, ACCENT);
+        this.backdrop?.ripple(boardX + (BOARD_WIDTH * cell) / 2, this.layout.boardY + this.layout.boardH / 2, 5, ACCENT);
         break;
     }
     void game;
@@ -428,9 +438,29 @@ export class GameRenderer {
     void now;
   }
 
+  /** Whatever lives behind the board: the lattice or the skin's scene. */
+  private get backdrop(): Lattice | ShaderScene | null {
+    return this.scene ?? this.ambient;
+  }
+
   private setupAmbient(): void {
     const on = this.options.ambient && this.options.fx !== 'off';
-    if (!on) {
+    const sceneId = on && isShaderScene(this.options.skin.id) ? this.options.skin.id : null;
+    if (this.scene && this.scene.id !== sceneId) {
+      this.scene.destroy();
+      this.scene = null;
+    }
+    if (sceneId) {
+      const cap = SCENE_CAP[this.options.background ?? 'full'];
+      if (!this.scene) {
+        this.scene = new ShaderScene(sceneId, this.app.renderer, cap);
+        this.ambientLayer.addChildAt(this.scene.view, 0);
+        this.layoutAmbient();
+      }
+      this.scene.setCap(cap);
+      for (const k of ['I', 'O', 'T', 'S', 'Z', 'J', 'L'] as const) this.scene.palette[k] = hexToNumber(this.palette[k]);
+    }
+    if (!on || sceneId) {
       this.ambient = null;
       this.ambientDots.removeChildren().forEach((c) => c.destroy());
       this.ambientEchoes.removeChildren().forEach((c) => c.destroy());
@@ -447,6 +477,10 @@ export class GameRenderer {
 
   /** The lattice continues the board grid: same spacing, same origin. */
   private layoutAmbient(): void {
+    if (this.scene && this.layout) {
+      const { width, height, cell, boardX, boardY, boardW, boardH } = this.layout;
+      this.scene.layout(width, height, cell, { x: boardX, y: boardY, w: boardW, h: boardH });
+    }
     if (!this.ambient || !this.layout) return;
     const { width, height, cell, boardX, boardY, boardW, boardH } = this.layout;
     this.ambient.layout(width, height, cell, boardX, boardY, { x: boardX, y: boardY, w: boardW, h: boardH });
@@ -454,6 +488,14 @@ export class GameRenderer {
   }
 
   private drawAmbient(game: Game, dt: number): void {
+    if (this.scene) {
+      const { b2b, combo, level } = game.stats;
+      this.scene.setEnergy(Math.min(1, Math.max(0, b2b) * 0.15 + Math.max(0, combo) * 0.1));
+      this.scene.setDanger(this.dangerTarget);
+      this.scene.setLevel((level - 1) / 19);
+      this.scene.update(dt);
+      return;
+    }
     const lattice = this.ambient;
     if (!lattice || !this.shared || !this.layout) return;
     const { b2b, combo } = game.stats;

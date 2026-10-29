@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { sfx } from './audio/sfx';
 import { gamepads } from './game/gamepad';
 import { Toasts } from './ui/toast';
+import { DevBadge } from './ui/DevBadge';
 import { Home } from './screens/Home';
 import { Play } from './screens/Play';
 import { Settings } from './screens/Settings';
@@ -147,6 +148,7 @@ export function App() {
       <div key={screen.name} className="animate-fade min-h-full">
         {content}
       </div>
+      {!['play', 'match', 'bout'].includes(screen.name) && <DevBadge />}
       <Toasts />
     </>
   );

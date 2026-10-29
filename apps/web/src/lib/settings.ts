@@ -39,8 +39,10 @@ export interface AppearanceSettings {
   ghost: boolean;
   /** 'auto' lets each skin choose. */
   grid: GridMode;
-  /** Drifting light behind the board that reacts to play. */
+  /** The skin's scene behind the board (and the lattice in menus). */
   ambient: boolean;
+  /** How strong the in-game scene is. */
+  background: 'calm' | 'full';
   /** "T-SPIN DOUBLE", "B2B ×3"… next to the board. */
   actionText: boolean;
 }
@@ -75,7 +77,7 @@ export const MAX_BINDINGS = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
   developer: false,
-  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, actionText: true },
+  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, background: 'full', actionText: true },
   audio: { enabled: true, volume: 0.7, movement: 0.8, pack: 'match' },
   keyboard: {
     handling: DEFAULT_HANDLING,

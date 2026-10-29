@@ -86,6 +86,7 @@ export function VersusPlay({
           ghost: i === 0 && !left && appearance.ghost,
           grid: resolveGrid(appearance.grid, skin),
           ambient: i === 0 && appearance.ambient && appearance.fx !== 'off',
+          background: appearance.background,
         });
         const host = hosts[i].current!;
         const relayout = () => {

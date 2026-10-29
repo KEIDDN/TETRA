@@ -124,12 +124,18 @@ function AppearancePanel() {
         <ToggleRow name="Action text" hint="T-SPIN DOUBLE, B2B, combos" value={appearance.actionText} onChange={(actionText) => set({ actionText })} />
         <ToggleRow name="Smooth falling" hint="Glide between rows instead of stepping" value={appearance.smoothFall} onChange={(smoothFall) => set({ smoothFall })} />
         <ToggleRow name="Ghost piece" hint="Shows where the piece will land" value={appearance.ghost} onChange={(ghost) => set({ ghost })} />
-        <ToggleRow
-          name="Ambient background"
-          hint="Drifting light that reacts to your play"
-          value={appearance.ambient}
-          onChange={(ambient) => set({ ambient })}
-        />
+        <Row name="Background" hint="Each skin's scene behind the board, reacting to your play">
+          <Segmented
+            small
+            value={appearance.ambient ? appearance.background : 'off'}
+            onChange={(v) => set(v === 'off' ? { ambient: false } : { ambient: true, background: v })}
+            options={[
+              ['off', 'Off'],
+              ['calm', 'Calm'],
+              ['full', 'Full'],
+            ]}
+          />
+        </Row>
         <Row name="Grid" hint="Auto lets each skin choose">
           <Segmented<GridMode>
             small
