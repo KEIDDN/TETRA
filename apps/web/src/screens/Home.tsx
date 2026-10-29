@@ -13,6 +13,7 @@ import { AmbientBackground } from '../ui/AmbientBackground';
 import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
 import { LevelChip } from '../ui/LevelChip';
 import { ModeWheel } from '../ui/ModeWheel';
+import { installed } from '../lib/platform';
 import { Icon } from '../ui/Icon';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
@@ -59,10 +60,12 @@ export function Home({
   onProfile,
   onExperience,
   onOxia,
+  onDownload,
   onSettings,
 }: {
   onExperience: () => void;
   onOxia: () => void;
+  onDownload: () => void;
   onProfile: (section?: ProfileSection) => void;
   onPlay: (mode: ModeId) => void;
   onVersus: () => void;
@@ -284,7 +287,14 @@ export function Home({
               <span className="text-muted">↵</span> Play
             </span>
           </div>
-          <VersionTaps />
+          <div className="flex items-center gap-6">
+            {!installed() && (
+              <button onClick={onDownload} className={`label rounded-sm transition-colors hover:text-fg ${focusRing}`}>
+                Get the app
+              </button>
+            )}
+            <VersionTaps />
+          </div>
         </footer>
       </div>
     </div>

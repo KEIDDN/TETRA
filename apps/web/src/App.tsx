@@ -22,6 +22,7 @@ import { Profile, type ProfileSection } from './screens/Profile';
 import { MusicLab } from './screens/MusicLab';
 import { Experience } from './screens/Experience';
 import { Oxia } from './screens/Oxia';
+import { Download } from './screens/Download';
 import { load } from './lib/storage';
 import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
@@ -35,6 +36,7 @@ type Screen =
   | { name: 'musiclab' }
   | { name: 'experience'; firstRun?: boolean; back?: 'settings' }
   | { name: 'oxia' }
+  | { name: 'download' }
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
   | { name: 'editor'; id?: string }
@@ -128,6 +130,9 @@ export function App() {
         />
       );
       break;
+    case 'download':
+      content = <Download onBack={home} />;
+      break;
     case 'oxia':
       content = <Oxia onBack={home} onExperience={() => setScreen({ name: 'experience' })} />;
       break;
@@ -197,6 +202,7 @@ export function App() {
           onProfile={(section) => setScreen({ name: 'profile', section })}
           onExperience={() => setScreen({ name: 'experience' })}
           onOxia={() => setScreen({ name: 'oxia' })}
+          onDownload={() => setScreen({ name: 'download' })}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );

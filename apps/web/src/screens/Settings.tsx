@@ -221,11 +221,11 @@ function ExperiencePanel({ onAbout }: { onAbout?: () => void }) {
         />
         <div className="relative flex items-start justify-between gap-6">
           <div>
-            <div className="text-[26px] leading-tight font-[520] tracking-[-0.03em]">{experience ? 'The Experience is on.' : 'Focus is on.'}</div>
+            <div className="text-[26px] leading-tight font-[520] tracking-[-0.03em]">{experience ? 'TETRA Experience is on.' : 'Focus is on.'}</div>
             <p className="mt-2 max-w-[420px] text-[14px] leading-relaxed text-muted">
               {experience
-                ? 'Club sound, binaural on headphones, a live DJ on your game, rooms that live with every beat, and the intro before each game.'
-                : 'Built for training: no rooms, no club, no intro. Instant restarts, nothing between you and the stack.'}
+                ? 'TETRA the way it is meant to be played: club sound, binaural on headphones, a live DJ on your game, rooms that move with every beat and an intro before each game. Turn it off for Focus.'
+                : 'Rooms, backgrounds and motion are off: just the stack, for practice. Turn the TETRA Experience back on to play TETRA the way it is meant to be played.'}
             </p>
             {onAbout && (
               <button data-nav onClick={onAbout} className={`mt-4 text-[13px] font-medium text-fg underline-offset-4 hover:underline ${focusRing}`}>
