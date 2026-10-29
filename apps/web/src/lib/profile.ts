@@ -13,6 +13,12 @@ export interface Trophy {
 export interface Profile {
   xp: number;
   trophies: Trophy[];
+  name: string;
+  /** Total time spent in games, ms. */
+  playMs: number;
+  games: number;
+  /** Time played per skin, ms: the favourite is the most played. */
+  skinMs: Record<string, number>;
 }
 
 /**
@@ -33,7 +39,7 @@ export function levelFor(xp: number): { level: number; into: number; needed: num
   return { level, into: rest, needed: xpToNext(level) };
 }
 
-let current: Profile = { xp: 0, trophies: [], ...load<Partial<Profile>>('profile', {}) };
+let current: Profile = { xp: 0, trophies: [], name: 'Player', playMs: 0, games: 0, skinMs: {}, ...load<Partial<Profile>>('profile', {}) };
 const listeners = new Set<() => void>();
 
 function commit(next: Profile): void {
@@ -64,6 +70,35 @@ export function awardXp(amount: number, reason: string): void {
   commit({ ...current, xp: current.xp + xp });
   const after = levelFor(current.xp).level;
   toast(after > before ? `Level ${after} · +${xp} XP` : `+${xp} XP · ${reason}`);
+}
+
+export function setName(name: string): void {
+  const clean = name.trim().slice(0, 24);
+  if (clean) commit({ ...current, name: clean });
+}
+
+/** Counts a game toward time played (and the skin it was played in). */
+export function addPlay(ms: number, skin: string): void {
+  if (ms < 1000) return;
+  commit({ ...current, playMs: current.playMs + ms, games: current.games + 1, skinMs: { ...current.skinMs, [skin]: (current.skinMs[skin] ?? 0) + ms } });
+}
+
+export function favouriteSkin(): string | null {
+  const entries = Object.entries(current.skinMs);
+  return entries.length ? entries.reduce((a, b) => (b[1] > a[1] ? b : a))[0] : null;
+}
+
+const TITLES: [number, string][] = [
+  [50, 'Legend'],
+  [35, 'Master'],
+  [20, 'Veteran'],
+  [10, 'Stacker'],
+  [5, 'Regular'],
+  [1, 'Newcomer'],
+];
+
+export function titleFor(level: number): string {
+  return TITLES.find(([min]) => level >= min)![1];
 }
 
 export function addTrophy(trophy: Trophy): void {

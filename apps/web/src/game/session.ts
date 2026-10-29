@@ -3,8 +3,8 @@ import { dj } from '../audio/dj';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
-import { awardXp, soloXp } from '../lib/profile';
-import { loadBest, submitBest, type RunRecord } from '../lib/storage';
+import { addPlay, awardXp, soloXp } from '../lib/profile';
+import { loadBest, recordRun, submitBest, type RunRecord } from '../lib/storage';
 import { InputRouter } from './input';
 import { MODE_CONFIGS } from './modes';
 import type { GameRenderer } from './renderer';
@@ -61,6 +61,8 @@ export class GameSession {
   private phase: Phase = 'countdown';
   private shownStep = -1;
   private stepMs = COUNTDOWN_STEP_MS;
+  /** The current game already counted toward time played. */
+  private logged = false;
   /** While now < introUntil, the intro is still assembling the board (no numbers yet). */
   private introUntil = 0;
   private resultTimer = 0;
@@ -87,6 +89,8 @@ export class GameSession {
 
   /** A new game. Only the first one from a menu gets the intro; retries start at once. */
   restart(intro = false): void {
+    this.logPlay();
+    this.logged = false;
     const settings = getSettings();
     this.game = new Game({
       seed: (Math.random() * 2 ** 32) >>> 0,
@@ -116,9 +120,16 @@ export class GameSession {
   }
 
   dispose(): void {
+    this.logPlay();
     clearTimeout(this.resultTimer);
     this.router.dispose();
     this.renderer.ticker.remove(this.tick);
+  }
+
+  private logPlay(): void {
+    if (this.logged || !this.game) return;
+    this.logged = true;
+    addPlay(this.game.elapsed, getSettings().appearance.skin);
   }
 
   private beginCountdown(gameTime: number): void {
@@ -263,6 +274,7 @@ export class GameSession {
     if (game.state === 'playing' || this.phase === 'done') return;
 
     this.setPhase('done');
+    this.logPlay();
     const kind = game.state === 'finished' ? 'finished' : 'topout';
     this.renderer.endGame(kind, performance.now());
     sfx.end(kind);
@@ -281,6 +293,7 @@ export class GameSession {
     const previousBest = loadBest(this.mode);
     const counts = (finished || !config.recordNeedsFinish) && stats.pieces > 0;
     const personalBest = counts && submitBest(this.mode, record, config.isBetter);
+    if (counts) recordRun(this.mode, record);
     awardXp(soloXp(stats.pieces, stats.lines, personalBest), config.def.name);
     // Let the end animation play before the results card covers the board.
     this.resultTimer = window.setTimeout(

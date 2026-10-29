@@ -37,6 +37,15 @@ export function loadBest(mode: ModeId): RunRecord | null {
   return legacy && { score: 0, lines: 40, level: 1, ...legacy };
 }
 
+/** The last runs of a mode, oldest first, for the profile's charts. */
+export function loadHistory(mode: ModeId): RunRecord[] {
+  return load<RunRecord[]>(`history.${mode}`, []);
+}
+
+export function recordRun(mode: ModeId, record: RunRecord): void {
+  save(`history.${mode}`, [...loadHistory(mode), record].slice(-40));
+}
+
 /** Saves the run if it beats the current best. Returns true on a new personal best. */
 export function submitBest(mode: ModeId, record: RunRecord, isBetter: (a: RunRecord, b: RunRecord) => boolean): boolean {
   const best = loadBest(mode);

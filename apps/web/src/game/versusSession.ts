@@ -3,7 +3,7 @@ import { Match, type Action, type Game, type GameEvent } from '@tetra/engine';
 import { dj } from '../audio/dj';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
-import { awardXp, versusXp } from '../lib/profile';
+import { addPlay, awardXp, versusXp } from '../lib/profile';
 import { recordMatch } from '../lib/versus';
 import { InputRouter } from './input';
 import { botHandling, BotPilot } from './pilot';
@@ -255,6 +255,7 @@ export class VersusSession {
     sfx.end(winner === 0 ? 'finished' : 'topout');
     const games = this.match.games;
     this.past.time += games[0].elapsed;
+    if (!this.options.left) addPlay(games[0].elapsed, getSettings().appearance.skin);
     this.past.games.push(games.map((g) => ({ attack: g.stats.attack, pieces: g.stats.pieces, garbageCleared: g.stats.garbageCleared })));
     this.setPhase('roundOver');
     this.view.round(winner, [...this.score]);
