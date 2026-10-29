@@ -16,7 +16,16 @@ function defaults(): MusicPrefs {
   return { assign, rejected: [], bpm: {} };
 }
 
-let prefs: MusicPrefs = { ...defaults(), ...load<Partial<MusicPrefs>>('music.v4', {}) };
+/** Saved choices, minus tracks that left the catalog; new slots get their default. */
+function restore(): MusicPrefs {
+  const base = defaults();
+  const saved = load<Partial<MusicPrefs>>('music.v4', {});
+  const assign = { ...base.assign };
+  for (const [slot, id] of Object.entries(saved.assign ?? {})) if (id && TRACK_BY_ID[id]) assign[slot as MusicSlot] = id;
+  return { ...base, ...saved, assign };
+}
+
+let prefs: MusicPrefs = restore();
 const listeners = new Set<() => void>();
 
 function commit(next: MusicPrefs): void {

@@ -264,9 +264,13 @@ function Library() {
                     {isMenu ? 'Menu track' : 'Set as menu'}
                   </button>
                 )}
-                <a href={t.licenseUrl} target="_blank" rel="noreferrer" className="label transition-colors hover:text-fg">
-                  {t.license}
-                </a>
+                {t.licenseUrl ? (
+                  <a href={t.licenseUrl} target="_blank" rel="noreferrer" className="label transition-colors hover:text-fg">
+                    {t.license}
+                  </a>
+                ) : (
+                  <span className="label">{t.license}</span>
+                )}
               </div>
             </div>
           );
