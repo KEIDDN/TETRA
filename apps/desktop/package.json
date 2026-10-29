@@ -1,0 +1,41 @@
+{
+  "name": "tetra-desktop",
+  "productName": "TETRA",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TETRA by OXIA Labs: feel the blocks.",
+  "author": "OXIA Labs",
+  "main": "main.cjs",
+  "scripts": {
+    "web": "pnpm --dir ../.. --filter @tetra/web build && node scripts/copy-web.cjs",
+    "start": "npm run web && electron .",
+    "dist:mac": "npm run web && electron-builder --mac --publish never",
+    "dist:win": "npm run web && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.oxialabs.tetra",
+    "productName": "TETRA",
+    "copyright": "© OXIA Labs",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["main.cjs", "preload.cjs", "web/**/*"],
+    "protocols": [{ "name": "TETRA", "schemes": ["tetra"] }],
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["universal"] }],
+      "category": "public.app-category.games",
+      "artifactName": "TETRA-mac.${ext}",
+      "icon": "build/icon.png"
+    },
+    "dmg": { "title": "TETRA" },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "TETRA-windows.${ext}",
+      "icon": "build/icon.png"
+    },
+    "nsis": { "oneClick": true, "perMachine": false, "shortcutName": "TETRA" },
+    "publish": [{ "provider": "github", "owner": "keiddn", "repo": "tetra", "releaseType": "release" }]
+  }
+}
