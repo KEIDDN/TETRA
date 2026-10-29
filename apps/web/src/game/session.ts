@@ -1,4 +1,5 @@
 import { Game, type Action, type GameEvent, type ModeId } from '@tetra/engine';
+import { dj } from '../audio/dj';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
 import { awardXp, soloXp } from '../lib/profile';
@@ -121,6 +122,8 @@ export class GameSession {
 
   private setPhase(phase: Phase): void {
     this.phase = phase;
+    dj.paused(phase === 'paused');
+    if (phase === 'done') dj.reset();
     this.view.phase(phase);
     if (phase !== 'countdown') this.view.countdown(null);
   }
@@ -182,6 +185,7 @@ export class GameSession {
         this.view.countdown(null);
       }
       this.game.update(now - this.startAt);
+      dj.tick(this.game);
       this.afterStep();
     }
     this.renderer.draw(this.game, now);
@@ -205,6 +209,7 @@ export class GameSession {
       for (const e of game.events) {
         this.renderer.onEvent(e, game, now);
         sfx.onEvent(e);
+        dj.event(e);
         this.view.event(e, game);
       }
       game.events.length = 0;

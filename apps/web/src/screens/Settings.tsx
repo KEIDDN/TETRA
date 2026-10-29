@@ -14,6 +14,7 @@ import {
   COMMANDS,
   MAX_BINDINGS,
   resetSettings,
+  setExperience,
   STICK_LEFT,
   STICK_UP,
   updateSettings,
@@ -36,7 +37,7 @@ function usePadKind() {
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
-export function Settings({ onBack, onMusicLab, initialTab = 'appearance' }: { onBack: () => void; onMusicLab?: () => void; initialTab?: Tab }) {
+export function Settings({ onBack, onMusicLab, onExperience, initialTab = 'appearance' }: { onBack: () => void; onMusicLab?: () => void; onExperience?: () => void; initialTab?: Tab }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [capture, setCapture] = useState<Capture>(null);
   useMenuNav(onBack, capture === null);
@@ -56,6 +57,7 @@ export function Settings({ onBack, onMusicLab, initialTab = 'appearance' }: { on
 
       <main className="animate-rise mx-auto w-full max-w-[760px]">
         <h1 className="mt-6 text-[clamp(44px,8vw,72px)] font-[480] leading-none tracking-[-0.045em]">Settings</h1>
+        <ExperienceCard onAbout={onExperience} />
         <div className="mt-10">
           <Segmented
             value={tab}
@@ -89,6 +91,47 @@ export function Settings({ onBack, onMusicLab, initialTab = 'appearance' }: { on
         </div>
       </main>
     </div>
+  );
+}
+
+// ── TETRA Experience ────────────────────────────────────────────
+
+/** The master switch, on top of everything. */
+function ExperienceCard({ onAbout }: { onAbout?: () => void }) {
+  const { experience } = useSettings();
+  return (
+    <section
+      className="relative mt-10 overflow-hidden rounded-[32px] p-7 transition-[box-shadow] duration-500"
+      style={{
+        background: 'linear-gradient(135deg, #17171b 0%, #0e0e10 60%)',
+        boxShadow: experience ? 'inset 0 0 0 1px rgba(237,235,250,0.22), 0 40px 100px -60px rgba(237,235,250,0.5)' : 'inset 0 0 0 1px rgba(255,255,255,0.07)',
+      }}
+    >
+      <div aria-hidden className={`exp-glow pointer-events-none absolute -top-24 -right-16 size-72 rounded-full blur-3xl transition-opacity duration-700 ${experience ? 'opacity-100' : 'opacity-0'}`} />
+      <div className="relative flex items-start justify-between gap-6">
+        <div>
+          <div className="label">TETRA Experience</div>
+          <div className="mt-2 text-[28px] leading-tight font-medium tracking-[-0.03em]">{experience ? 'Sound and light, all in.' : 'Practice room.'}</div>
+          <p className="mt-2 max-w-[440px] text-[14px] leading-relaxed text-muted">
+            Club sound, binaural on headphones, the game playing DJ on the music, and scenes that live with every beat.
+          </p>
+          {onAbout && (
+            <button data-nav onClick={onAbout} className={`mt-4 text-[13px] font-medium text-fg underline-offset-4 hover:underline ${focusRing}`}>
+              What is the Experience →
+            </button>
+          )}
+        </div>
+        <button
+          data-nav
+          role="switch"
+          aria-checked={experience}
+          onClick={() => setExperience(!experience)}
+          className={`relative h-8 w-14 shrink-0 rounded-full transition-colors duration-300 ${experience ? 'bg-accent' : 'bg-white/15'} ${focusRing}`}
+        >
+          <span className={`absolute top-1 left-1 size-6 rounded-full bg-black transition-transform duration-300 ease-spring ${experience ? 'translate-x-6' : ''}`} />
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -136,6 +179,16 @@ function AppearancePanel() {
             ]}
           />
         </Row>
+        <ToggleRow
+          name="Reduce flashing"
+          hint="No strobes on drops and softer flashes. Recommended if you are sensitive to flashing lights"
+          value={appearance.reduceFlashing}
+          onChange={(reduceFlashing) => set({ reduceFlashing })}
+        />
+        <p className="border-t border-line px-6 py-4 text-[12px] leading-relaxed text-faint sm:px-7">
+          Photosensitivity notice: with Background on Full, scenes can flash and pulse with the music, including short strobes on drops. If you or
+          anyone watching has epilepsy or is sensitive to flashing lights, turn on Reduce flashing or set Background to Calm.
+        </p>
         <Row name="Grid" hint="Auto lets each skin choose">
           <Segmented<GridMode>
             small
@@ -220,7 +273,23 @@ function SoundPanel() {
         />
       </Section>
 
-      <Section label="Music" note="Electronic, ambient and IDM under Creative Commons.">
+      <Section label="Experience sound" note="Part of the TETRA Experience.">
+        <Row name="Listening on" hint={audio.output === 'headphones' ? 'Binaural: the room around you' : 'Stereo, wide, club master'}>
+          <Segmented
+            small
+            value={audio.output}
+            onChange={(output) => set({ output })}
+            options={[
+              ['headphones', 'Headphones'],
+              ['speakers', 'Speakers'],
+            ]}
+          />
+        </Row>
+        <ToggleRow name="Club sound" hint="Sub, glue, width and a concrete room around the music" value={audio.club} onChange={(club) => set({ club })} />
+        <ToggleRow name="Live DJ" hint="Your stack, combos and big clears play the music's filter and delay" value={audio.dj} onChange={(dj) => set({ dj })} />
+      </Section>
+
+      <Section label="Music" note="Hypnotic techno for the game, deep ambient for the menus.">
         <SliderRow
           name="Music volume"
           hint="On its own fader, under the effects"

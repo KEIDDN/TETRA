@@ -45,6 +45,8 @@ export interface AppearanceSettings {
   background: 'calm' | 'full';
   /** "T-SPIN DOUBLE", "B2B ×3"… next to the board. */
   actionText: boolean;
+  /** No strobes on drops, softer flashes everywhere (photosensitivity). */
+  reduceFlashing: boolean;
 }
 
 export type GridMode = 'auto' | 'lines' | 'dots' | 'off';
@@ -61,11 +63,19 @@ export interface AudioSettings {
   music: number;
   /** Skin: each skin's track. Shuffle: any unlocked track. */
   musicMode: 'skin' | 'shuffle' | 'off';
+  /** Headphones get the binaural room; speakers get the Club master in stereo. */
+  output: 'headphones' | 'speakers';
+  /** The Club master: sub, glue, width and a concrete room. */
+  club: boolean;
+  /** The game plays DJ on the music: danger filter, throws, combo lift. */
+  dj: boolean;
 }
 
 export interface Settings {
   /** Unlocks every bot, cup and skin. Toggled by tapping the version five times. */
   developer: boolean;
+  /** The TETRA Experience: club sound, live DJ, full scenes. On by default. */
+  experience: boolean;
   appearance: AppearanceSettings;
   audio: AudioSettings;
   keyboard: DeviceSettings<string>;
@@ -81,8 +91,9 @@ export const MAX_BINDINGS = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
   developer: false,
-  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, background: 'full', actionText: true },
-  audio: { enabled: true, volume: 0.7, movement: 0.8, pack: 'match', music: 0.5, musicMode: 'skin' },
+  experience: true,
+  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, background: 'full', actionText: true, reduceFlashing: false },
+  audio: { enabled: true, volume: 0.7, movement: 0.8, pack: 'match', music: 0.5, musicMode: 'skin', output: 'speakers', club: true, dj: true },
   keyboard: {
     handling: DEFAULT_HANDLING,
     bindings: {
@@ -130,6 +141,7 @@ function merge(saved: Partial<Settings> | null): Settings {
   if (audio.pack !== 'match' && !['studio', 'glass', 'wood', 'pure'].includes(audio.pack)) audio.pack = 'match';
   return {
     developer: saved.developer ?? false,
+    experience: saved.experience ?? true,
     appearance,
     audio,
     keyboard: {
@@ -178,6 +190,16 @@ export function updateSettings(change: (s: Settings) => Settings): void {
 export function subscribeSettings(l: () => void): () => void {
   listeners.add(l);
   return () => listeners.delete(l);
+}
+
+/** The Experience as one switch: on brings back every part of it, off leaves a calm practice room. */
+export function setExperience(on: boolean): void {
+  updateSettings((s) => ({
+    ...s,
+    experience: on,
+    audio: { ...s.audio, club: on, dj: on },
+    appearance: { ...s.appearance, ambient: on ? true : s.appearance.ambient, background: on ? 'full' : 'calm' },
+  }));
 }
 
 export function resetSettings(): void {

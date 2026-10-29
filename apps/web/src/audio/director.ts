@@ -30,6 +30,7 @@ class Director {
     if (this.context.kind === 'menu') return;
     this.context = { kind: 'menu' };
     this.shuffled = null;
+    music.club?.reset();
     this.apply();
   }
 
@@ -51,8 +52,9 @@ class Director {
   }
 
   private apply(): void {
-    const { audio } = getSettings();
+    const { audio, experience } = getSettings();
     music.setVolume(audio.enabled ? audio.music : 0);
+    music.setExperience(experience && audio.club ? (audio.output === 'headphones' ? 'binaural' : 'club') : 'off', experience && audio.dj);
     if (this.pinned) return music.play(this.pinned, { bpm: bpmOf(this.pinned) });
     if (!audio.enabled || audio.music === 0 || audio.musicMode === 'off') return music.play(null);
     if (this.context.kind === 'menu') {

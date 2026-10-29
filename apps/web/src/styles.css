@@ -509,3 +509,14 @@ body {
 .now-playing-bars i {
   transform-origin: bottom;
 }
+
+/* The Experience card's light: slow, warm, alive. */
+.exp-glow {
+  background: radial-gradient(circle, rgba(237, 235, 250, 0.35), rgba(160, 120, 255, 0.12) 50%, transparent 70%);
+  animation: exp-breathe 6s ease-in-out infinite;
+}
+@keyframes exp-breathe {
+  50% {
+    transform: scale(1.15) translate(-10px, 10px);
+  }
+}

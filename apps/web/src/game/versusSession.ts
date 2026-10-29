@@ -1,5 +1,6 @@
 import type { BotProfile } from '@tetra/bot';
 import { Match, type Action, type Game, type GameEvent } from '@tetra/engine';
+import { dj } from '../audio/dj';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
 import { awardXp, versusXp } from '../lib/profile';
@@ -164,6 +165,8 @@ export class VersusSession {
 
   private setPhase(phase: VersusPhase): void {
     this.phase = phase;
+    dj.paused(phase === 'paused');
+    if (phase === 'roundOver' || phase === 'done') dj.reset();
     this.view.phase(phase);
     if (phase !== 'countdown' && phase !== 'playing') this.view.countdown(null);
   }
@@ -217,6 +220,7 @@ export class VersusSession {
       this.leftPilot?.update(t);
       this.pilot.update(t);
       this.match.update(t);
+      dj.tick(this.match.games[0]);
     }
     this.flush(now);
     this.renderers[0].draw(this.match.games[0], now);
@@ -232,7 +236,10 @@ export class VersusSession {
         this.renderers[player].onEvent(e, game, now);
         this.view.event(e, game, player);
         if (e.type === 'attack') this.view.attack(player, e.lines.reduce((a, b) => a + b, 0));
-        if (player === 0) sfx.onEvent(e);
+        if (player === 0) {
+          sfx.onEvent(e);
+          dj.event(e);
+        }
       }
       game.events.length = 0;
       this.match.drained(player);

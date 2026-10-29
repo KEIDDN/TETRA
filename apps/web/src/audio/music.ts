@@ -1,4 +1,5 @@
 import type { Track } from './catalog';
+import { Club, type ClubMode } from './club';
 import { sfx } from './sfx';
 
 export interface AudioBands {
@@ -25,6 +26,10 @@ interface Deck {
 class Music {
   private ctx: AudioContext | null = null;
   private bus: GainNode | null = null;
+  /** The Experience: Club master, binaural and live DJ effects. */
+  club: Club | null = null;
+  private clubMode: ClubMode = 'club';
+  private djEnabled = true;
   private analyser: AnalyserNode | null = null;
   private bins: Uint8Array<ArrayBuffer> | null = null;
   private decks: [Deck, Deck] = [this.deck(), this.deck()];
@@ -128,6 +133,19 @@ class Music {
     if (this.bus && this.ctx) this.bus.gain.setTargetAtTime(v * v, this.ctx.currentTime, 0.08);
   }
 
+  /** Club, binaural or plain; and whether the game may play DJ on the music. */
+  setExperience(mode: ClubMode, dj: boolean): void {
+    this.clubMode = mode;
+    this.djEnabled = dj;
+    this.club?.setMode(mode);
+    this.club?.setDjEnabled(dj);
+  }
+
+  /** The current track's tempo, for effects that follow it. */
+  get bpm(): number | null {
+    return this.wanted.bpm;
+  }
+
   /** Called when the playing track changes (now playing). */
   subscribe(l: (track: Track | null) => void): () => void {
     this.listeners.add(l);
@@ -212,8 +230,12 @@ class Music {
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.6;
     this.bins = new Uint8Array(this.analyser.frequencyBinCount);
+    // The analyser listens to the track itself, before any effect, so the scenes follow the music.
     this.bus.connect(this.analyser);
-    this.analyser.connect(ctx.destination);
+    this.club = new Club(ctx, ctx.destination);
+    this.club.setMode(this.clubMode);
+    this.club.setDjEnabled(this.djEnabled);
+    this.bus.connect(this.club.input);
     for (const deck of this.decks) {
       deck.gain = ctx.createGain();
       deck.gain.gain.value = 0;
