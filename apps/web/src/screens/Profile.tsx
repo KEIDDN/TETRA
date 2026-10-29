@@ -63,7 +63,9 @@ export function Profile({ onBack, section }: { onBack: () => void; section?: Pro
 
         {/* Player card */}
         <section className="glass-panel animate-rise grid items-center gap-10 rounded-[40px] p-8 md:grid-cols-[auto_minmax(0,1fr)_auto]">
-          <LevelRing level={level} progress={into / needed} />
+          <div className="[view-transition-name:level-ring]">
+            <LevelRing level={level} progress={into / needed} />
+          </div>
           <div className="min-w-0">
             <div className="label">
               {titleFor(level)} · Level {level}

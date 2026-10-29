@@ -1,5 +1,6 @@
 import type { ModeId } from '@tetra/engine';
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { sfx } from './audio/sfx';
 import { gamepads } from './game/gamepad';
 import { Toasts } from './ui/toast';
@@ -25,6 +26,8 @@ import { load } from './lib/storage';
 import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
 
+const VIEW_TRANSITIONS = typeof document !== 'undefined' && 'startViewTransition' in document;
+
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 type Screen =
   | { name: 'home' }
@@ -44,7 +47,13 @@ type Screen =
 
 export function App() {
   // The very first launch opens on the Experience, which ends by asking headphones or speakers.
-  const [screen, setScreen] = useState<Screen>(() => (load('onboarded', false) ? { name: 'home' } : { name: 'experience', firstRun: true }));
+  const [screen, setScreenNow] = useState<Screen>(() => (load('onboarded', false) ? { name: 'home' } : { name: 'experience', firstRun: true }));
+  // Screens change inside a view transition: the old one settles back, the new one rises, shared elements fly between them.
+  const setScreen = (next: Screen) => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!VIEW_TRANSITIONS || reduced) return setScreenNow(next);
+    document.startViewTransition(() => flushSync(() => setScreenNow(next)));
+  };
   const home = () => setScreen({ name: 'home' });
 
   // Music follows the screen: one continuous menu track, the skin's track in a game.
@@ -195,7 +204,7 @@ export function App() {
   // Opacity-only transition: a transform here would break the game's fixed layout.
   return (
     <>
-      <div key={screen.name} className="animate-fade min-h-full">
+      <div key={screen.name} className={`min-h-full ${VIEW_TRANSITIONS ? '' : 'animate-fade'}`}>
         {content}
       </div>
       {!['play', 'match', 'bout', 'experience', 'oxia'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
