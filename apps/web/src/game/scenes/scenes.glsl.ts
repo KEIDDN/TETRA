@@ -328,3 +328,104 @@ vec3 scene(vec2 px) {
   return c;
 }
 `;
+
+/** Liquid glass: thick panes drift through a dark room; their rims catch the light and flare on the kick. */
+export const GLASS = /* glsl */ `
+float pane(vec2 p, vec2 b, float r) {
+  vec2 q = abs(p) - b + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+vec3 scene(vec2 px) {
+  vec2 uv = px / uRes;
+  vec3 c = mix(vec3(0.01, 0.012, 0.022), vec3(0.025, 0.028, 0.045), uv.y);
+  float h = haze(px);
+  vec2 light = normalize(vec2(-0.6, -0.8));
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    vec2 ctr = uRes * vec2(0.5 + 0.45 * sin(uTime * 0.021 * (1.0 + fi * 0.23) + fi * 2.3), 0.5 + 0.42 * cos(uTime * 0.017 * (1.0 + fi * 0.19) + fi * 1.7));
+    vec2 b = uCell * vec2(2.5 + 2.5 * hash(vec2(fi, 1.0)), 1.6 + 2.6 * hash(vec2(fi, 2.0)));
+    vec2 q = rot(sin(uTime * 0.015 + fi) * 0.35) * (px - ctr);
+    float d = pane(q, b, uCell * 1.3);
+    float inside = 1.0 - smoothstep(-1.0, 1.0, d);
+    vec3 tint = pal(i);
+    // Thick glass: colour gathers toward the rim, the middle stays dark.
+    float depth = clamp(-d / (uCell * 1.4), 0.0, 1.0);
+    c = mix(c, c * 0.6 + tint * 0.012, inside);
+    c += tint * inside * (1.0 - depth) * 0.035;
+    // The rim: brilliant where it faces the light, coloured where it faces away.
+    float rim = exp(-abs(d + 1.5) / (uCell * 0.06));
+    float facing = 0.5 + 0.5 * dot(normalize(q / b + 1e-4), light);
+    c += mix(tint, vec3(1.0), facing * facing) * rim * (0.02 + 0.09 * pow(facing, 3.0)) * (0.7 + uMusic.x * 0.8 + uMusic.z * 1.2);
+  }
+  c += truss(px, -uCell * 0.6, 5, 0.9, 0.3, uCell * 0.7, vec3(0.9, 0.95, 1.0), mix(pal(0), vec3(1.0), 0.5)) * h * 0.11 * rig();
+  c += pulseColor(px) * 0.3;
+  return c;
+}
+`;
+
+/** Béton brut: a board-marked concrete hall, formwork panels and tie holes, raked by one hard light; strip lights hit on the kick. */
+export const BRUT = /* glsl */ `
+vec3 scene(vec2 px) {
+  vec2 uv = px / uRes;
+  float h = haze(px);
+  vec2 panel = uCell * vec2(4.0, 2.0);
+  vec2 f = fract(px / panel);
+  vec2 dd = min(f, 1.0 - f) * panel;
+  float seam = 1.0 - smoothstep(0.0, 1.6, min(dd.x, dd.y));
+  float holes = 0.0;
+  for (int i = 0; i < 2; i++) {
+    vec2 o = (vec2(0.25 + 0.5 * float(i), 0.5) - f) * panel;
+    holes += exp(-dot(o, o) / (uCell * uCell * 0.012));
+  }
+  float conc = 0.55 * fbm(px / (uCell * 1.4)) + 0.45 * fbm(px / (uCell * 0.25) + 3.0);
+  float boards = 0.5 + 0.5 * sin(px.y / uCell * 7.0 + fbm(px / (uCell * 2.0)) * 5.0);
+  vec3 wall = vec3(0.05, 0.049, 0.046) * (0.5 + conc) * (0.9 + 0.1 * boards);
+  wall *= 1.0 - seam * 0.5 - holes * 0.7;
+  // One raking light that crosses the wall with the phrase.
+  vec2 spot = vec2(uRes.x * (0.5 + 0.42 * sin(uTime * 0.04 + uClock.z * 1.7)), -uRes.y * 0.1);
+  float rake = exp(-pow(length((px - spot) / uRes.y), 2.0) * 2.5);
+  vec3 c = wall * (0.35 + 1.6 * rake) * (0.8 + 0.2 * h);
+  // Linear strip lights either side of the board, struck by the kick.
+  float strip = 0.0;
+  for (int i = 0; i < 2; i++) {
+    float x = i == 0 ? uBoard.x - uCell * 2.5 : uBoard.x + uBoard.z + uCell * 2.5;
+    float dx = abs(px.x - x);
+    float along = smoothstep(uBoard.y - uCell, uBoard.y + uCell, px.y) * smoothstep(uBoard.y + uBoard.w + uCell, uBoard.y + uBoard.w - uCell, px.y);
+    strip += (exp(-dx / 1.5) + exp(-dx / (uCell * 1.2)) * 0.25) * along;
+  }
+  c += vec3(0.95, 0.97, 1.0) * strip * (0.03 + uMusic.x * 0.12 * rig() + uMusic.z * 0.15);
+  c += vec3(0.9) * truss(px, -uCell * 0.6, 3, 0.6, 0.2, uCell * 1.4, vec3(1.0), vec3(0.85)) * h * 0.06 * uMusic.z;
+  c += vec3(pulseField(px) * 0.05);
+  return c;
+}
+`;
+
+/** Weathering steel: rusted plates, sodium haze, and curved slits of hot light between the walls that open on the kick. */
+export const CORTEN = /* glsl */ `
+vec3 scene(vec2 px) {
+  vec2 uv = px / uRes;
+  float h = haze(px);
+  float n = fbm(px / (uCell * 1.5));
+  float n2 = fbm(px / (uCell * 0.3) + 7.0);
+  float plateW = uCell * 5.0;
+  float fx = fract(px.x / plateW);
+  float seam = 1.0 - smoothstep(0.0, 2.0, min(fx, 1.0 - fx) * plateW);
+  float runoff = noise(vec2(px.x / (uCell * 0.12), px.y / (uCell * 8.0)));
+  vec3 rust = mix(vec3(0.42, 0.13, 0.03), vec3(0.75, 0.33, 0.08), n2);
+  vec3 c = rust * (0.03 + 0.05 * n) * (0.65 + 0.35 * runoff) * (1.0 - seam * 0.7);
+  c *= 0.6 + 0.6 * pow(1.0 - uv.y, 1.5);
+  // Slits: the gap between two curved walls, a hairline of sodium light.
+  vec3 hot = vec3(1.0, 0.5, 0.14);
+  float open = 0.3 + uMusic.x * 0.9 + uMusic.z * 1.5;
+  for (int i = 0; i < 2; i++) {
+    float side = i == 0 ? -1.0 : 1.0;
+    float base = uBoard.x + uBoard.z * 0.5 + side * (uBoard.z * 0.5 + uCell * 3.0);
+    float sx = base + side * sin(uv.y * 3.1416 + uTime * 0.05 * side) * uCell * 1.6;
+    float dx = abs(px.x - sx);
+    c += hot * (exp(-dx / (1.0 + open * 1.5)) * 0.35 + exp(-dx / (uCell * (0.8 + open)))) * 0.05 * open;
+  }
+  c += truss(px, uRes.y + uCell * 0.5, 5, 0.8, 0.35, uCell * 1.0, hot, vec3(1.0, 0.68, 0.3)) * h * 0.12 * rig();
+  c += pulseColor(px) * vec3(1.0, 0.6, 0.3) * 0.3;
+  return c;
+}
+`;

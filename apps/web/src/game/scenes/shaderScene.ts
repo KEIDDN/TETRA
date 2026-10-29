@@ -3,7 +3,7 @@ import { Container, Geometry, Mesh, RenderTexture, Shader, Sprite, type Renderer
 import { fragment, VERTEX } from './common.glsl';
 import * as SCENES from './scenes.glsl';
 
-export type SceneId = 'studio' | 'clay' | 'gem' | 'crystal' | 'neon' | 'aurora' | 'ember' | 'bevel' | 'wire' | 'nes' | 'gameboy' | 'mono';
+export type SceneId = 'studio' | 'clay' | 'gem' | 'crystal' | 'neon' | 'aurora' | 'ember' | 'bevel' | 'wire' | 'nes' | 'gameboy' | 'mono' | 'glass' | 'brut' | 'corten';
 
 const SOURCES: Record<SceneId, { glsl: string; pixel?: boolean }> = {
   studio: { glsl: SCENES.STUDIO },
@@ -18,6 +18,9 @@ const SOURCES: Record<SceneId, { glsl: string; pixel?: boolean }> = {
   nes: { glsl: SCENES.NES, pixel: true },
   gameboy: { glsl: SCENES.GAMEBOY, pixel: true },
   mono: { glsl: SCENES.MONO },
+  glass: { glsl: SCENES.GLASS },
+  brut: { glsl: SCENES.BRUT },
+  corten: { glsl: SCENES.CORTEN },
 };
 
 export function isShaderScene(id: string): id is SceneId {

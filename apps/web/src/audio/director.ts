@@ -1,5 +1,5 @@
 import type { SkinId } from '../game/skins';
-import { bpmOf, getMusicPrefs, playable, subscribeMusicPrefs, trackFor } from '../lib/musicPrefs';
+import { bpmOf, getMusicPrefs, playable, skinTrack, subscribeMusicPrefs, trackFor } from '../lib/musicPrefs';
 import { getSettings, subscribeSettings } from '../lib/settings';
 import { TRACK_BY_ID, TRACKS, type Track } from './catalog';
 import { music } from './music';
@@ -90,7 +90,7 @@ class Director {
       const t = this.shuffled && this.shuffled.suggest === 'menu' && music.current?.id === this.shuffled.id ? this.shuffled : trackFor('menu');
       music.prefetch(t);
       // Fetch the next game's music while the player is still choosing.
-      if (audio.musicMode === 'skin') music.prefetch(trackFor(getSettings().appearance.skin) ?? trackFor('studio'));
+      if (audio.musicMode === 'skin') music.prefetch(skinTrack(getSettings().appearance.skin));
       return music.play(t, { bpm: t ? bpmOf(t) : null });
     }
     if (audio.musicMode === 'shuffle') {
@@ -100,7 +100,7 @@ class Director {
       }
       return music.play(this.shuffled, { bpm: this.shuffled ? bpmOf(this.shuffled) : null });
     }
-    const t = trackFor(this.context.skin) ?? trackFor('studio');
+    const t = skinTrack(this.context.skin);
     // Once the set has moved past the skin's track, settings changes keep the set going.
     if (this.shuffled && music.current?.id === this.shuffled.id) return;
     music.play(t, { bpm: t ? bpmOf(t) : null });

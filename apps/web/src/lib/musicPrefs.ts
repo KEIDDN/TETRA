@@ -69,6 +69,15 @@ export function trackFor(slot: MusicSlot): Track | null {
   return (id && TRACK_BY_ID[id]) || null;
 }
 
+/** Skins that have no track of their own yet borrow one from a kindred room. */
+const STAND_IN: Partial<Record<MusicSlot, MusicSlot>> = { glass: 'crystal', brut: 'bevel', corten: 'ember' };
+
+/** The track a skin plays: its own, a stand-in's, or the house track. */
+export function skinTrack(skin: MusicSlot): Track | null {
+  const standIn = STAND_IN[skin];
+  return trackFor(skin) ?? (standIn && trackFor(standIn)) ?? trackFor('studio');
+}
+
 export function bpmOf(track: Track): number | null {
   return track.id in prefs.bpm ? prefs.bpm[track.id] : track.bpm;
 }

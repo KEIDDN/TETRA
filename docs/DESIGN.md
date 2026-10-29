@@ -301,6 +301,10 @@ Cada hito es jugable y se revisa antes de pasar al siguiente.
 - It always unlocks everything: cups, bots, skins and music.
 - A mono "DEV" tag with an amber dot sits in the header next to the level chip on every menu (never in game). Tapping it offers to leave developer mode.
 
+### 8d½. Skin finish
+Every skin should look like a real material: satin (Studio), soft-touch (Clay), step-cut stone (Gem), prism glass (Crystal), brushed metal (Mono). Textures tile with the cell, so they run on through linked cells. Anything that varies across a connected body hugs the outline in thin bands, and those bands follow concave corners; a deep band would show every cell seam.
+New skins: **Liquid Glass** (dark tinted glass, rim light; not translucent), **Brut** (béton brut: formwork joints, air pits, tie holes) and **Corten** (weathering steel in oranges only). Until they have their own tracks they borrow one: Glass uses Crystal's, Brut uses Bevel's and Corten uses Ember's.
+
 ### 8e. Design work, in order
 1. Scenes.
 2. Music engine and Music lab.

@@ -1,16 +1,24 @@
 import type { PieceType } from '@tetra/engine';
 import {
   black,
+  brushed,
   carveNotches,
   clipCell,
+  DOWN,
   edgeBand,
   grain,
+  LEFT,
+  mottle,
+  pits,
+  RIGHT,
   rgba,
   shade,
   shape,
   shapePath,
   strokeBand,
+  streaks,
   strokeNotches,
+  UP,
   white,
 } from './paint';
 
@@ -27,7 +35,10 @@ export type SkinId =
   | 'wire'
   | 'nes'
   | 'gameboy'
-  | 'mono';
+  | 'mono'
+  | 'glass'
+  | 'brut'
+  | 'corten';
 export type SoundPackId = 'studio' | 'glass' | 'wood' | 'pure';
 export type Blend = 'normal' | 'add';
 export type Palette = Record<BlockKind, string>;
@@ -62,6 +73,9 @@ export interface Skin {
 }
 
 const fixed = (palette: Palette) => () => palette;
+
+/** A stable texture seed per piece type, so each piece's grain differs while every build looks the same. */
+const KIND_SEED: Record<BlockKind, number> = { I: 11, O: 23, T: 37, S: 41, Z: 53, J: 67, L: 79, garbage: 97 };
 
 function connectedGhost(width: number, alpha: number, fill: number, radius: number) {
   return (ctx: CanvasRenderingContext2D, size: number, color: string, mask: number) => {
@@ -113,7 +127,7 @@ const STUDIO: Skin = {
   flash: '#ffffff',
   sound: 'studio',
   grid: 'lines',
-  paint(ctx, size, color, mask) {
+  paint(ctx, size, color, mask, kind) {
     const pad = Math.max(1, Math.round(size * 0.04));
     const s = shape(size, mask, pad, size * 0.22);
     const w = Math.max(1, size * 0.03);
@@ -130,6 +144,9 @@ const STUDIO: Skin = {
     edgeBand(ctx, s, 'down', size * 0.22, black, 0.2);
     edgeBand(ctx, s, 'left', size * 0.12, white, 0.06);
     edgeBand(ctx, s, 'right', size * 0.12, black, 0.07);
+    // A satin finish: barely-there mottling so the colour reads as a material, not a fill.
+    mottle(ctx, size, { seed: KIND_SEED[kind], scale: 3, light: 0.025, dark: 0.03 });
+    edgeBand(ctx, s, 'up', size * 0.06, white, 0.22);
     ctx.restore();
     carveNotches(ctx, s);
     strokeBand(ctx, s, 'top', white(0.5), w);
@@ -171,7 +188,7 @@ const CLAY: Skin = {
   flash: '#fffaf2',
   sound: 'wood',
   grid: 'lines',
-  paint(ctx, size, color, mask) {
+  paint(ctx, size, color, mask, kind) {
     const pad = Math.max(1, Math.round(size * 0.045));
     const s = shape(size, mask, pad, size * 0.34);
     ctx.save();
@@ -186,9 +203,13 @@ const CLAY: Skin = {
     edgeBand(ctx, s, 'left', size * 0.2, white, 0.14);
     edgeBand(ctx, s, 'down', size * 0.32, (a) => `rgba(70,40,30,${a})`, 0.3);
     edgeBand(ctx, s, 'right', size * 0.2, (a) => `rgba(70,40,30,${a})`, 0.12);
-    grain(ctx, size, 0.06, 0.08, 0.05);
+    // Soft-touch: broad, gentle unevenness plus a fine powdery tooth.
+    mottle(ctx, size, { seed: KIND_SEED[kind], scale: 2, octaves: 3, light: 0.045, dark: 0.045, darkColor: '#462a1e' });
+    grain(ctx, size, 0.12, 0.07, 0.045);
     ctx.restore();
     carveNotches(ctx, s);
+    // A faint lit lip on the top edge, as on a pressed, rounded surface.
+    strokeBand(ctx, s, 'top', white(0.32), Math.max(1, size * 0.022));
     ctx.restore();
   },
   paintGhost: connectedGhost(0.04, 0.5, 0.1, 0.34),
@@ -223,48 +244,88 @@ const GEM: Skin = {
   sound: 'glass',
   grid: 'lines',
   paint(ctx, size, color) {
+    // An emerald (step) cut seen from above: concentric chamfered rings of
+    // facets around a flat table. Steps alternate light and dark, as real
+    // step cuts do, and a soft reflection crosses the table.
     const pad = Math.max(1, Math.round(size * 0.035));
     const s = size - pad * 2;
-    const b = s * 0.22;
+    const ring = (i: number): [number, number][] => {
+      const c = s * 0.2 - i * 0.6;
+      const a = i;
+      const b = s - i;
+      return [[a + c, a], [b - c, a], [b, a + c], [b, b - c], [b - c, b], [a + c, b], [a, b - c], [a, a + c]];
+    };
+    const path = (pts: [number, number][]) => {
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+    };
     ctx.save();
     ctx.translate(pad, pad);
-    ctx.beginPath();
-    ctx.roundRect(0, 0, s, s, s * 0.1);
+    path(ring(0));
+    ctx.fillStyle = shade(color, -0.35);
+    ctx.fill();
     ctx.clip();
-    const facet = (points: [number, number][], fill: string) => {
-      ctx.beginPath();
-      points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      ctx.closePath();
-      ctx.fillStyle = fill;
-      ctx.fill();
-    };
-    facet([[0, 0], [s, 0], [s - b, b], [b, b]], shade(color, 0.5));
-    facet([[0, 0], [b, b], [b, s - b], [0, s]], shade(color, 0.22));
-    facet([[s, 0], [s, s], [s - b, s - b], [s - b, b]], shade(color, -0.25));
-    facet([[0, s], [b, s - b], [s - b, s - b], [s, s]], shade(color, -0.48));
-    const table = ctx.createLinearGradient(0, b, 0, s - b);
-    table.addColorStop(0, shade(color, 0.28));
-    table.addColorStop(0.55, color);
-    table.addColorStop(1, shade(color, -0.12));
+    const steps = [0, s * 0.09, s * 0.17, s * 0.24];
+    // Light from the upper left: each facet's shade follows its outward normal.
+    const normals = [[0, -1], [0.7, -0.7], [1, 0], [0.7, 0.7], [0, 1], [-0.7, 0.7], [-1, 0], [-0.7, -0.7]];
+    for (let k = 0; k < steps.length - 1; k++) {
+      const outer = ring(steps[k]);
+      const inner = ring(steps[k + 1]);
+      for (let i = 0; i < 8; i++) {
+        const j = (i + 1) % 8;
+        const lit = -(normals[i][0] * 0.55 + normals[i][1] * 0.85);
+        const amount = lit * (k % 2 ? -0.22 : 0.42) + (k === 1 ? 0.06 : 0);
+        path([outer[i], outer[j], inner[j], inner[i]]);
+        ctx.fillStyle = shade(color, Math.max(-0.7, Math.min(0.7, amount)));
+        ctx.fill();
+      }
+    }
+    const t = ring(steps[steps.length - 1]);
+    path(t);
+    const table = ctx.createLinearGradient(t[0][0], t[0][1], t[4][0], t[4][1]);
+    table.addColorStop(0, shade(color, 0.22));
+    table.addColorStop(0.5, color);
+    table.addColorStop(1, shade(color, -0.18));
     ctx.fillStyle = table;
-    ctx.fillRect(b, b, s - 2 * b, s - 2 * b);
-    // Facet edges catch the light.
-    ctx.strokeStyle = white(0.28);
-    ctx.lineWidth = Math.max(1, s * 0.02);
-    ctx.strokeRect(b, b, s - 2 * b, s - 2 * b);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(b, b);
-    ctx.moveTo(s, 0);
-    ctx.lineTo(s - b, b);
-    ctx.strokeStyle = white(0.35);
-    ctx.stroke();
-    const glint = ctx.createRadialGradient(b + s * 0.14, b + s * 0.12, 0, b + s * 0.14, b + s * 0.12, s * 0.16);
-    glint.addColorStop(0, white(0.95));
-    glint.addColorStop(0.4, white(0.35));
-    glint.addColorStop(1, white(0));
-    ctx.fillStyle = glint;
+    ctx.fill();
+    // A broad, soft reflection across the table instead of a point glint.
+    ctx.save();
+    ctx.clip();
+    const sheen = ctx.createLinearGradient(0, 0, s, s);
+    sheen.addColorStop(0.28, white(0));
+    sheen.addColorStop(0.4, white(0.26));
+    sheen.addColorStop(0.47, white(0.06));
+    sheen.addColorStop(0.55, white(0));
+    ctx.fillStyle = sheen;
     ctx.fillRect(0, 0, s, s);
+    ctx.restore();
+    // Hairline facet edges.
+    ctx.lineWidth = Math.max(0.75, s * 0.012);
+    ctx.lineJoin = 'round';
+    steps.slice(1).forEach((st, k) => {
+      path(ring(st));
+      ctx.strokeStyle = white(k === 2 ? 0.4 : 0.18);
+      ctx.stroke();
+    });
+    ctx.beginPath();
+    const o = ring(0);
+    const i3 = ring(steps[3]);
+    o.forEach(([x, y], i) => {
+      ctx.moveTo(x, y);
+      ctx.lineTo(i3[i][0], i3[i][1]);
+    });
+    ctx.strokeStyle = white(0.14);
+    ctx.stroke();
+    // Girdle: a crisp outline, lit on top.
+    path(ring(0.5));
+    const girdle = ctx.createLinearGradient(0, 0, 0, s);
+    girdle.addColorStop(0, white(0.7));
+    girdle.addColorStop(0.5, white(0.15));
+    girdle.addColorStop(1, black(0.4));
+    ctx.strokeStyle = girdle;
+    ctx.lineWidth = Math.max(1, s * 0.02);
+    ctx.stroke();
     ctx.restore();
   },
 };
@@ -286,7 +347,7 @@ const NEON_COLORS: Palette = {
 const NEON: Skin = {
   id: 'neon',
   name: 'Neon',
-  description: 'One glowing outline per piece. A nod to Tetris Effect.',
+  description: 'One glowing tube of light per piece.',
   palette: fixed(NEON_COLORS),
   connected: true,
   bleed: 0.4,
@@ -360,25 +421,62 @@ const BEVEL: Skin = {
   flash: '#ffffff',
   sound: 'pure',
   grid: 'lines',
-  paint(ctx, size, color) {
+  paint(ctx, size, color, _mask, kind) {
     const s = size;
     const b = Math.max(2, s * 0.13);
-    const facet = (points: [number, number][], fill: string) => {
+    const facet = (points: [number, number][], fill: string | CanvasGradient) => {
       ctx.beginPath();
       points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.closePath();
       ctx.fillStyle = fill;
       ctx.fill();
     };
-    const face = ctx.createLinearGradient(0, 0, 0, s);
-    face.addColorStop(0, shade(color, 0.08));
-    face.addColorStop(1, shade(color, -0.06));
+    const face = ctx.createLinearGradient(0, b, 0, s - b);
+    face.addColorStop(0, shade(color, 0.12));
+    face.addColorStop(1, shade(color, -0.08));
     ctx.fillStyle = face;
     ctx.fillRect(0, 0, s, s);
-    facet([[0, 0], [s, 0], [s - b, b], [b, b]], shade(color, 0.36));
-    facet([[0, 0], [b, b], [b, s - b], [0, s]], shade(color, 0.16));
-    facet([[s, 0], [s, s], [s - b, s - b], [s - b, b]], shade(color, -0.2));
-    facet([[0, s], [b, s - b], [s - b, s - b], [s, s]], shade(color, -0.36));
+    // Bevels shade along their length too, as a moulded edge would.
+    const ramp = (x0: number, y0: number, x1: number, y1: number, from: number, to: number) => {
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, shade(color, from));
+      g.addColorStop(1, shade(color, to));
+      return g;
+    };
+    facet([[0, 0], [s, 0], [s - b, b], [b, b]], ramp(0, 0, s, 0, 0.48, 0.3));
+    facet([[0, 0], [b, b], [b, s - b], [0, s]], ramp(0, 0, 0, s, 0.26, 0.08));
+    facet([[s, 0], [s, s], [s - b, s - b], [s - b, b]], ramp(0, 0, 0, s, -0.12, -0.28));
+    facet([[0, s], [b, s - b], [s - b, s - b], [s, s]], ramp(0, 0, s, 0, -0.3, -0.42));
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(b, b, s - 2 * b, s - 2 * b);
+    ctx.clip();
+    mottle(ctx, size, { seed: KIND_SEED[kind], scale: 3, light: 0.05, dark: 0.05 });
+    ctx.restore();
+    // Crisp mitres and a lit inner edge where the bevel meets the face.
+    const hair = Math.max(1, s * 0.016);
+    ctx.lineWidth = hair;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(b, b);
+    ctx.moveTo(s, 0);
+    ctx.lineTo(s - b, b);
+    ctx.strokeStyle = white(0.3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(b, s - b);
+    ctx.lineTo(b, b);
+    ctx.lineTo(s - b, b);
+    ctx.strokeStyle = black(0.18);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(s - b, b);
+    ctx.lineTo(s - b, s - b);
+    ctx.lineTo(b, s - b);
+    ctx.strokeStyle = white(0.16);
+    ctx.stroke();
+    ctx.strokeStyle = black(0.35);
+    ctx.strokeRect(hair / 2, hair / 2, s - hair, s - hair);
   },
 };
 
@@ -463,7 +561,7 @@ const MONO: Skin = {
   flash: '#ffffff',
   sound: 'pure',
   grid: 'lines',
-  paint(ctx, size, color, mask) {
+  paint(ctx, size, color, mask, kind) {
     const pad = Math.max(1, Math.round(size * 0.035));
     const s = shape(size, mask, pad, size * 0.06);
     const w = Math.max(1, size * 0.025);
@@ -472,8 +570,18 @@ const MONO: Skin = {
     shapePath(ctx, s);
     ctx.fillStyle = color;
     ctx.fill();
+    ctx.save();
+    shapePath(ctx, s);
+    ctx.clip();
+    // Brushed aluminium: hairlines run straight through linked cells.
+    brushed(ctx, size, KIND_SEED[kind], 0.05);
+    mottle(ctx, size, { seed: KIND_SEED[kind] + 5, scale: 2, octaves: 2, light: 0.05, dark: 0.06 });
+    edgeBand(ctx, s, 'up', size * 0.1, white, 0.14);
+    edgeBand(ctx, s, 'down', size * 0.12, black, 0.16);
+    ctx.restore();
     carveNotches(ctx, s);
-    strokeBand(ctx, s, 'top', white(0.55), w);
+    strokeBand(ctx, s, 'top', white(0.6), w);
+    strokeBand(ctx, s, 'bottom', black(0.3), w);
     ctx.restore();
   },
   paintGhost: connectedGhost(0.03, 0.5, 0.06, 0.06),
@@ -514,23 +622,17 @@ const AURORA: Skin = {
     ctx.save();
     clipCell(ctx, s, size * 0.3);
     shapePath(ctx, s);
-    ctx.fillStyle = rgba(color, 0.12);
+    ctx.fillStyle = rgba(color, 0.2);
     ctx.fill();
     ctx.save();
     shapePath(ctx, s);
     ctx.clip();
-    const c = size / 2;
-    const nucleus = ctx.createRadialGradient(c, c, 0, c, c, size * 0.62);
-    nucleus.addColorStop(0, rgba(color, 0.75));
-    nucleus.addColorStop(0.35, rgba(color, 0.32));
-    nucleus.addColorStop(1, rgba(color, 0));
-    ctx.fillStyle = nucleus;
-    ctx.fillRect(0, 0, size, size);
-    const core = ctx.createRadialGradient(c, c, 0, c, c, size * 0.16);
-    core.addColorStop(0, white(0.7));
-    core.addColorStop(1, white(0));
-    ctx.fillStyle = core;
-    ctx.fillRect(0, 0, size, size);
+    // Light gathers toward the piece's edge, like a membrane, instead of a dot per cell.
+    edgeBand(ctx, s, 'up', size * 0.16, (a) => rgba(color, a), 0.45);
+    edgeBand(ctx, s, 'down', size * 0.16, (a) => rgba(color, a), 0.45);
+    edgeBand(ctx, s, 'left', size * 0.16, (a) => rgba(color, a), 0.45);
+    edgeBand(ctx, s, 'right', size * 0.16, (a) => rgba(color, a), 0.45);
+    edgeBand(ctx, s, 'up', size * 0.08, white, 0.25);
     ctx.restore();
     carveNotches(ctx, s);
     const w = Math.max(1, size * 0.03);
@@ -576,6 +678,8 @@ const CRYSTAL: Skin = {
   sound: 'glass',
   grid: 'lines',
   paint(ctx, size, color) {
+    // Dark glass cut as a prism: one clean diagonal split, light pooling in
+    // the far corner and an iridescent rim. No busy facets.
     const pad = Math.max(1, Math.round(size * 0.04));
     const s = size - pad * 2;
     const r = s * 0.14;
@@ -584,48 +688,60 @@ const CRYSTAL: Skin = {
     ctx.beginPath();
     ctx.roundRect(0, 0, s, s, r);
     const body = ctx.createLinearGradient(0, 0, s, s);
-    body.addColorStop(0, shade(color, 0.35));
-    body.addColorStop(0.45, color);
-    body.addColorStop(1, shade(color, -0.5));
+    body.addColorStop(0, shade(color, -0.25));
+    body.addColorStop(0.6, shade(color, -0.55));
+    body.addColorStop(1, shade(color, -0.35));
     ctx.fillStyle = body;
     ctx.fill();
     ctx.save();
     ctx.clip();
-    // Facets meet at an off-centre point, like a cut crystal seen from above.
-    const fx = s * 0.62;
-    const fy = s * 0.38;
-    const corners: [number, number][] = [[0, 0], [s, 0], [s, s], [0, s]];
-    corners.forEach(([x, y], i) => {
-      const [nx, ny] = corners[(i + 1) % 4];
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(nx, ny);
-      ctx.lineTo(fx, fy);
-      ctx.closePath();
-      ctx.fillStyle = [white(0.22), black(0.08), black(0.22), white(0.06)][i];
-      ctx.fill();
-      ctx.strokeStyle = white(0.35);
-      ctx.lineWidth = Math.max(1, s * 0.015);
-      ctx.stroke();
-    });
-    const streak = ctx.createLinearGradient(0, 0, s, s);
-    streak.addColorStop(0.18, white(0));
-    streak.addColorStop(0.26, white(0.55));
-    streak.addColorStop(0.34, white(0));
-    ctx.fillStyle = streak;
+    // Caustic: refracted light gathers inside the lower right.
+    const pool = ctx.createRadialGradient(s * 0.82, s * 0.85, 0, s * 0.82, s * 0.85, s * 0.7);
+        pool.addColorStop(0, shade(color, 0.35));
+    pool.addColorStop(0.45, color);
+    pool.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = pool;
     ctx.fillRect(0, 0, s, s);
+    ctx.globalAlpha = 1;
+    // The prism's upper face catches the sky.
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(s, 0);
+    ctx.lineTo(0, s);
+    ctx.closePath();
+    const top = ctx.createLinearGradient(0, 0, s * 0.5, s * 0.5);
+    top.addColorStop(0, white(0.3));
+    top.addColorStop(1, white(0.04));
+    ctx.fillStyle = top;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(s, 0);
+    ctx.lineTo(0, s);
+    ctx.strokeStyle = white(0.4);
+    ctx.lineWidth = Math.max(0.75, s * 0.014);
+    ctx.stroke();
     ctx.restore();
-    const w = Math.max(1.5, s * 0.06);
+    const w = Math.max(1.5, s * 0.045);
     ctx.beginPath();
     ctx.roundRect(w / 2, w / 2, s - w, s - w, r);
     // Conic gradients are recent; older engines get a two-tone sweep instead.
     const conic = typeof ctx.createConicGradient === 'function';
     const rim = conic ? ctx.createConicGradient(-Math.PI / 4, s / 2, s / 2) : ctx.createLinearGradient(0, 0, s, s);
-    const stops = conic ? [color, '#7ff9ff', '#ff8af2', '#fff38a', color] : ['#7ff9ff', '#ff8af2'];
+    const stops = conic ? [shade(color, 0.3), '#9ffbff', '#ff9cf4', '#fff59c', shade(color, 0.3)] : ['#9ffbff', '#ff9cf4'];
     stops.forEach((c, i) => rim.addColorStop(i / (stops.length - 1), c));
     ctx.strokeStyle = rim;
     ctx.lineWidth = w;
-    ctx.globalAlpha = 0.95;
+    ctx.stroke();
+    // A white specular hairline on the top-left curve.
+    ctx.beginPath();
+    ctx.moveTo(w, s * 0.55);
+    ctx.lineTo(w, r + w / 2);
+    ctx.arcTo(w, w, r + w / 2, w, r);
+    ctx.lineTo(s * 0.55, w);
+    ctx.strokeStyle = white(0.85);
+    ctx.lineWidth = Math.max(0.75, w * 0.35);
+    ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
   },
@@ -808,6 +924,245 @@ const WIRE: Skin = {
   },
 };
 
+// ── Glass ───────────────────────────────────────────────────────
+
+const GLASS_COLORS: Palette = {
+  I: '#5ad2ff',
+  O: '#ffd060',
+  T: '#b78bff',
+  S: '#5fe3a1',
+  Z: '#ff6b7f',
+  J: '#6a8dff',
+  L: '#ffa25c',
+  garbage: '#8c919c',
+};
+
+/**
+ * Glass: thick, dark-tinted liquid glass. Opaque enough to read on any
+ * background; the light lives on the rim: a bright specular lip on top,
+ * colour refracting along the far edges and a glint on the outer corners.
+ */
+const GLASS: Skin = {
+  id: 'glass',
+  name: 'Liquid Glass',
+  description: 'Thick tinted glass with a living rim of light.',
+  palette: fixed(GLASS_COLORS),
+  connected: true,
+  bleed: 0,
+  ghostAlpha: 1,
+  blend: 'normal',
+  fxBlend: 'add',
+  particle: 'dot',
+  flash: '#ffffff',
+  sound: 'glass',
+  grid: 'dots',
+  paint(ctx, size, color, mask) {
+    const pad = Math.max(1, Math.round(size * 0.05));
+    const s = shape(size, mask, pad, size * 0.34);
+    const w = Math.max(1, size * 0.03);
+    ctx.save();
+    clipCell(ctx, s, 0);
+    shapePath(ctx, s);
+    ctx.fillStyle = shade(color, -0.42);
+    ctx.fill();
+    ctx.save();
+    shapePath(ctx, s);
+    ctx.clip();
+    // Only thin bands that fade along the outline: anything deeper restarts in
+    // every cell and shows the seams, and a hard switch between rim styles
+    // reads as a cut where the corner meets the side.
+    const tint = (a: number) => rgba(color, a);
+    edgeBand(ctx, s, 'down', size * 0.14, tint, 0.85);
+    edgeBand(ctx, s, 'right', size * 0.1, tint, 0.5);
+    edgeBand(ctx, s, 'up', size * 0.12, white, 0.22);
+    // Rim light: bright along the top, the colour's own light along the bottom.
+    edgeBand(ctx, s, 'up', w * 2.2, white, 0.75);
+    edgeBand(ctx, s, 'down', w * 2.2, (a) => rgba(GLASS_TINT[color] ?? '#ffffff', a), 0.8);
+    ctx.restore();
+    carveNotches(ctx, s);
+    // One continuous hairline around the whole piece.
+    const inset = { ...s, x0: s.x0 + w / 2, y0: s.y0 + w / 2, x1: s.x1 - w / 2, y1: s.y1 - w / 2 };
+    ctx.strokeStyle = white(0.42);
+    ctx.lineWidth = w;
+    shapePath(ctx, inset, size);
+    ctx.stroke();
+    strokeNotches(ctx, s, w / 2);
+    ctx.restore();
+  },
+  paintGhost: connectedGhost(0.035, 0.6, 0.1, 0.34),
+};
+
+/** A lighter version of each glass colour for the refracted rim. */
+const GLASS_TINT: Record<string, string> = Object.fromEntries(
+  Object.values(GLASS_COLORS).map((c) => [c, mix(c, '#ffffff', 0.45)]),
+);
+
+function mix(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (n: number, shift: number) => (n >> shift) & 255;
+  const c = [16, 8, 0].map((sh) => Math.round(ch(pa, sh) + (ch(pb, sh) - ch(pa, sh)) * t));
+  return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+// ── Brut ────────────────────────────────────────────────────────
+
+const BRUT_COLORS: Palette = {
+  I: '#8aa2aa',
+  O: '#c9b48a',
+  T: '#958aa0',
+  S: '#8b9e82',
+  Z: '#b07d70',
+  J: '#727f97',
+  L: '#bb9673',
+  garbage: '#4a4a4c',
+};
+
+/**
+ * Brut: béton brut. Pigmented cast concrete with hard arrises, formwork
+ * joints between the cells of a piece, air pits and one tie hole per panel.
+ */
+const BRUT: Skin = {
+  id: 'brut',
+  name: 'Brut',
+  description: 'Raw cast concrete. Formwork joints and tie holes.',
+  palette: fixed(BRUT_COLORS),
+  connected: true,
+  bleed: 0,
+  ghostAlpha: 1,
+  blend: 'normal',
+  fxBlend: 'normal',
+  particle: 'square',
+  flash: '#f2efe8',
+  sound: 'wood',
+  grid: 'lines',
+  paint(ctx, size, color, mask, kind) {
+    const pad = Math.max(1, Math.round(size * 0.035));
+    const s = shape(size, mask, pad, 0);
+    const seed = KIND_SEED[kind];
+    ctx.save();
+    clipCell(ctx, s, 0);
+    shapePath(ctx, s);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.save();
+    shapePath(ctx, s);
+    ctx.clip();
+    // Cement laitance: blotchy, cloudy, with darker water stains.
+    mottle(ctx, size, { seed, scale: 2, light: 0.16, dark: 0.22, contrast: 1.4, darkColor: '#1d1b18' });
+    mottle(ctx, size, { seed: seed + 3, scale: 8, octaves: 2, light: 0.1, dark: 0.12 });
+    grain(ctx, size, 0.25, 0.1, 0.12);
+    pits(ctx, size, seed, Math.round(size / 9), size * 0.018, 0.55);
+    // Formwork joints where this panel meets the next one of the same pour.
+    const j = Math.max(1, size * 0.018);
+    ctx.fillStyle = black(0.2);
+    if (mask & RIGHT) ctx.fillRect(size - j, 0, j, size);
+    if (mask & DOWN) ctx.fillRect(0, size - j, size, j);
+    ctx.fillStyle = white(0.06);
+    if (mask & LEFT) ctx.fillRect(0, 0, j, size);
+    if (mask & UP) ctx.fillRect(0, 0, size, j);
+    // Tie hole: a cone-shaped recess with a lit lower lip.
+    const c = size / 2;
+    const hr = size * 0.07;
+    ctx.beginPath();
+    ctx.arc(c, c + hr * 0.25, hr * 1.25, 0, Math.PI * 2);
+    ctx.fillStyle = white(0.12);
+    ctx.fill();
+    const hole = ctx.createRadialGradient(c, c - hr * 0.3, 0, c, c, hr * 1.15);
+    hole.addColorStop(0, black(0.75));
+    hole.addColorStop(0.7, black(0.45));
+    hole.addColorStop(1, black(0));
+    ctx.fillStyle = hole;
+    ctx.beginPath();
+    ctx.arc(c, c, hr * 1.15, 0, Math.PI * 2);
+    ctx.fill();
+    // Hard arrises: chipped light on top, heavy shade beneath.
+    edgeBand(ctx, s, 'up', size * 0.07, white, 0.2);
+    edgeBand(ctx, s, 'left', size * 0.05, white, 0.1);
+    edgeBand(ctx, s, 'down', size * 0.16, black, 0.4);
+    edgeBand(ctx, s, 'right', size * 0.1, black, 0.25);
+    ctx.restore();
+    carveNotches(ctx, s);
+    const w = Math.max(1, size * 0.02);
+    strokeBand(ctx, s, 'top', white(0.3), w);
+    strokeBand(ctx, s, 'bottom', black(0.5), w);
+    ctx.restore();
+  },
+  paintGhost: connectedGhost(0.04, 0.5, 0.08, 0),
+};
+
+// ── Corten ──────────────────────────────────────────────────────
+
+const CORTEN_COLORS: Palette = {
+  I: '#ec8a45',
+  O: '#f9d39b',
+  T: '#b24d1f',
+  S: '#d0662a',
+  Z: '#8f3716',
+  J: '#6b2a12',
+  L: '#f5a83e',
+  garbage: '#3b2419',
+};
+
+/**
+ * Corten: weathering steel in every tone of orange. Heavy plates with rust
+ * bloom, rain runoff that runs down through the piece, pitting and a hard,
+ * cut edge.
+ */
+const CORTEN: Skin = {
+  id: 'corten',
+  name: 'Corten',
+  description: 'Weathering steel. Every tone of rust.',
+  palette: fixed(CORTEN_COLORS),
+  connected: true,
+  bleed: 0,
+  ghostAlpha: 1,
+  blend: 'normal',
+  fxBlend: 'add',
+  particle: 'square',
+  flash: '#ffd9a8',
+  sound: 'wood',
+  grid: 'lines',
+  paint(ctx, size, color, mask, kind) {
+    const pad = Math.max(1, Math.round(size * 0.035));
+    const s = shape(size, mask, pad, size * 0.03);
+    const seed = KIND_SEED[kind];
+    ctx.save();
+    clipCell(ctx, s, 0);
+    shapePath(ctx, s);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.save();
+    shapePath(ctx, s);
+    ctx.clip();
+    // Rust bloom: deep oxide patches and bright, powdery orange.
+    mottle(ctx, size, { seed, scale: 2, light: 0.18, dark: 0.26, contrast: 1.5, lightColor: '#ffc078', darkColor: '#3a1406' });
+    mottle(ctx, size, { seed: seed + 7, scale: 6, octaves: 3, light: 0.14, dark: 0.18, contrast: 1.3, lightColor: '#ffd8a0', darkColor: '#2a0e04' });
+    streaks(ctx, size, seed, 4, '#2a0e04', 0.16);
+    streaks(ctx, size, seed + 1, 3, '#ffb060', 0.12);
+    grain(ctx, size, 0.3, 0.1, 0.16);
+    pits(ctx, size, seed + 2, Math.round(size / 12), size * 0.014, 0.5);
+    // Plates are welded where cells meet: a dark seam with a bright bead.
+    const j = Math.max(1, size * 0.016);
+    ctx.fillStyle = black(0.18);
+    if (mask & RIGHT) ctx.fillRect(size - j, 0, j, size);
+    if (mask & DOWN) ctx.fillRect(0, size - j, size, j);
+    ctx.fillStyle = 'rgba(255,190,120,0.14)';
+    if (mask & LEFT) ctx.fillRect(0, 0, j, size);
+    if (mask & UP) ctx.fillRect(0, 0, size, j);
+    edgeBand(ctx, s, 'up', size * 0.08, (a) => `rgba(255,214,160,${a})`, 0.3);
+    edgeBand(ctx, s, 'down', size * 0.18, black, 0.45);
+    edgeBand(ctx, s, 'right', size * 0.1, black, 0.22);
+    ctx.restore();
+    carveNotches(ctx, s);
+    const w = Math.max(1, size * 0.022);
+    strokeBand(ctx, s, 'top', 'rgba(255,220,170,0.55)', w);
+    strokeBand(ctx, s, 'bottom', black(0.55), w);
+    ctx.restore();
+  },
+  paintGhost: connectedGhost(0.04, 0.55, 0.08, 0.03),
+};
+
 export const SKINS: Record<SkinId, Skin> = {
   studio: STUDIO,
   clay: CLAY,
@@ -821,8 +1176,27 @@ export const SKINS: Record<SkinId, Skin> = {
   nes: NES,
   gameboy: GAMEBOY,
   mono: MONO,
+  glass: GLASS,
+  brut: BRUT,
+  corten: CORTEN,
 };
-export const SKIN_ORDER: SkinId[] = ['studio', 'clay', 'gem', 'crystal', 'neon', 'aurora', 'ember', 'bevel', 'wire', 'nes', 'gameboy', 'mono'];
+export const SKIN_ORDER: SkinId[] = [
+  'studio',
+  'glass',
+  'clay',
+  'gem',
+  'crystal',
+  'neon',
+  'aurora',
+  'ember',
+  'brut',
+  'corten',
+  'bevel',
+  'wire',
+  'nes',
+  'gameboy',
+  'mono',
+];
 
 export function hexToNumber(hex: string): number {
   return parseInt(hex.slice(1), 16);
