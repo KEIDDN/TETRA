@@ -47,6 +47,8 @@ export interface AppearanceSettings {
   actionText: boolean;
   /** No strobes on drops, softer flashes everywhere (photosensitivity). */
   reduceFlashing: boolean;
+  /** Scene resolution; auto adapts to keep the game smooth. */
+  sceneQuality: 'auto' | 'high' | 'medium' | 'low';
 }
 
 export type GridMode = 'auto' | 'lines' | 'dots' | 'off';
@@ -92,7 +94,7 @@ export const MAX_BINDINGS = 2;
 export const DEFAULT_SETTINGS: Settings = {
   developer: false,
   experience: true,
-  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, background: 'full', actionText: true, reduceFlashing: false },
+  appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, background: 'full', actionText: true, reduceFlashing: false, sceneQuality: 'auto' },
   audio: { enabled: true, volume: 0.7, movement: 0.8, pack: 'match', music: 0.5, musicMode: 'skin', output: 'speakers', club: true, dj: true },
   keyboard: {
     handling: DEFAULT_HANDLING,

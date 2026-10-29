@@ -3,9 +3,10 @@ import { Container, Geometry, Mesh, RenderTexture, Shader, Sprite, type Renderer
 import { fragment, VERTEX } from './common.glsl';
 import * as SCENES from './scenes.glsl';
 
-export type SceneId = 'clay' | 'gem' | 'crystal' | 'neon' | 'aurora' | 'ember' | 'bevel' | 'wire' | 'nes' | 'gameboy' | 'mono';
+export type SceneId = 'studio' | 'clay' | 'gem' | 'crystal' | 'neon' | 'aurora' | 'ember' | 'bevel' | 'wire' | 'nes' | 'gameboy' | 'mono';
 
 const SOURCES: Record<SceneId, { glsl: string; pixel?: boolean }> = {
+  studio: { glsl: SCENES.STUDIO },
   clay: { glsl: SCENES.CLAY },
   gem: { glsl: SCENES.GEM },
   crystal: { glsl: SCENES.CRYSTAL },
@@ -28,12 +29,8 @@ const PULSES = 8;
 /** Scenes are soft light: half resolution is indistinguishable and a quarter of the work. */
 const SCALE = 0.5;
 
-export interface AudioBands {
-  low: number;
-  mid: number;
-  high: number;
-  beat: number;
-}
+import type { AudioBands } from '../../audio/music';
+export type { AudioBands };
 
 /**
  * A full-screen shader behind the board. It speaks the same language as the
@@ -54,8 +51,13 @@ export class ShaderScene {
   private danger = 0;
   private dangerTarget = 0;
   private flare = 0;
-  private audio: AudioBands = { low: 0, mid: 0, high: 0, beat: 0 };
+  private audio: AudioBands = { low: 0, mid: 0, high: 0, beat: 0, kick: 0, hat: 0, beatInBar: 0, phrase: 0, phraseIndex: 0, drop: 0, build: 0, breakdown: false };
+  /** Strobes on drops; switched off by Reduce flashing. */
+  strobes = true;
+  private strobeUntil = -1;
   private size = { w: 1, h: 1 };
+  private board = { x: 0, y: 0, w: 0, h: 0 };
+  private scale = SCALE;
 
   constructor(
     readonly id: SceneId,
@@ -84,6 +86,8 @@ export class ShaderScene {
           uPal: { value: new Float32Array(7 * 4), type: 'vec4<f32>', size: 7 },
           uPulse: { value: new Float32Array(PULSES * 4), type: 'vec4<f32>', size: PULSES },
           uPulseCol: { value: new Float32Array(PULSES * 4), type: 'vec4<f32>', size: PULSES },
+          uMusic: { value: [0, 0, 0, 0], type: 'vec4<f32>' },
+          uClock: { value: [0, 0, 0, 0], type: 'vec4<f32>' },
         },
       },
     });
@@ -100,12 +104,13 @@ export class ShaderScene {
   /** Same arguments as the lattice; the scene covers the whole canvas. */
   layout(w: number, h: number, cell: number, board: { x: number; y: number; w: number; h: number }): void {
     this.size = { w, h };
+    this.board = board;
     this.u.uRes = [w, h];
     this.u.uCell = cell;
     this.u.uBoard = [board.x, board.y, board.w, board.h];
-    this.mesh.scale.set(w * SCALE, h * SCALE);
+    this.mesh.scale.set(w * this.scale, h * this.scale);
     this.target?.destroy(true);
-    this.target = RenderTexture.create({ width: Math.max(1, Math.ceil(w * SCALE)), height: Math.max(1, Math.ceil(h * SCALE)), resolution: 1 });
+    this.target = RenderTexture.create({ width: Math.max(1, Math.ceil(w * this.scale)), height: Math.max(1, Math.ceil(h * this.scale)), resolution: 1 });
     this.target.source.scaleMode = SOURCES[this.id].pixel ? 'nearest' : 'linear';
     this.sprite.texture = this.target;
     this.sprite.setSize(w, h);
@@ -140,6 +145,13 @@ export class ShaderScene {
     this.audio = bands;
   }
 
+  /** Render resolution as a fraction of the screen (auto quality lowers it on slow devices). */
+  setScale(scale: number): void {
+    if (scale === this.scale) return;
+    this.scale = scale;
+    this.layout(this.size.w, this.size.h, this.u.uCell as number, this.board);
+  }
+
   update(dt: number): void {
     const s = Math.min(0.05, dt / 1000);
     this.time += s;
@@ -155,7 +167,13 @@ export class ShaderScene {
     this.u.uEnergy = this.energy;
     this.u.uDanger = this.danger;
     this.u.uFlare = this.flare;
-    this.u.uAudio = [this.audio.low, this.audio.mid, this.audio.high, this.audio.beat];
+    const a = this.audio;
+    this.u.uAudio = [a.low, a.mid, a.high, a.beat];
+    // Strobes: one bar of flashes on every beat right after a drop, nothing else.
+    if (a.drop > 0.97 && this.strobeUntil < this.time) this.strobeUntil = this.time + (4 * 60) / 126;
+    const strobe = this.strobes && this.time < this.strobeUntil ? Math.pow(a.beat, 6) : 0;
+    this.u.uMusic = [a.kick, a.hat, a.drop, a.build];
+    this.u.uClock = [a.beatInBar, a.phrase, a.phraseIndex % 64, strobe];
     if (this.target) this.renderer.render({ container: this.mesh, target: this.target, clear: true });
   }
 

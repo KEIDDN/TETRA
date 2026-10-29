@@ -1,32 +1,54 @@
 /**
- * One fragment per skin. Each defines `vec3 scene(vec2 px)` in CSS pixels;
- * `finish` (common.glsl.ts) darkens the board, adds danger and caps brightness.
- * Base light sits around 0.03–0.08; reactions push it toward the cap.
+ * One fragment per skin. Each defines `vec3 scene(vec2 px)` in CSS pixels.
+ * They share the club toolkit (common.glsl.ts: haze, beam, laser, truss,
+ * rig, look) so every skin is its own room in the same club; `finish`
+ * darkens the board, adds danger and the strobe, and caps brightness.
+ * Base light sits around 0.03–0.08; the rig, the kick and the drop push it up.
  */
 
-/** Pastel blobs drifting very slowly, like light through frosted glass. */
+/** The house room: raw concrete, a truss of white moving heads. */
+export const STUDIO = /* glsl */ `
+vec3 scene(vec2 px) {
+  vec2 uv = px / uRes;
+  float h = haze(px);
+  vec3 c = vec3(0.03, 0.03, 0.035) * (0.4 + 0.6 * uv.y) * h;
+  float r = rig();
+  vec3 white = vec3(0.95, 0.96, 1.0);
+  vec3 cool = mix(white, pal(0), 0.25);
+  c += truss(px, -uCell * 0.6, 7, 0.9, 0.35, uCell * 0.8, white, cool) * h * 0.2 * r;
+  // On the drop the second truss fires from the floor.
+  c += truss(px, uRes.y + uCell, 5, 0.7, -0.5, uCell * 1.0, cool, white) * h * 0.13 * uMusic.z;
+  // A wash on the back wall that pumps with the kick.
+  c += white * exp(-pow((uv.y - 0.15) / 0.25, 2.0)) * 0.03 * (0.4 + uMusic.x);
+  c += pulseColor(px) * 0.25;
+  return c;
+}
+`;
+
+/** Soft pastel light through frosted glass, and wide pastel washes when the music asks. */
 export const CLAY = /* glsl */ `
 vec3 scene(vec2 px) {
   float aspect = uRes.x / uRes.y;
   vec2 p = px / uRes.y;
   vec3 c = vec3(0.0);
-  float t = uTime * (0.6 + uEnergy * 0.8);
+  float t = uTime * (0.6 + uEnergy * 0.8 + uMusic.z * 1.5);
   for (int i = 0; i < 7; i++) {
     float fi = float(i);
     vec2 ctr = vec2(aspect * 0.5, 0.5) + vec2(sin(t * 0.045 * (1.0 + fi * 0.13) + fi * 2.1) * aspect * 0.42, cos(t * 0.037 * (1.0 + fi * 0.17) + fi * 1.3) * 0.42);
-    float r = 0.24 + 0.05 * sin(t * 0.1 + fi) + uAudio.x * 0.04;
+    float r = 0.24 + 0.05 * sin(t * 0.1 + fi) + uMusic.x * 0.05;
     float d = length(p - ctr);
     c += pal(i) * exp(-d * d / (r * r)) * 0.07;
   }
+  float h = haze(px);
+  c += (beam(px, vec2(0.0, -uCell), 0.6 + sin(uTime * 0.2) * 0.2, uCell * 5.0, 1.2) * pal(2) + beam(px, vec2(uRes.x, -uCell), -0.6 - sin(uTime * 0.17) * 0.2, uCell * 5.0, 1.2) * pal(0)) * h * 0.08 * (uMusic.z + uMusic.x * 0.4);
   c *= 1.0 + uEnergy * 0.5 + uFlare * 0.6;
   c += pulseColor(px) * 0.35;
   return c;
 }
 `;
 
-/** Rotating caustics and the odd glint, in the stones' colors. */
+/** A mirror ball over caustics: glints sweep the room, colored beams cut the haze. */
 export const GEM = /* glsl */ `
-// Ridged noise, warped: bright veins like light through a cut stone.
 float caustic(vec2 p, float t) {
   float v = 0.0;
   for (int i = 0; i < 3; i++) {
@@ -41,25 +63,28 @@ float caustic(vec2 p, float t) {
 vec3 scene(vec2 px) {
   vec2 p = (px - uRes * 0.5) / uCell * 0.35;
   p = rot(uTime * 0.02) * p;
-  float t = uTime * (0.25 + uEnergy * 0.3);
-  float k = caustic(p, t);
-  float hue = fract(atan(p.y, p.x) / (2.0 * PI) + uTime * 0.01);
-  vec3 tint = mix(pal(0), pal(5), hue);
-  tint = mix(tint, pal(2), smoothstep(0.4, 1.0, hue));
-  vec3 c = tint * k * (0.07 + uAudio.y * 0.05 + uFlare * 0.06);
-  // Glints: sparse cells that flare briefly.
-  vec2 g = floor(px / (uCell * 1.5));
-  float h = hash(g);
-  float tw = pow(max(0.0, sin(uTime * (0.7 + h * 1.6) + h * 40.0)), 40.0) * step(0.86, h);
-  vec2 f = fract(px / (uCell * 1.5)) - 0.5;
-  float star = max(0.0, 1.0 - length(f) * 6.0) + max(0.0, 1.0 - abs(f.x) * 40.0) * max(0.0, 1.0 - abs(f.y) * 4.0) * 0.4 + max(0.0, 1.0 - abs(f.y) * 40.0) * max(0.0, 1.0 - abs(f.x) * 4.0) * 0.4;
-  c += vec3(1.0) * star * tw * (0.35 + uAudio.z * 0.4);
+  float k = caustic(p, uTime * (0.25 + uEnergy * 0.3));
+  vec3 tint = mix(pal(0), pal(5), fract(atan(p.y, p.x) / 6.283 + uTime * 0.01));
+  vec3 c = tint * k * 0.05;
+  // The ball: hundreds of glints orbiting, brighter on the kick.
+  vec2 ball = vec2(uRes.x * 0.5, -uCell * 2.0);
+  float spin = uTime * (0.25 + uMusic.z * 0.4);
+  vec2 q = px - ball;
+  float ang = atan(q.x, q.y) + spin;
+  float rad = length(q) / uCell;
+  vec2 cell = vec2(floor(ang * 18.0), floor(rad * 0.9));
+  float hsh = hash(cell);
+  vec2 f = vec2(fract(ang * 18.0), fract(rad * 0.9)) - 0.5;
+  float glint = step(0.72, hsh) * exp(-dot(f, f) * 40.0) * (0.4 + 0.6 * sin(uTime * 3.0 + hsh * 30.0));
+  c += mix(vec3(1.0), pal(int(hsh * 7.0)), 0.4) * glint * (0.08 + uMusic.x * 0.12 + uMusic.z * 0.2);
+  float h = haze(px);
+  c += truss(px, -uCell * 0.6, 4, 1.1, 0.5, uCell * 1.2, pal(0), pal(5)) * h * 0.13 * rig();
   c += pulseColor(px) * 0.3;
   return c;
 }
 `;
 
-/** Large refracting facets; clears scatter the spectrum. */
+/** Prisms: every beam breaks into the spectrum as it crosses the haze. */
 export const CRYSTAL = /* glsl */ `
 vec3 scene(vec2 px) {
   vec2 p = px / (uCell * 6.0) + vec2(uTime * 0.015, uTime * 0.008);
@@ -73,84 +98,101 @@ vec3 scene(vec2 px) {
     if (d < d1) { d2 = d1; d1 = d; id = ip + o; } else if (d < d2) d2 = d;
   }
   float edge = 1.0 - smoothstep(0.0, 0.06, sqrt(d2) - sqrt(d1));
-  float h = hash(id);
-  vec3 face = spectrum(h + px.x / uRes.x * 0.3 + uTime * 0.01) * (0.015 + 0.03 * h);
-  vec3 c = face + vec3(0.75, 0.85, 1.0) * edge * (0.05 + uAudio.z * 0.05);
-  c *= 1.0 + uEnergy * 0.6;
-  // Pulses split into a rainbow across their width.
+  float hsh = hash(id);
+  vec3 c = spectrum(hsh + uTime * 0.01) * (0.008 + 0.015 * hsh) + vec3(0.75, 0.85, 1.0) * edge * (0.012 + uMusic.y * 0.02);
+  // Prism beams: three sweeping lights, each a fan of colors side by side.
+  float h = haze(px);
+  float r = rig();
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    vec2 o = vec2(uRes.x * (0.2 + 0.3 * fi), -uCell);
+    float a = sin(uTime * (0.3 + fi * 0.07) + fi * 2.0 + uClock.z) * 0.55;
+    for (int k = 0; k < 5; k++) {
+      float fk = float(k) / 4.0;
+      c += spectrum(fk * 0.8 + fi * 0.2) * beam(px, o, a + (fk - 0.5) * 0.09, uCell * 0.55, 1.0) * h * 0.08 * r;
+    }
+  }
   for (int i = 0; i < 8; i++) {
     vec3 pc;
     float f = ringAt(px, i, pc);
     if (f <= 0.0) continue;
     float d = length(px - uPulse[i].xy) / (60.0 + uPulse[i].w * 14.0);
-    c += spectrum(d * 0.35 + h * 0.2) * f * 0.22;
+    c += spectrum(d * 0.35 + hsh * 0.2) * f * 0.2;
   }
-  c += spectrum(uTime * 0.05) * uFlare * 0.04;
   return c;
 }
 `;
 
-/** A perspective grid running to the horizon, pumping with the bass. */
+/** The synthwave floor and a fan of lasers from the horizon, sweeping with the phrase. */
 export const NEON = /* glsl */ `
 vec3 scene(vec2 px) {
   vec2 uv = px / uRes;
   float horizon = 0.46;
   vec3 a = pal(5), b = pal(2);
   vec3 c = vec3(0.0);
-  float speed = 0.35 + uLevel * 0.9 + uEnergy * 0.6 + uAudio.x * 0.25;
-  float glow = 0.11 + uAudio.x * 0.16 + uAudio.w * 0.12 + uFlare * 0.08;
+  float speed = 0.35 + uLevel * 0.9 + uEnergy * 0.6 + uMusic.x * 0.4 + uMusic.z * 1.2;
+  float glow = 0.09 + uAudio.x * 0.12 + uMusic.x * 0.1 + uMusic.z * 0.15;
   for (int side = 0; side < 2; side++) {
-    // Floor below the horizon, a fainter mirrored ceiling above it.
     float y = side == 0 ? uv.y - horizon : horizon - uv.y;
     if (y <= 0.0) continue;
     float z = 0.12 / y;
     float x = (uv.x - 0.5) * (uRes.x / uRes.y) * z * 3.0;
     float zz = z + uTime * speed;
-    // Distance to the nearest grid line, in screen pixels, drawn ~2px wide with a soft glow.
     float lx = (0.5 - abs(fract(x) - 0.5)) / fwidth(x);
     float lz = (0.5 - abs(fract(zz) - 0.5)) / fwidth(zz);
     float d = min(lx, lz);
     float line = exp(-d * d * 0.35) + exp(-d * 0.25) * 0.25;
     float fade = exp(-z * 0.35) * smoothstep(0.0, 0.08, y);
-    vec3 col = mix(a, b, smoothstep(0.0, 0.5, y));
-    c += col * line * fade * glow * (side == 0 ? 1.0 : 0.35);
+    c += mix(a, b, smoothstep(0.0, 0.5, y)) * line * fade * glow * (side == 0 ? 1.0 : 0.35);
   }
-  // Haze along the horizon.
-  c += mix(a, b, 0.5) * exp(-abs(uv.y - horizon) * 18.0) * (0.06 + uAudio.x * 0.05);
+  c += mix(a, b, 0.5) * exp(-abs(uv.y - horizon) * 18.0) * (0.06 + uAudio.x * 0.06);
+  // Lasers from the vanishing point: a fan that opens on the drop and stutters on the hats.
+  vec2 o = vec2(uRes.x * 0.5, uRes.y * horizon);
+  float l = look(7.0);
+  int n = 6 + int(uMusic.z * 8.0);
+  float open = 0.35 + uMusic.z * 0.9 + uMusic.w * 0.3;
+  for (int i = 0; i < 14; i++) {
+    if (i >= n) break;
+    float fi = float(i) / 13.0;
+    float ang = 3.14159 + (fi - 0.5) * open * 2.4 + sin(uTime * (0.4 + l) + fi * 3.0) * 0.25;
+    vec3 col = pal(int(mod(float(i) + uClock.z, 7.0)));
+    c += col * laser(px, o, ang) * (0.06 + uMusic.x * 0.08 + uMusic.y * 0.04 + uMusic.z * 0.12);
+  }
   c += pulseColor(px) * 0.3;
   return c;
 }
 `;
 
-/** Aurora curtains that wave; big clears light them up. */
+/** Aurora curtains overhead; on drops, soft beams rise through them. */
 export const AURORA = /* glsl */ `
 vec3 scene(vec2 px) {
   vec2 uv = px / uRes.y;
   vec3 c = vec3(0.0);
-  float t = uTime * (0.05 + uEnergy * 0.05);
+  float t = uTime * (0.05 + uEnergy * 0.05 + uMusic.z * 0.08);
   for (int i = 0; i < 4; i++) {
     float fi = float(i);
     float base = 0.25 + fi * 0.13;
     float curve = base + (fbm(vec2(uv.x * (0.9 + fi * 0.3) + t * (1.0 + fi * 0.4), fi * 7.0)) - 0.5) * 0.35;
     float above = curve - uv.y;
-    // Bright at the hem, rays fading upward.
     float hem = exp(-pow(above / 0.012, 2.0));
-    float rays = above > 0.0 ? exp(-above * (5.0 - uFlare)) * (0.55 + 0.45 * noise(vec2(uv.x * 60.0 + fi * 13.0, uTime * 0.4))) : exp(above * 60.0);
+    float rays = above > 0.0 ? exp(-above * (5.0 - uFlare - uMusic.z * 2.0)) * (0.55 + 0.45 * noise(vec2(uv.x * 60.0 + fi * 13.0, uTime * 0.4))) : exp(above * 60.0);
     vec3 col = mix(pal(3), pal(0), fi / 3.0);
     col = mix(col, pal(2), smoothstep(0.0, 0.25, above) * 0.6);
-    c += col * (hem * 0.6 + rays) * (0.022 + uAudio.y * 0.03 + uAudio.x * 0.015);
+    c += col * (hem * 0.6 + rays) * (0.02 + uAudio.y * 0.03 + uMusic.x * 0.015);
   }
+  float h = haze(px);
+  c += truss(px, uRes.y + uCell, 5, 0.6, 0.25, uCell * 2.4, pal(3), pal(0)) * h * 0.08 * (uMusic.z + uMusic.w * 0.5);
   c *= 1.0 + uFlare * 1.2 + uEnergy * 0.5;
   c += pulseColor(px) * 0.25;
   return c;
 }
 `;
 
-/** Embers and sparks rising from a warm floor; combos stoke it. */
+/** Smoke and warm light: amber beams from the floor, sparks rising, the combo stokes it. */
 export const EMBER = /* glsl */ `
 vec3 sparks(vec2 px, float scale, float speed, float seed) {
   vec2 p = px / (uCell * scale);
-  p.y += uTime * speed * (1.0 + uEnergy * 1.2);
+  p.y += uTime * speed * (1.0 + uEnergy * 1.2 + uMusic.z);
   p.x += sin(p.y * 0.35 + seed) * 0.6;
   vec2 cell = floor(p), f = fract(p) - 0.5;
   float h = hash(cell + seed);
@@ -158,131 +200,131 @@ vec3 sparks(vec2 px, float scale, float speed, float seed) {
   vec2 o = (hash2(cell + seed * 3.1) - 0.5) * 0.6;
   float d = length(f - o);
   float flicker = 0.6 + 0.4 * sin(uTime * (5.0 + h * 9.0) + h * 30.0);
-  float core = exp(-d * d * 90.0) * flicker;
-  return mix(vec3(1.0, 0.38, 0.08), vec3(1.0, 0.75, 0.35), h) * core;
+  return mix(vec3(1.0, 0.38, 0.08), vec3(1.0, 0.75, 0.35), h) * exp(-d * d * 90.0) * flicker;
 }
 vec3 scene(vec2 px) {
   vec2 uv = px / uRes;
-  float heat = 0.04 + uEnergy * 0.05 + uAudio.x * 0.06 + uAudio.w * 0.03 + uFlare * 0.04;
-  vec3 c = vec3(1.0, 0.28, 0.06) * pow(uv.y, 3.0) * heat;
-  c *= 0.7 + 0.3 * fbm(vec2(uv.x * 3.0, uTime * 0.15));
-  c += sparks(px, 2.2, 1.1, 1.0) * 0.18;
-  c += sparks(px, 1.4, 1.8, 7.0) * 0.12;
-  c += sparks(px, 0.8, 2.6, 13.0) * 0.08;
+  float smoke = fbm(px / (uCell * 4.0) + vec2(sin(uTime * 0.1), uTime * 0.12));
+  float heat = 0.03 + uEnergy * 0.04 + uMusic.x * 0.04 + uMusic.z * 0.02;
+  vec3 c = vec3(1.0, 0.28, 0.06) * pow(uv.y, 3.0) * heat * (0.6 + 0.6 * smoke);
+  c += sparks(px, 2.2, 1.1, 1.0) * 0.18 + sparks(px, 1.4, 1.8, 7.0) * 0.12 + sparks(px, 0.8, 2.6, 13.0) * 0.08;
+  // Floor cannons: amber beams up through the smoke.
+  vec3 amber = vec3(1.0, 0.55, 0.18);
+  c += truss(px, uRes.y + uCell * 0.5, 6, 0.8, 0.4, uCell * 0.9, amber, vec3(1.0, 0.3, 0.1)) * smoothstep(0.3, 0.8, smoke) * 0.16 * rig();
   c += pulseColor(px) * vec3(1.0, 0.6, 0.4) * 0.3;
   return c;
 }
 `;
 
-/** Drifting isometric geometry: the quietest one. */
+/** An isometric LED wall: tiles light in patterns that change every phrase. */
 export const BEVEL = /* glsl */ `
 vec3 scene(vec2 px) {
   float s = uCell * 2.0;
-  vec2 p = px / s + vec2(uTime * 0.04, uTime * 0.02);
-  // Axial coordinates of an isometric (rhombus) grid.
+  vec2 p = px / s + vec2(uTime * 0.03, uTime * 0.015);
   vec2 a = vec2(p.x / 0.866, p.y - p.x * 0.577);
   vec2 b = vec2(p.x / 0.866, p.y + p.x * 0.577);
   float line = 1.0 - smoothstep(0.0, 0.03, min(min(0.5 - abs(fract(a.y) - 0.5), 0.5 - abs(fract(b.y) - 0.5)), 0.5 - abs(fract(a.x) - 0.5)));
   vec2 id = floor(vec2(a.x, a.y + b.y));
   float h = hash(id);
-  float face = step(0.82, h) * (0.5 + 0.5 * sin(uTime * 0.3 + h * 20.0));
+  // Patterns: a sweep across the wall on the beat, a checker that flips on the kick, sparse random.
+  float l = look(11.0);
+  float beatPos = uClock.x / 4.0;
+  float on = l < 0.33 ? step(abs(fract(id.x * 0.08 - beatPos) - 0.5), 0.08)
+           : l < 0.66 ? step(0.5, mod(id.x + id.y + floor(uClock.x), 2.0)) * uMusic.x
+           : step(0.9 - uMusic.x * 0.1, h);
   vec3 tone = mix(pal(1), pal(5), h);
-  vec3 c = vec3(0.6, 0.65, 0.75) * line * 0.06 + tone * face * 0.03;
-  c *= 1.0 + uEnergy * 0.5 + uAudio.x * 0.3;
+  vec3 c = vec3(0.6, 0.65, 0.75) * line * 0.06 + tone * on * (0.07 + uMusic.x * 0.05 + uMusic.z * 0.1);
+  c *= 1.0 + uEnergy * 0.5;
   c += pulseField(px) * (vec3(0.8) * 0.03 + tone * line * 0.2);
   return c;
 }
 `;
 
-/** Wireframe cubes turning in the void, demoscene style. */
+/** A wireframe tunnel rushing at you, a frame per beat. */
 export const WIRE = /* glsl */ `
-float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
-vec2 proj(vec3 v, vec2 ctr, float size) { float z = 3.2 + v.z; return ctr + v.xy / z * size * 3.2; }
-float cube(vec2 px, vec2 ctr, float size, float t) {
-  float d = 1e9;
-  vec3 v[8];
-  for (int i = 0; i < 8; i++) {
-    vec3 q = vec3(float(i & 1) * 2.0 - 1.0, float((i >> 1) & 1) * 2.0 - 1.0, float((i >> 2) & 1) * 2.0 - 1.0);
-    q.xz = rot(t) * q.xz;
-    q.yz = rot(t * 0.7) * q.yz;
-    v[i] = q;
-  }
-  for (int i = 0; i < 8; i++) for (int k = 0; k < 3; k++) {
-    int j = i ^ (1 << k);
-    if (j > i) d = min(d, seg(px, proj(v[i], ctr, size), proj(v[j], ctr, size)));
-  }
-  return d;
+float frameDist(vec2 q, float r) {
+  vec2 d = abs(q) - vec2(r);
+  return abs(max(d.x, d.y));
 }
 vec3 scene(vec2 px) {
+  vec2 ctr = uBoard.xy + uBoard.zw * 0.5;
+  vec2 q = (px - ctr) / uRes.y;
+  q = rot(sin(uTime * 0.07) * 0.15 + uMusic.z * 0.2) * q;
   vec3 c = vec3(0.0);
-  float bx = uBoard.x, bw = uBoard.z;
-  for (int i = 0; i < 6; i++) {
+  // Travel speed follows the beat clock, so frames arrive on the kick.
+  float travel = uTime * 0.6 * (1.0 + uMusic.z * 1.5) + uMusic.x * 0.05;
+  for (int i = 0; i < 10; i++) {
     float fi = float(i);
-    float h = hash(vec2(fi, 3.0));
-    float side = mod(fi, 2.0) < 1.0 ? -1.0 : 1.0;
-    float room = side < 0.0 ? bx : uRes.x - bx - bw;
-    float x = side < 0.0 ? bx * (0.2 + 0.6 * h) : bx + bw + room * (0.2 + 0.6 * h);
-    float y = uRes.y * (0.15 + 0.7 * fract(h * 7.3 + uTime * 0.004 * (1.0 + fi)));
-    float size = uCell * (0.7 + h * 1.2) * (1.0 + uAudio.w * 0.16 + uAudio.x * 0.08);
-    float d = cube(px, vec2(x, y), size, uTime * (0.15 + h * 0.2) * (1.0 + uEnergy) + fi);
-    c += pal(i) * exp(-d * d / (1.6 + uFlare * 2.0)) * 0.22;
-    c += pal(i) * exp(-d * 0.08) * 0.012;
+    float z = fract(fi / 10.0 - travel * 0.25);
+    float r = 0.04 / max(z, 0.02);
+    float d = frameDist(q, r);
+    float w = 0.002 / max(z, 0.05);
+    float fade = smoothstep(0.0, 0.15, z) * (1.0 - z);
+    vec3 col = pal(int(mod(fi + uClock.z, 7.0)));
+    c += col * exp(-d * d / (w * w)) * fade * (0.08 + uMusic.x * 0.1 + uMusic.z * 0.15);
+    c += col * exp(-d / (w * 6.0)) * fade * 0.01;
   }
   c += pulseColor(px) * 0.25;
   return c;
 }
 `;
 
-/** An 8-bit starfield with parallax; faster at higher levels. */
+/** A pixel LED wall: equaliser bars and scrolling stars, every block a real pixel. */
 export const NES = /* glsl */ `
-vec3 stars(vec2 px, float block, float speed, float density, float seed) {
-  vec2 p = floor(px / block);
-  p.x += floor(uTime * speed * (1.0 + uLevel * 2.0 + uEnergy));
-  float h = hash(p + seed);
-  if (h < 1.0 - density) return vec3(0.0);
-  float tw = step(0.3, fract(uTime * (0.5 + h) + h * 9.0));
-  int k = int(floor(hash(p + seed + 1.0) * 7.0));
-  vec3 col = hash(p + 4.0) > 0.7 ? pal(k) : vec3(0.9);
-  return col * (0.4 + 0.6 * tw);
-}
 vec3 scene(vec2 px) {
   float b = max(2.0, floor(uCell / 8.0)) * 2.0;
-  vec3 c = stars(px, b, 6.0, 0.004, 1.0) * 0.05;
-  c += stars(px, b, 14.0, 0.006, 5.0) * 0.09;
-  c += stars(px, b * 2.0, 30.0, 0.003, 9.0) * 0.14;
-  // Pulses come out as blocky rings too.
-  vec2 q = (floor(px / b) + 0.5) * b;
-  c += pulseColor(q) * 0.3;
-  c *= 1.0 + uAudio.w * 0.4 + uFlare * 0.5;
+  vec2 cell = floor(px / b);
+  vec2 grid = floor(uRes / b);
+  // Stars scroll behind.
+  vec2 sp = cell;
+  sp.x += floor(uTime * (6.0 + uLevel * 12.0 + uMusic.z * 20.0));
+  float star = step(0.996, hash(sp)) * (0.5 + 0.5 * step(0.3, fract(uTime + hash(sp + 3.0))));
+  vec3 c = vec3(0.9) * star * 0.08;
+  // Equaliser: columns of blocks rising with the bands, palette colors, from the floor.
+  float colW = 3.0;
+  float col = floor(cell.x / colW);
+  float bandSel = mod(col, 3.0);
+  float level = bandSel < 1.0 ? uAudio.x : bandSel < 2.0 ? uAudio.y : uAudio.z;
+  level = level * (0.4 + 0.6 * hash(vec2(col, floor(uTime * 8.0)))) + uMusic.x * 0.2;
+  float rows = grid.y * (0.18 + uMusic.z * 0.2);
+  float lit = step(grid.y - cell.y, level * rows) * step(1.0, mod(cell.x, colW));
+  c += pal(int(mod(col, 7.0))) * lit * (0.07 + uMusic.z * 0.08);
+  vec2 qb = (cell + 0.5) * b;
+  c += pulseColor(qb) * 0.3;
   return c;
 }
 `;
 
-/** The four greens, a slow diagonal pattern like a handheld's menu. */
+/** The four greens on an LED wall: a slow diagonal pattern that steps on the beat. */
 export const GAMEBOY = /* glsl */ `
 vec3 scene(vec2 px) {
   float b = max(2.0, floor(uCell / 6.0)) * 2.0;
   vec2 p = floor(px / b);
-  vec2 s = p + floor(vec2(uTime * 3.0, uTime * 1.5) * (1.0 + uLevel));
-  // A checker of 4×4 tiles, each with a dithered diamond.
+  // Scroll in steps on the beat, not smoothly: like a handheld redraw.
+  float step4 = floor(uClock.x) + floor(uTime * 126.0 / 60.0 / 4.0) * 4.0;
+  vec2 s = p + vec2(step4 * 2.0, step4) * (1.0 + uLevel);
   vec2 tile = floor(s / 8.0), f = mod(s, 8.0) - 3.5;
-  float diamond = step(abs(f.x) + abs(f.y), 3.0 + 1.0 * sin(uTime * 0.6 + tile.x * 0.7 + tile.y));
-  float shade = mod(tile.x + tile.y, 2.0) * 0.5 + diamond * 0.5;
-  shade += pulseField((p + 0.5) * b) * 0.8 + uAudio.w * 0.15 + uFlare * 0.3;
+  float diamond = step(abs(f.x) + abs(f.y), 2.0 + 2.0 * uMusic.x + sin(uTime * 0.6 + tile.x * 0.7 + tile.y));
+  float shade = mod(tile.x + tile.y, 2.0) * 0.4 + diamond * 0.5;
+  shade += pulseField((p + 0.5) * b) * 0.8 + uMusic.z * 0.3 + uFlare * 0.3;
   float level = floor(clamp(shade, 0.0, 1.0) * 3.0 + 0.5) / 3.0;
   vec3 c = mix(vec3(0.03, 0.06, 0.03), vec3(0.35, 0.5, 0.18), level);
-  return c * 0.12 * (1.0 + uEnergy * 0.4);
+  return c * 0.13 * (1.0 + uEnergy * 0.4);
 }
 `;
 
-/** Film grain and a soft halo around the board. Almost nothing, on purpose. */
+/** One white light from above, in thick fog. On the drop, two more join it. */
 export const MONO = /* glsl */ `
 vec3 scene(vec2 px) {
   vec2 ctr = uBoard.xy + uBoard.zw * 0.5;
-  float d = length((px - ctr) / vec2(uBoard.z * 1.6, uBoard.w * 0.9));
-  float halo = exp(-d * d * 1.6) * (0.05 + uAudio.x * 0.03 + uEnergy * 0.03 + uFlare * 0.04);
-  float grain = (hash(px + fract(uTime * 13.7) * 100.0) - 0.5) * 0.035;
-  float v = halo + grain + pulseField(px) * 0.08;
-  return vec3(v);
+  float h = haze(px);
+  float fog = 0.5 + 0.5 * fbm(px / (uCell * 3.0) + vec2(0.0, uTime * 0.08));
+  vec3 c = vec3(0.04) * fog;
+  float r = 0.4 + uMusic.x * 0.6 + uMusic.z;
+  c += vec3(beam(px, vec2(ctr.x, -uCell * 2.0), 0.0, uCell * 3.2, 1.4)) * fog * 0.22 * r;
+  c += vec3(beam(px, vec2(ctr.x - uBoard.z * 1.6, -uCell), 0.35, uCell * 2.0, 1.2) + beam(px, vec2(ctr.x + uBoard.z * 1.6, -uCell), -0.35, uCell * 2.0, 1.2)) * h * 0.18 * uMusic.z;
+  float grain = (hash(px + fract(uTime * 13.7) * 100.0) - 0.5) * 0.03;
+  c += vec3(grain) + vec3(pulseField(px) * 0.06);
+  return c;
 }
 `;

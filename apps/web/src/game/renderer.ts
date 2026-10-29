@@ -28,7 +28,15 @@ export interface RenderOptions {
   ambient: boolean;
   /** How strong the scene is when on. */
   background?: 'calm' | 'full';
+  /** No strobes on drops. */
+  reduceFlashing?: boolean;
+  /** Scene resolution: auto adapts to the device. */
+  sceneQuality?: SceneQuality;
 }
+
+export type SceneQuality = 'auto' | 'high' | 'medium' | 'low';
+/** Scene render scale per quality (fraction of the screen). */
+const QUALITY_SCALE = { high: 0.5, medium: 0.35, low: 0.25 };
 
 /** Brightness ceilings for scenes: they never compete with the board. */
 const SCENE_CAP = { calm: 0.11, full: 0.2 };
@@ -85,6 +93,10 @@ export class GameRenderer {
   private ambient: Lattice | null = null;
   /** Skins other than Studio have a shader scene instead of the lattice. */
   private scene: ShaderScene | null = null;
+  /** Auto quality: the scene's render scale, lowered while frames run long and raised when there is room. */
+  private autoScale = QUALITY_SCALE.high;
+  private frameTimes: number[] = [];
+  private qualityCheckAt = 0;
   private latticeDrawn = false;
 
   /** Block textures by kind, link mask and ghost flag, painted on first use. */
@@ -459,6 +471,10 @@ export class GameRenderer {
         this.layoutAmbient();
       }
       this.scene.setCap(cap);
+      const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      this.scene.strobes = !this.options.reduceFlashing && !reduceMotion;
+      const q = this.options.sceneQuality ?? 'auto';
+      this.scene.setScale(q === 'auto' ? this.autoScale : QUALITY_SCALE[q]);
       for (const k of ['I', 'O', 'T', 'S', 'Z', 'J', 'L'] as const) this.scene.palette[k] = hexToNumber(this.palette[k]);
     }
     if (!on || sceneId) {
@@ -477,6 +493,24 @@ export class GameRenderer {
   }
 
   /** The lattice continues the board grid: same spacing, same origin. */
+  /** The game always comes first: if frames run long, the scene gets cheaper; if there's room, it gets sharper. */
+  private adaptQuality(dt: number): void {
+    if (!this.scene || (this.options.sceneQuality ?? 'auto') !== 'auto') return;
+    this.frameTimes.push(dt);
+    if (this.frameTimes.length > 120) this.frameTimes.shift();
+    const now = performance.now();
+    if (this.frameTimes.length < 120 || now - this.qualityCheckAt < 2000) return;
+    this.qualityCheckAt = now;
+    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    const steps = [QUALITY_SCALE.high, QUALITY_SCALE.medium, QUALITY_SCALE.low];
+    const i = steps.indexOf(this.autoScale);
+    if (avg > 19 && i < steps.length - 1) this.autoScale = steps[i + 1];
+    else if (avg < 11 && i > 0) this.autoScale = steps[i - 1];
+    else return;
+    this.frameTimes = [];
+    this.scene.setScale(this.autoScale);
+  }
+
   private layoutAmbient(): void {
     if (this.scene && this.layout) {
       const { width, height, cell, boardX, boardY, boardW, boardH } = this.layout;
@@ -495,6 +529,7 @@ export class GameRenderer {
       this.scene.setDanger(this.dangerTarget);
       this.scene.setLevel((level - 1) / 19);
       this.scene.setAudio(music.analyse());
+      this.adaptQuality(dt);
       this.scene.update(dt);
       return;
     }
@@ -579,7 +614,9 @@ export class GameRenderer {
     this.glowLevel += (glowTarget - this.glowLevel) * Math.min(1, dt / 220);
     this.flash = Math.max(0, this.flash - dt / 420);
     this.glow.alpha = Math.min(1, this.glowLevel * 0.85 + this.flash * 0.7);
-    this.frameFlash.alpha = this.flash * 0.8;
+    // The frame breathes with the kick (the board itself never moves).
+    const kick = this.scene ? music.analyse().kick : 0;
+    this.frameFlash.alpha = Math.max(this.flash * 0.8, on ? kick * 0.22 : 0);
 
     this.danger += ((on ? this.dangerTarget : 0) - this.danger) * Math.min(1, dt / 300);
     this.dangerGlow.alpha = this.danger * (0.7 + 0.3 * Math.sin(now / 260));

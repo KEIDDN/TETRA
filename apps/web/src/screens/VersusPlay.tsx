@@ -88,6 +88,8 @@ export function VersusPlay({
           grid: resolveGrid(appearance.grid, skin),
           ambient: i === 0 && appearance.ambient && appearance.fx !== 'off',
           background: appearance.background,
+          reduceFlashing: appearance.reduceFlashing,
+          sceneQuality: appearance.sceneQuality,
         });
         const host = hosts[i].current!;
         const relayout = () => {

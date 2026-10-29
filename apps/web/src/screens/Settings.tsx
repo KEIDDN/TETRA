@@ -179,6 +179,19 @@ function AppearancePanel() {
             ]}
           />
         </Row>
+        <Row name="Scene quality" hint={appearance.sceneQuality === 'auto' ? 'Adapts to your device so the game always runs smooth' : 'Fixed resolution for the scenes'}>
+          <Segmented
+            small
+            value={appearance.sceneQuality}
+            onChange={(sceneQuality) => set({ sceneQuality })}
+            options={[
+              ['auto', 'Auto'],
+              ['high', 'High'],
+              ['medium', 'Med'],
+              ['low', 'Low'],
+            ]}
+          />
+        </Row>
         <ToggleRow
           name="Reduce flashing"
           hint="No strobes on drops and softer flashes. Recommended if you are sensitive to flashing lights"
