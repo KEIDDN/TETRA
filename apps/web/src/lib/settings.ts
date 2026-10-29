@@ -194,13 +194,13 @@ export function subscribeSettings(l: () => void): () => void {
   return () => listeners.delete(l);
 }
 
-/** The Experience as one switch: on brings back every part of it, off leaves a calm practice room. */
+/** The Experience as one switch: on brings back every part of it; off is Focus, a quiet practice room with no rooms and no club. */
 export function setExperience(on: boolean): void {
   updateSettings((s) => ({
     ...s,
     experience: on,
     audio: { ...s.audio, club: on, dj: on },
-    appearance: { ...s.appearance, ambient: on ? true : s.appearance.ambient, background: on ? 'full' : 'calm' },
+    appearance: { ...s.appearance, ambient: on, background: on ? 'full' : 'calm' },
   }));
 }
 

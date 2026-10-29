@@ -206,6 +206,11 @@ export class Club {
     this.applyFilter();
   }
 
+  /** Pages that shape the music themselves (the Experience): a lowpass in Hz, or null to open it again. */
+  setLowpass(hz: number | null): void {
+    this.filter.frequency.setTargetAtTime(hz ?? 20000, this.ctx.currentTime, hz ? 0.35 : 0.6);
+  }
+
   /** The game intro: the music opens from a muffled lowpass to full, landing on `seconds`. */
   sweep(seconds: number): void {
     if (!this.dj.enabled || seconds <= 0.2) return;

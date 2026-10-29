@@ -7,119 +7,149 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import type { AudioBands } from '../../audio/music';
 
+export type Formation = 'welcome' | 'index' | 'sound' | 'rooms' | 'play' | 'focus' | 'oxia' | 'mark';
+
 const TYPES: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
-const PIECES = 35;
-/** One in this many pieces is lit; the rest are graphite. */
-const LIT_EVERY = 4;
+const PIECES = 36;
+/** One piece in this many is porcelain; the rest are graphite. */
+const PORCELAIN_EVERY = 4;
 
 interface Piece {
-  type: PieceType;
   cells: [number, number][];
-  lit: boolean;
+  porcelain: boolean;
   seed: number;
-  color: THREE.Color;
+  pos: THREE.Vector3;
+  quat: THREE.Quaternion;
+  scale: number;
+  glow: number;
+  /** Each cell's offset within the piece, easing between its own shape and a square. */
+  offsets: THREE.Vector2[];
 }
 
 interface Pose {
   pos: THREE.Vector3;
   rot: THREE.Euler;
   scale: number;
+  glow: number;
+  /** Draw the piece as a 2×2 block (for the mark), not its own shape. */
+  square?: boolean;
 }
+
+const SQUARE: [number, number][] = [
+  [-0.5, 0.5],
+  [0.5, 0.5],
+  [-0.5, -0.5],
+  [0.5, -0.5],
+];
 
 function rand(seed: number): () => number {
   let s = seed >>> 0 || 1;
   return () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) ^ Math.imul(s ^ (s >>> 13), 3266489909)) >>> 0) / 2 ** 32;
 }
 
-/** The big T of the TETRA mark, as a grid of macro cells. */
+/** The T of the TETRA mark, as macro cells. */
 const MARK: [number, number][] = [
-  [-1, 1], [0, 1], [1, 1],
+  [-1, 1],
+  [0, 1],
+  [1, 1],
   [0, 0],
 ];
 
 /**
- * The Experience's stage: a few dozen tetrominoes in bevelled graphite and
- * light, that change formation as you scroll (scatter, rain, wall, speaker,
- * tunnel, helix, the TETRA mark) and move with the music.
+ * A satin material whose per-instance colour is light, not paint: the
+ * instance colour feeds emission, so any piece can glow on the beat while
+ * keeping its own shading.
+ */
+function glowMaterial(color: number, roughness: number, metalness: number): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ color, roughness, metalness });
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', '')
+      .replace('vec3 totalEmissiveRadiance = emissive;', 'vec3 totalEmissiveRadiance = emissive + vColor;');
+  };
+  return material;
+}
+
+/**
+ * The Experience's stage: monochrome tetrominoes in graphite and porcelain
+ * that settle into a formation per screen and move with the music. Every
+ * piece eases toward its pose, so changing screens never jumps or tears.
  */
 export class ExperienceScene {
   private renderer: THREE.WebGLRenderer;
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
-  private dark: THREE.InstancedMesh;
-  private lit: THREE.InstancedMesh;
-  private litMaterial: THREE.MeshBasicMaterial;
-  private key: THREE.SpotLight;
-  private core: THREE.PointLight;
-  private rim: THREE.DirectionalLight;
+  private camera = new THREE.PerspectiveCamera(34, 1, 1, 120);
+  private graphite: THREE.InstancedMesh;
+  private porcelain: THREE.InstancedMesh;
+  private key: THREE.DirectionalLight;
+  private fill: THREE.DirectionalLight;
   private pieces: Piece[] = [];
   private dummy = new THREE.Object3D();
+  private target = new THREE.Quaternion();
+  private color = new THREE.Color();
   private time = 0;
-  /** Scroll position in chapters (0 = hero). */
-  progress = 0;
-  bands: AudioBands | null = null;
   private raf = 0;
   private last = performance.now();
   private disposed = false;
-  private accents: THREE.Color[];
+  private beats = 0;
+  private lastBeat = 0;
+  formation: Formation = 'welcome';
+  /** Focus off: the room reacts to the music. On: everything settles and goes still. */
+  reactive = true;
+  bands: AudioBands | null = null;
 
-  constructor(
-    private host: HTMLElement,
-    palette: string[],
-  ) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  constructor(private host: HTMLElement) {
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1;
     this.renderer.setClearColor(0x000000, 1);
     host.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.display = 'block';
 
-    this.scene.fog = new THREE.FogExp2(0x000000, 0.035);
-    this.accents = palette.map((c) => new THREE.Color(c));
+    this.scene.fog = new THREE.Fog(0x000000, 18, 46);
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x000000, 0.35));
+    // A soft key from the upper left and a cool fill from behind: shading, never hotspots.
+    this.key = new THREE.DirectionalLight(0xffffff, 2.2);
+    this.key.position.set(-8, 10, 12);
+    this.fill = new THREE.DirectionalLight(0xdfe3ff, 0.9);
+    this.fill.position.set(10, -2, -8);
+    this.scene.add(this.key, this.fill);
 
-    // Lights: a hard key from above, a cold rim from behind, and a core that pumps with the kick.
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.12));
-    this.key = new THREE.SpotLight(0xffffff, 160, 60, 0.55, 0.5, 1.6);
-    this.key.position.set(-6, 14, 10);
-    this.scene.add(this.key, this.key.target);
-    this.rim = new THREE.DirectionalLight(0xe8e8f0, 1.4);
-    this.rim.position.set(6, 3, -12);
-    this.scene.add(this.rim);
-    this.core = new THREE.PointLight(0xedebfa, 20, 30, 2);
-    this.core.position.set(0, 0, -4);
-    this.scene.add(this.core);
-
-    const r = rand(7);
+    const r = rand(11);
     for (let i = 0; i < PIECES; i++) {
-      const type = TYPES[i % TYPES.length];
-      const lit = i % LIT_EVERY === 0;
       this.pieces.push({
-        type,
-        cells: SHAPES[type][0].map(([x, y]) => [x, y] as [number, number]),
-        lit,
+        cells: SHAPES[TYPES[i % TYPES.length]][0].map(([x, y]) => [x, y] as [number, number]),
+        porcelain: i % PORCELAIN_EVERY === 1,
         seed: r(),
-        color: this.accents[i % this.accents.length] ?? new THREE.Color(0xffffff),
+        pos: new THREE.Vector3((r() - 0.5) * 40, (r() - 0.5) * 24, -30),
+        quat: new THREE.Quaternion(),
+        scale: 1,
+        glow: 0,
+        offsets: SHAPES[TYPES[i % TYPES.length]][0].map(([x, y]) => new THREE.Vector2(x - 1, -y + 1)),
       });
     }
-    const darkCount = this.pieces.filter((p) => !p.lit).length * 4;
-    const litCount = this.pieces.filter((p) => p.lit).length * 4;
-    const box = new RoundedBoxGeometry(0.92, 0.92, 0.92, 3, 0.14);
-    // Graphite: dark, satin, catching the key light on its bevels.
-    const darkMaterial = new THREE.MeshPhysicalMaterial({ color: 0x1a1a1f, roughness: 0.42, metalness: 0.35, clearcoat: 0.7, clearcoatRoughness: 0.35 });
-    // Lit pieces are pure light in their own color: the bloom does the rest.
-    this.litMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    this.dark = new THREE.InstancedMesh(box, darkMaterial, darkCount);
-    this.lit = new THREE.InstancedMesh(box, this.litMaterial, litCount);
-    let li = 0;
-    for (const p of this.pieces) if (p.lit) for (let k = 0; k < 4; k++) this.lit.setColorAt(li++, p.color);
-    this.scene.add(this.dark, this.lit);
+    // Generous bevels with enough segments that highlights stay smooth.
+    const box = new RoundedBoxGeometry(0.9, 0.9, 0.9, 4, 0.16);
+    const count = (porcelain: boolean) => this.pieces.filter((p) => p.porcelain === porcelain).length * 4;
+    this.graphite = new THREE.InstancedMesh(box, glowMaterial(0x202024, 0.62, 0.15), count(false));
+    this.porcelain = new THREE.InstancedMesh(box, glowMaterial(0xcfcfd4, 0.48, 0), count(true));
+    for (const mesh of [this.graphite, this.porcelain]) {
+      for (let i = 0; i < mesh.count; i++) mesh.setColorAt(i, this.color.setScalar(0));
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+    }
 
-    this.composer = new EffectComposer(this.renderer);
+    // Multisampled target: the composer would otherwise lose antialiasing and the edges would stair-step.
+    const size = new THREE.Vector2();
+    this.renderer.getDrawingBufferSize(size);
+    const target = new THREE.WebGLRenderTarget(Math.max(1, size.x), Math.max(1, size.y), { samples: 4, type: THREE.HalfFloatType });
+    this.composer = new EffectComposer(this.renderer, target);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.85, 0.7, 0.62);
+    // Only real light blooms: the threshold sits above anything the lamps can make.
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.5, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -132,9 +162,11 @@ export class ExperienceScene {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.resize);
-    this.dark.geometry.dispose();
-    (this.dark.material as THREE.Material).dispose();
-    this.litMaterial.dispose();
+    this.graphite.geometry.dispose();
+    (this.graphite.material as THREE.Material).dispose();
+    (this.porcelain.material as THREE.Material).dispose();
+    this.composer.renderTarget1.dispose();
+    this.composer.renderTarget2.dispose();
     this.composer.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -150,145 +182,162 @@ export class ExperienceScene {
     this.camera.updateProjectionMatrix();
   };
 
-  // ── Formations ─────────────────────────────────────────────
-
-  /** Where piece i stands in chapter c (0 hero … 6 the mark). */
-  private pose(c: number, i: number, p: Piece, t: number): Pose {
-    const r = rand(i * 97 + c * 13 + 1);
-    const a = r(), b = r(), d = r();
-    const n = PIECES;
+  /** Where piece i wants to be in the current formation, and how much light it gives. */
+  private pose(i: number, p: Piece, t: number): Pose {
+    const r = rand(i * 97 + 1);
+    const a = r();
+    const b = r();
+    const d = r();
     const pos = new THREE.Vector3();
     const rot = new THREE.Euler();
     let scale = 1;
-    switch (c) {
-      case 0: {
-        // Scatter: a slow drifting field, deep and wide, around an empty centre.
-        const ang = a * Math.PI * 2 + t * 0.04 * (0.5 + b);
-        const rad = 6 + b * 9;
-        pos.set(Math.cos(ang) * rad * 1.2, (d - 0.5) * 12, -6 - Math.sin(ang) * rad);
-        rot.set(t * 0.2 * (a - 0.5) + a * 6, t * 0.15 * (b - 0.5) + b * 6, d * 6);
+    let glow = 0;
+    const kick = this.reactive ? (this.bands?.kick ?? 0) : 0;
+    const low = this.reactive ? (this.bands?.low ?? 0) : 0;
+    // Text sits left on wide screens, so compositions take the right.
+    const side = this.camera.aspect >= 1.2 ? 7 : 0;
+    switch (this.formation) {
+      case 'welcome': {
+        // A slow shell of pieces far behind the words, opening a clear centre.
+        const ang = a * Math.PI * 2 + t * 0.035 * (0.6 + b);
+        const rad = 11 + b * 8;
+        pos.set(Math.cos(ang) * rad * 1.35, Math.sin(ang) * rad * 0.75, -14 - d * 10);
+        rot.set(a * 6 + t * 0.08 * (a - 0.5), b * 6 + t * 0.06 * (b - 0.5), d * 6);
+        glow = p.porcelain ? 0.05 + kick * 0.25 : 0;
         break;
       }
-      case 1: {
-        // Rain: columns falling through the frame, endlessly.
-        const col = (i % 9) - 4;
-        const fall = ((t * (0.9 + a * 0.8) + b * 30) % 30) - 15;
-        pos.set(col * 2.6 + (a - 0.5), -fall, -8 - d * 8);
-        rot.set(0, 0, Math.floor(b * 4) * (Math.PI / 2));
+      case 'index': {
+        // A loose, drifting column on the right, like the wheel's echo.
+        const y = ((i / PIECES) * 2 - 1) * 9;
+        pos.set(side + 2 + Math.sin(t * 0.3 + i) * 1.5 + (a - 0.5) * 6, y + Math.sin(t * 0.2 + d * 6) * 0.6, -6 - b * 8);
+        rot.set(t * 0.1 + a * 6, t * 0.07 + b * 6, d * 6);
+        glow = p.porcelain ? 0.04 : 0;
         break;
       }
-      case 2: {
-        // The wall: pieces locked side by side into a stack behind the text.
-        const colW = 7;
-        const x = (i % colW) - (colW - 1) / 2;
-        const y = Math.floor(i / colW);
-        pos.set(x * 3.1, y * 2.25 - 5.5, -10);
-        rot.set(0, 0, (i % 2) * Math.PI);
-        break;
-      }
-      case 3: {
-        // The speaker: a ring facing you, its radius pumping with the bass.
-        const ang = (i / n) * Math.PI * 2 + t * 0.12;
-        const rad = 6.5 + (this.bands?.low ?? 0) * 1.6 + (this.bands?.kick ?? 0) * 0.8;
-        pos.set(Math.cos(ang) * rad, Math.sin(ang) * rad, -9);
+      case 'sound': {
+        // A speaker cone: two rings facing you, pumping with the bass.
+        const inner = i % 4 === 0;
+        const k = inner ? i / 4 : i - Math.floor(i / 4) - 1;
+        const n = inner ? PIECES / 4 : PIECES - PIECES / 4;
+        const ang = (k / n) * Math.PI * 2 + t * (inner ? -0.18 : 0.1);
+        const rad = (inner ? 3.6 : 7) + low * 0.8 + kick * (inner ? 0.6 : 0.3);
+        pos.set(side + Math.cos(ang) * rad, Math.sin(ang) * rad, -10 - (inner ? 0 : 2) + kick * (inner ? 0.8 : 0.3));
         rot.set(0, 0, ang + Math.PI / 2);
+        glow = inner ? 0.05 + kick * 0.7 : 0;
         break;
       }
-      case 4: {
-        // The tunnel: rings of pieces rushing past the camera.
-        const ring = i % 7;
-        const k = Math.floor(i / 7);
-        const ang = (ring / 7) * Math.PI * 2 + k * 0.45;
-        const z = ((k * 7 + t * 9) % 35) - 30;
-        pos.set(Math.cos(ang) * 5.2, Math.sin(ang) * 5.2, z);
-        rot.set(0, 0, ang);
+      case 'rooms': {
+        // An LED wall: pieces locked in a grid, light sweeping across on the beat.
+        const cols = 6;
+        const x = i % cols;
+        const y = Math.floor(i / cols);
+        pos.set(side + (x - (cols - 1) / 2) * 3.05, (y - 2.5) * 2.2, -11);
+        rot.set(0, 0, (i % 2) * Math.PI);
+        const sweep = this.reactive ? (this.beats + x) % cols : -1;
+        glow = sweep === 0 ? 1.1 + kick * 0.8 : sweep === 1 ? 0.25 : 0;
         break;
       }
-      case 5: {
-        // The helix: a double strand turning slowly.
-        const strand = i % 2;
-        const ang = (i / n) * Math.PI * 6 + t * 0.35 + strand * Math.PI;
-        pos.set(Math.cos(ang) * 4.2, (i / n) * 18 - 9, -8 + Math.sin(ang) * 4.2);
-        rot.set(ang, ang * 0.5, 0);
+      case 'play': {
+        // Pieces falling in columns, endlessly; each lands with a flash.
+        const col = (i % 6) - 2.5;
+        const speed = 1.2 + a * 0.6;
+        const fall = ((t * speed + b * 28) % 28) - 14;
+        pos.set(side + col * 2.6, -fall, -10 - d * 4);
+        rot.set(0, 0, Math.floor(b * 4) * (Math.PI / 2));
+        glow = fall > 9 && this.reactive ? 0.9 : 0;
+        break;
+      }
+      case 'focus': {
+        if (this.reactive) {
+          // Experience: the pieces orbit and breathe with the music.
+          const ang = (i / PIECES) * Math.PI * 2 + t * 0.25;
+          const rad = 5.5 + low * 1.5 + Math.sin(t * 0.7 + i) * 0.6;
+          pos.set(side + Math.cos(ang) * rad, Math.sin(ang * 2) * 3.2, -9 + Math.sin(ang) * rad * 0.6);
+          rot.set(ang + t * 0.3, ang * 0.5, t * 0.2 * (a - 0.5));
+          glow = p.porcelain ? 0.1 + kick * 0.7 : 0;
+        } else {
+          // Focus: a quiet, ordered stack. Nothing moves, nothing glows.
+          const cols = 6;
+          const x = i % cols;
+          const y = Math.floor(i / cols);
+          pos.set(side + (x - (cols - 1) / 2) * 3.05, (y - 2.5) * 2.2, -12);
+          rot.set(0, 0, (i % 2) * Math.PI);
+        }
         break;
       }
       default: {
-        // The mark: the TETRA T. Each of its four cells is a tight 3×3 block of pieces, lit in the house colors.
-        const cell = MARK[i % MARK.length];
-        const k = Math.floor(i / MARK.length);
-        const off = [(k % 3) - 1, Math.floor(k / 3) % 3 - 1];
-        // Right of the text on wide screens, above it on tall ones.
-        const wide = this.camera.aspect >= 1;
-        pos.set(cell[0] * 6.2 + off[0] * 1.9 + (wide ? 12 : 0), cell[1] * 6.2 + off[1] * 1.3 + (wide ? -1.5 : 9), -12);
+        // The mark: the TETRA T built from minos. Every piece folds into a 2×2 block;
+        // nine blocks make each of the T's four cells. Centred above the words, or
+        // to the right of them on the OXIA page.
+        const cell = MARK[Math.floor(i / 9)];
+        const k = i % 9;
+        const page = this.formation === 'mark';
+        const unit = page ? 0.36 : 0.34;
+        const block = 2 * unit;
+        const macro = 3 * block + unit * 1.2;
+        const centre = page ? new THREE.Vector3(side ? 10 : 0, -0.5, -12) : new THREE.Vector3(0, 4.2, -8);
+        pos.set(centre.x + cell[0] * macro + ((k % 3) - 1) * block, centre.y + (cell[1] - 0.5) * macro + (Math.floor(k / 3) - 1) * block, centre.z);
         rot.set(0, 0, 0);
-        scale = 0.42;
+        scale = unit;
+        const wave = this.reactive ? (this.beats + Math.floor(i / 9)) % 4 : -1;
+        glow = (p.porcelain ? 0.12 : 0) + (wave === 0 ? 0.35 + kick * 0.5 : 0);
+        return { pos, rot, scale, glow, square: true };
       }
     }
-    // The text lives on the left: formations that sit still take the right side of the frame.
-    if ((c === 2 || c === 3 || c === 5) && this.camera.aspect >= 1) pos.x += 6;
-    // Every piece breathes a little; lit ones swell on the kick.
-    const kick = this.bands?.kick ?? 0;
-    if (p.lit) scale *= 1 + kick * 0.12;
-    return { pos, rot, scale };
+    return { pos, rot, scale, glow };
   }
 
   private frame = (now: number): void => {
     if (this.disposed) return;
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
-    this.time += dt;
+    // Time slows almost to a stop in Focus.
+    this.time += dt * (this.reactive ? 1 : 0.15);
     const t = this.time;
-    const bands = this.bands;
-    const c0 = Math.max(0, Math.min(6, Math.floor(this.progress)));
-    const c1 = Math.min(6, c0 + 1);
-    const f = this.progress - c0;
-    const blend = f * f * (3 - 2 * f);
-
-    let di = 0;
-    let li = 0;
-    const q0 = new THREE.Quaternion();
-    const q1 = new THREE.Quaternion();
+    if (this.bands?.beat && this.bands.beat > 0.9 && now - this.lastBeat > 200) {
+      this.lastBeat = now;
+      this.beats++;
+    }
+    // Critically damped approach: a fixed fraction per second, never overshooting.
+    const follow = 1 - Math.exp(-dt * 3.2);
+    const glowFollow = 1 - Math.exp(-dt * 14);
+    let gi = 0;
+    let pi = 0;
     this.pieces.forEach((p, i) => {
-      const a = this.pose(c0, i, p, t);
-      const b = this.pose(c1, i, p, t);
-      const pos = a.pos.clone().lerp(b.pos, blend);
-      q0.setFromEuler(a.rot);
-      q1.setFromEuler(b.rot);
-      q0.slerp(q1, blend);
-      const scale = a.scale + (b.scale - a.scale) * blend;
-      // Hats make the lit pieces shiver a hair.
-      if (p.lit && bands) pos.y += Math.sin(t * 40 + p.seed * 10) * bands.hat * 0.04;
-      for (const [cx, cy] of p.cells) {
-        this.dummy.position.set(cx - 1, -cy + 1, 0).applyQuaternion(q0).multiplyScalar(scale).add(pos);
-        this.dummy.quaternion.copy(q0);
-        this.dummy.scale.setScalar(scale);
+      const pose = this.pose(i, p, t);
+      p.pos.lerp(pose.pos, follow);
+      this.target.setFromEuler(pose.rot);
+      p.quat.slerp(this.target, follow);
+      p.scale += (pose.scale - p.scale) * follow;
+      p.glow += (pose.glow - p.glow) * glowFollow;
+      p.cells.forEach(([cx, cy], k) => {
+        const [sx, sy] = pose.square ? SQUARE[k] : [cx - 1, -cy + 1];
+        p.offsets[k].x += (sx - p.offsets[k].x) * follow;
+        p.offsets[k].y += (sy - p.offsets[k].y) * follow;
+      });
+      const mesh = p.porcelain ? this.porcelain : this.graphite;
+      this.color.setScalar(p.glow);
+      for (const o of p.offsets) {
+        this.dummy.position.set(o.x, o.y, 0).applyQuaternion(p.quat).multiplyScalar(p.scale).add(p.pos);
+        this.dummy.quaternion.copy(p.quat);
+        this.dummy.scale.setScalar(p.scale);
         this.dummy.updateMatrix();
-        if (p.lit) this.lit.setMatrixAt(li++, this.dummy.matrix);
-        else this.dark.setMatrixAt(di++, this.dummy.matrix);
+        const index = p.porcelain ? pi++ : gi++;
+        mesh.setMatrixAt(index, this.dummy.matrix);
+        mesh.setColorAt(index, this.color);
       }
     });
-    this.dark.instanceMatrix.needsUpdate = true;
-    this.lit.instanceMatrix.needsUpdate = true;
+    for (const mesh of [this.graphite, this.porcelain]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+    const kick = this.reactive ? (this.bands?.kick ?? 0) : 0;
+    this.key.intensity = 2 + kick * 0.6;
+    this.bloom.strength = this.reactive ? 0.5 + kick * 0.3 : 0.25;
 
-    // Light follows the music: the core pumps with the kick, everything opens on the drop.
-    const kick = bands?.kick ?? 0;
-    const drop = bands?.drop ?? 0;
-    this.core.intensity = 12 + kick * 60 + drop * 80;
-    this.litMaterial.color.setScalar(0.75 + kick * 0.9 + drop * 1.2);
-    this.bloom.strength = 0.6 + kick * 0.35 + drop * 0.6;
-    this.key.intensity = 120 + (bands?.low ?? 0) * 80;
-
-    // The camera glides between chapters and drifts a little, never still.
-    const cams: [number, number, number][] = [
-      [0, 0, 14], [2, 3, 12], [0, 1, 11], [0, 0, 10], [0, 0, 6], [5, 2, 12], [0, 0, 18],
-    ];
-    const ca = cams[c0], cb = cams[c1];
-    this.camera.position.set(
-      ca[0] + (cb[0] - ca[0]) * blend + Math.sin(t * 0.13) * 0.6,
-      ca[1] + (cb[1] - ca[1]) * blend + Math.cos(t * 0.11) * 0.4,
-      ca[2] + (cb[2] - ca[2]) * blend,
-    );
-    this.camera.lookAt(0, 0, -8);
+    // The camera floats a little, never still, never far.
+    this.camera.position.set(Math.sin(t * 0.13) * 0.5, Math.cos(t * 0.11) * 0.35, 16);
+    this.camera.lookAt(0, 0, -6);
     this.composer.render(dt);
     this.raf = requestAnimationFrame(this.frame);
   };

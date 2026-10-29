@@ -53,9 +53,11 @@ export function Home({
   onCups,
   onProfile,
   onExperience,
+  onOxia,
   onSettings,
 }: {
   onExperience: () => void;
+  onOxia: () => void;
   onProfile: (section?: ProfileSection) => void;
   onPlay: (mode: ModeId) => void;
   onVersus: () => void;
@@ -114,6 +116,9 @@ export function Home({
         <header className="flex h-[min(96px,12vh)] shrink-0 items-center justify-between">
           <Logo large />
           <div className="flex items-center gap-5">
+            <button data-nav onClick={onOxia} className={`hidden rounded-full px-2 py-2 text-[13px] font-medium text-muted transition-colors hover:text-fg md:block ${focusRing}`}>
+              Why TETRA
+            </button>
             <button
               data-nav
               onClick={onExperience}

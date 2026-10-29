@@ -19,6 +19,7 @@ import { Bracket } from './screens/Bracket';
 import { Profile, type ProfileSection } from './screens/Profile';
 import { MusicLab } from './screens/MusicLab';
 import { Experience } from './screens/Experience';
+import { Oxia } from './screens/Oxia';
 import { load } from './lib/storage';
 import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
@@ -29,6 +30,7 @@ type Screen =
   | { name: 'play'; mode: ModeId; back?: 'musiclab' }
   | { name: 'musiclab' }
   | { name: 'experience'; firstRun?: boolean; back?: 'settings' }
+  | { name: 'oxia' }
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
   | { name: 'editor'; id?: string }
@@ -108,7 +110,16 @@ export function App() {
       );
       break;
     case 'experience':
-      content = <Experience firstRun={screen.firstRun} onDone={() => (screen.back ? setScreen({ name: 'settings' }) : home())} />;
+      content = (
+        <Experience
+          firstRun={screen.firstRun}
+          onDone={() => (screen.back ? setScreen({ name: 'settings' }) : home())}
+          onOxia={() => setScreen({ name: 'oxia' })}
+        />
+      );
+      break;
+    case 'oxia':
+      content = <Oxia onBack={home} onExperience={() => setScreen({ name: 'experience' })} />;
       break;
     case 'musiclab':
       content = (
@@ -175,6 +186,7 @@ export function App() {
           onCups={() => setScreen({ name: 'cups' })}
           onProfile={(section) => setScreen({ name: 'profile', section })}
           onExperience={() => setScreen({ name: 'experience' })}
+          onOxia={() => setScreen({ name: 'oxia' })}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );
@@ -185,7 +197,7 @@ export function App() {
       <div key={screen.name} className="animate-fade min-h-full">
         {content}
       </div>
-      {!['play', 'match', 'bout', 'experience'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
+      {!['play', 'match', 'bout', 'experience', 'oxia'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
       <Toasts />
     </>
   );
