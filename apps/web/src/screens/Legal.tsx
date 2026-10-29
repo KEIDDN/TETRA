@@ -134,7 +134,7 @@ function Privacy() {
       <Section title="Bug reports">
         <p>
           If you send a report from the game, we receive what you write, your email if you add it, and, if you leave the box ticked, technical details
-          (TETRA version, device, browser, screen size, skin and settings). It's stored in our database and delivered to our inbox by <b>FormSubmit</b>. We
+          (TETRA version, device, browser, screen size, skin and settings). It's stored in our database and delivered to our inbox by an email form service (<b>Web3Forms</b> or <b>FormSubmit</b>). We
           use it only to fix TETRA and to reply to you.
         </p>
       </Section>

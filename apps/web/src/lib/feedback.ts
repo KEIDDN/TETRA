@@ -6,6 +6,12 @@ import { supabase } from './supabase';
 
 /** Where reports land as email. */
 export const FEEDBACK_EMAIL = 'oxialabs.audio@gmail.com';
+/**
+ * Web3Forms access key for FEEDBACK_EMAIL (free, from web3forms.com). While it's
+ * empty, reports are emailed through FormSubmit instead. Public by design: it
+ * can only send to that one inbox.
+ */
+const WEB3FORMS_KEY = '';
 
 export type ReportKind = 'bug' | 'visual' | 'idea' | 'other';
 
@@ -63,17 +69,16 @@ export async function sendReport(report: Report): Promise<string | null> {
       .map(([k, v]) => `${k}: ${v}`)
       .join('\n')}`,
   ].filter(Boolean);
-  const mailed = fetch(`https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
+  const subject = `TETRA ${__APP_VERSION__} · ${KIND_NAMES[report.kind]}: ${report.message.trim().slice(0, 60)}`;
+  const reply = report.contact.trim() ? { email: report.contact.trim() } : {};
+  const mailed = fetch(WEB3FORMS_KEY ? 'https://api.web3forms.com/submit' : `https://formsubmit.co/ajax/${FEEDBACK_EMAIL}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({
-      _subject: `TETRA ${__APP_VERSION__} · ${KIND_NAMES[report.kind]}: ${report.message.trim().slice(0, 60)}`,
-      _template: 'box',
-      _captcha: 'false',
-      ...(report.contact.trim() ? { email: report.contact.trim() } : {}),
-      Type: KIND_NAMES[report.kind],
-      Report: lines.join('\n'),
-    }),
+    body: JSON.stringify(
+      WEB3FORMS_KEY
+        ? { access_key: WEB3FORMS_KEY, subject, from_name: 'TETRA bug reports', ...reply, type: KIND_NAMES[report.kind], message: lines.join('\n') }
+        : { _subject: subject, _template: 'box', _captcha: 'false', ...reply, Type: KIND_NAMES[report.kind], Report: lines.join('\n') },
+    ),
   })
     .then((r) => r.ok)
     .catch(() => false);
