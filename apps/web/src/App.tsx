@@ -18,6 +18,8 @@ import { TournamentBuilder } from './screens/TournamentBuilder';
 import { Bracket } from './screens/Bracket';
 import { Profile, type ProfileSection } from './screens/Profile';
 import { MusicLab } from './screens/MusicLab';
+import { Experience } from './screens/Experience';
+import { load } from './lib/storage';
 import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
 
@@ -26,6 +28,7 @@ type Screen =
   | { name: 'home' }
   | { name: 'play'; mode: ModeId; back?: 'musiclab' }
   | { name: 'musiclab' }
+  | { name: 'experience'; firstRun?: boolean; back?: 'settings' }
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
   | { name: 'editor'; id?: string }
@@ -37,7 +40,8 @@ type Screen =
   | { name: 'bout'; r: number; i: number };
 
 export function App() {
-  const [screen, setScreen] = useState<Screen>({ name: 'home' });
+  // The very first launch opens on the Experience, which ends by asking headphones or speakers.
+  const [screen, setScreen] = useState<Screen>(() => (load('onboarded', false) ? { name: 'home' } : { name: 'experience', firstRun: true }));
   const home = () => setScreen({ name: 'home' });
 
   // Music follows the screen: one continuous menu track, the skin's track in a game.
@@ -65,7 +69,14 @@ export function App() {
       content = <Play key={screen.mode} mode={screen.mode} onExit={screen.back ? () => setScreen({ name: screen.back! }) : home} />;
       break;
     case 'settings':
-      content = <Settings initialTab={screen.tab} onBack={home} onMusicLab={() => setScreen({ name: 'musiclab' })} />;
+      content = (
+        <Settings
+          initialTab={screen.tab}
+          onBack={home}
+          onMusicLab={() => setScreen({ name: 'musiclab' })}
+          onExperience={() => setScreen({ name: 'experience', back: 'settings' })}
+        />
+      );
       break;
     case 'versus':
       content = (
@@ -95,6 +106,9 @@ export function App() {
           onNext={(botId) => setScreen({ name: 'match', botId, firstTo: screen.firstTo })}
         />
       );
+      break;
+    case 'experience':
+      content = <Experience firstRun={screen.firstRun} onDone={() => (screen.back ? setScreen({ name: 'settings' }) : home())} />;
       break;
     case 'musiclab':
       content = (
@@ -160,6 +174,7 @@ export function App() {
           onVersus={() => setScreen({ name: 'versus' })}
           onCups={() => setScreen({ name: 'cups' })}
           onProfile={(section) => setScreen({ name: 'profile', section })}
+          onExperience={() => setScreen({ name: 'experience' })}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );
@@ -170,7 +185,7 @@ export function App() {
       <div key={screen.name} className="animate-fade min-h-full">
         {content}
       </div>
-      {!['play', 'match', 'bout'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
+      {!['play', 'match', 'bout', 'experience'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
       <Toasts />
     </>
   );

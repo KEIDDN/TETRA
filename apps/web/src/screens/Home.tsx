@@ -51,8 +51,10 @@ export function Home({
   onVersus,
   onCups,
   onProfile,
+  onExperience,
   onSettings,
 }: {
+  onExperience: () => void;
   onProfile: (section?: ProfileSection) => void;
   onPlay: (mode: ModeId) => void;
   onVersus: () => void;
@@ -111,6 +113,15 @@ export function Home({
         <header className="flex h-[min(96px,12vh)] shrink-0 items-center justify-between">
           <Logo large />
           <div className="flex items-center gap-5">
+            <button
+              data-nav
+              onClick={onExperience}
+              className={`exp-pill hidden items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium md:flex ${focusRing}`}
+              title="What is the TETRA Experience"
+            >
+              <span className="exp-dot size-1.5 rounded-full" />
+              Experience
+            </button>
             <button data-nav onClick={() => onProfile()} className={`-my-1 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-white/[0.06] ${focusRing}`} aria-label="Profile">
               <LevelChip />
             </button>
