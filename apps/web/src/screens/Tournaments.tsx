@@ -16,6 +16,7 @@ import {
   type Cup,
 } from '../lib/tournament';
 import { SKINS, type SkinId } from '../game/skins';
+import { Icon } from '../ui/Icon';
 import { BotEmblem } from '../ui/BotEmblem';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
@@ -35,7 +36,11 @@ export function Tournaments({ onBack, onBracket, onCustom }: { onBack: () => voi
 
   return (
     <div className="fixed inset-0 overflow-y-auto">
-      <div aria-hidden className="pointer-events-none fixed inset-0" style={{ background: 'radial-gradient(60% 50% at 80% 0%, #ffb84a14, transparent 70%)' }} />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0"
+        style={{ background: 'radial-gradient(60% 50% at 80% 0%, #ffb84a14, transparent 70%)' }}
+      />
       <div className="relative mx-auto flex min-h-full w-full max-w-[1320px] flex-col px-6 sm:px-10">
         <header className="flex h-24 shrink-0 items-center justify-between">
           <button
@@ -43,7 +48,9 @@ export function Tournaments({ onBack, onBracket, onCustom }: { onBack: () => voi
             onClick={onBack}
             className={`-ml-4 rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors hover:text-fg focus-visible:text-fg ${focusRing}`}
           >
-            ← Back <span className="label ml-2">Esc</span>
+            <span className="flex items-center gap-2">
+              <Icon name="back" size={11} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+            </span>
           </button>
           <span className="label">Tournaments</span>
         </header>
@@ -85,7 +92,9 @@ export function Tournaments({ onBack, onBracket, onCustom }: { onBack: () => voi
               <div className="label">Custom</div>
               <div className="mt-2 text-[30px] font-medium tracking-[-0.03em]">Build a bracket</div>
               <p className="mt-1 text-[14px] text-muted">
-                {customUnlocked() ? '4, 8 or 16 seats. Any bots, yours included. Pick the format of every round.' : 'Win any cup to open custom brackets.'}
+                {customUnlocked()
+                  ? '4, 8 or 16 seats. Any bots, yours included. Pick the format of every round.'
+                  : 'Win any cup to open custom brackets.'}
               </p>
             </div>
             <span className="label">{customUnlocked() ? 'Open →' : 'Locked'}</span>
@@ -116,9 +125,16 @@ function CupCard({ cup, index, onEnter }: { cup: Cup; index: number; onEnter: ()
       disabled={!open}
       onClick={onEnter}
       className={`animate-rise group relative flex min-h-[360px] flex-col overflow-hidden rounded-[36px] bg-gradient-to-b from-[#1a1a1d] to-[#101012] p-8 text-left transition-transform duration-300 ease-spring enabled:hover:-translate-y-1 disabled:opacity-60 ${focusRing}`}
-      style={{ animationDelay: `${80 + index * 50}ms`, boxShadow: `inset 0 0 0 1px ${tint}${open ? '33' : '14'}, 0 40px 100px -60px ${tint}${open ? '88' : '00'}` }}
+      style={{
+        animationDelay: `${80 + index * 50}ms`,
+        boxShadow: `inset 0 0 0 1px ${tint}${open ? '33' : '14'}, 0 40px 100px -60px ${tint}${open ? '88' : '00'}`,
+      }}
     >
-      <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full opacity-60 blur-3xl" style={{ background: `${tint}${open ? '26' : '0c'}` }} />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full opacity-60 blur-3xl"
+        style={{ background: `${tint}${open ? '26' : '0c'}` }}
+      />
       <div className="relative flex items-center justify-between">
         <span className="label" style={{ color: open ? tint : undefined }}>
           {['I', 'II', 'III'][cup.tier]} · {['Beginner', 'Intermediate', 'Expert'][cup.tier]}

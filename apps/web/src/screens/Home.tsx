@@ -13,6 +13,7 @@ import { AmbientBackground } from '../ui/AmbientBackground';
 import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
 import { LevelChip } from '../ui/LevelChip';
 import { ModeWheel } from '../ui/ModeWheel';
+import { Icon } from '../ui/Icon';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
 import { skinLocked } from '../lib/tournament';
@@ -116,8 +117,14 @@ export function Home({
         <header className="flex h-[min(96px,12vh)] shrink-0 items-center justify-between">
           <Logo large />
           <div className="flex items-center gap-5">
-            <button data-nav onClick={onOxia} className={`hidden rounded-full px-2 py-2 text-[13px] font-medium text-muted transition-colors hover:text-fg md:block ${focusRing}`}>
-              Why TETRA
+            <button
+              data-nav
+              onClick={onOxia}
+              className={`hidden rounded-full px-2 py-2 text-[13px] font-medium text-muted transition-colors hover:text-fg md:block ${focusRing}`}
+            >
+              <span className="flex items-center gap-2">
+                <Icon name="info" size={11} /> Why TETRA
+              </span>
             </button>
             <button
               data-nav
@@ -128,7 +135,12 @@ export function Home({
               <span className="exp-dot size-1.5 rounded-full" />
               Experience
             </button>
-            <button data-nav onClick={() => onProfile()} className={`-my-1 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-white/[0.06] ${focusRing}`} aria-label="Profile">
+            <button
+              data-nav
+              onClick={() => onProfile()}
+              className={`-my-1 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-white/[0.06] ${focusRing}`}
+              aria-label="Profile"
+            >
               <LevelChip />
             </button>
             {padKind && (
@@ -140,8 +152,9 @@ export function Home({
             <button
               data-nav
               onClick={() => onSettings()}
-              className={`glass rounded-full px-5 py-2 text-[14px] font-medium ${focusRing}`}
+              className={`glass flex items-center gap-2 rounded-full px-5 py-2 text-[14px] font-medium ${focusRing}`}
             >
+              <Icon name="settings" size={12} />
               Settings
             </button>
           </div>
@@ -156,7 +169,9 @@ export function Home({
                 selected={selected}
                 label={entryName}
                 extra={(id) =>
-                  id === 'cups' ? <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold tracking-normal text-black">New</span> : null
+                  id === 'cups' ? (
+                    <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold tracking-normal text-black">New</span>
+                  ) : null
                 }
                 onSelect={select}
                 onActivate={activate}
@@ -164,7 +179,10 @@ export function Home({
               />
             </div>
 
-            <div key={selected} className="animate-fade mt-[min(40px,3.5vh)] flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-[min(24px,3vh)]">
+            <div
+              key={selected}
+              className="animate-fade mt-[min(40px,3.5vh)] flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-[min(24px,3vh)]"
+            >
               <p className="min-w-[220px] flex-1 text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
               {selected === 'versus' || selected === 'cups' ? (
                 <>
@@ -182,7 +200,10 @@ export function Home({
             </div>
           </div>
 
-          <div ref={showcaseRef} className="animate-rise relative mx-auto hidden aspect-[4/5] w-full max-w-[460px] [animation-delay:200ms] lg:block lg:max-h-[min(66vh,620px)]">
+          <div
+            ref={showcaseRef}
+            className="animate-rise relative mx-auto hidden aspect-[4/5] w-full max-w-[460px] [animation-delay:200ms] lg:block lg:max-h-[min(66vh,620px)]"
+          >
             <div className="absolute inset-0 overflow-hidden rounded-[48px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.18)] backdrop-blur-xl">
               <DemoBoard
                 mode={selected === 'cups' ? 'versus' : selected}
@@ -223,7 +244,11 @@ export function Home({
             <SkinArrow label="Previous skin" onClick={() => cycleSkin(-1)}>
               ‹
             </SkinArrow>
-            <button onClick={() => onProfile('skins')} className={`group min-w-[120px] rounded-full px-3 py-1.5 text-center transition-colors hover:bg-white/[0.06] ${focusRing}`} title="All skins">
+            <button
+              onClick={() => onProfile('skins')}
+              className={`group min-w-[120px] rounded-full px-3 py-1.5 text-center transition-colors hover:bg-white/[0.06] ${focusRing}`}
+              title="All skins"
+            >
               <span className="label mr-2">Skin</span>
               <span key={skin.id} className="animate-fade text-[14px] font-medium">
                 {skin.name}
@@ -266,7 +291,7 @@ function VersionTaps() {
   };
   return (
     <button onClick={onTap} className="label select-none">
-      v0.8
+      v0.9
     </button>
   );
 }

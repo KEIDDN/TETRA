@@ -5,6 +5,7 @@ import { toProfile, useCustomBots } from '../lib/customBots';
 import { useMenuNav } from '../lib/nav';
 import { startTournament, type Seeding } from '../lib/tournament';
 import { BotEmblem } from '../ui/BotEmblem';
+import { Icon } from '../ui/Icon';
 import { Row, Section, Segmented, ToggleRow } from '../ui/controls';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
@@ -60,7 +61,9 @@ export function TournamentBuilder({ onBack, onStart }: { onBack: () => void; onS
       <div className="relative mx-auto w-full max-w-[1120px] px-6 pb-20 sm:px-10">
         <header className="flex h-24 items-center justify-between">
           <button data-nav onClick={onBack} className={`-ml-4 rounded-full px-4 py-2 text-[14px] font-medium text-muted hover:text-fg ${focusRing}`}>
-            ← Back <span className="label ml-2">Esc</span>
+            <span className="flex items-center gap-2">
+              <Icon name="back" size={11} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+            </span>
           </button>
           <span className="label">Custom bracket</span>
         </header>
@@ -81,17 +84,31 @@ export function TournamentBuilder({ onBack, onStart }: { onBack: () => void; onS
                 {roster.map((bot) => {
                   const n = count(bot.id);
                   return (
-                    <div key={bot.id} className="flex items-center gap-3 rounded-[18px] px-3 py-2" style={{ background: n ? `${bot.color}14` : undefined }}>
+                    <div
+                      key={bot.id}
+                      className="flex items-center gap-3 rounded-[18px] px-3 py-2"
+                      style={{ background: n ? `${bot.color}14` : undefined }}
+                    >
                       <BotEmblem bot={bot} size={34} glow={n > 0} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[15px] font-medium">{bot.name}</div>
                         <div className="label">{bot.id.startsWith('custom-') ? 'Custom' : `Level ${bot.level}`}</div>
                       </div>
-                      <button data-nav onClick={() => remove(bot.id)} disabled={!n} className={`size-8 rounded-full text-[18px] text-muted enabled:hover:bg-white/10 disabled:opacity-20 ${focusRing}`}>
+                      <button
+                        data-nav
+                        onClick={() => remove(bot.id)}
+                        disabled={!n}
+                        className={`size-8 rounded-full text-[18px] text-muted enabled:hover:bg-white/10 disabled:opacity-20 ${focusRing}`}
+                      >
                         −
                       </button>
                       <span className="tabular w-4 text-center text-[14px]">{n}</span>
-                      <button data-nav onClick={() => add(bot.id)} disabled={picks.length >= seats} className={`size-8 rounded-full text-[18px] text-muted enabled:hover:bg-white/10 disabled:opacity-20 ${focusRing}`}>
+                      <button
+                        data-nav
+                        onClick={() => add(bot.id)}
+                        disabled={picks.length >= seats}
+                        className={`size-8 rounded-full text-[18px] text-muted enabled:hover:bg-white/10 disabled:opacity-20 ${focusRing}`}
+                      >
                         +
                       </button>
                     </div>
@@ -107,12 +124,24 @@ export function TournamentBuilder({ onBack, onStart }: { onBack: () => void; onS
               <Row name="Size">
                 <Segmented value={size} onChange={resize} options={SIZES.map((s) => [s, s])} />
               </Row>
-              <ToggleRow name="Play in it" hint="Off to just watch the bots" value={withYou} onChange={(v) => {
-                setWithYou(v);
-                setPicks((p) => p.slice(0, Number(size) - (v ? 1 : 0)));
-              }} />
+              <ToggleRow
+                name="Play in it"
+                hint="Off to just watch the bots"
+                value={withYou}
+                onChange={(v) => {
+                  setWithYou(v);
+                  setPicks((p) => p.slice(0, Number(size) - (v ? 1 : 0)));
+                }}
+              />
               <Row name="Seeding" hint={seeding === 'level' ? 'Strongest meet last' : 'Anyone can meet anyone'}>
-                <Segmented value={seeding} onChange={setSeeding} options={[['level', 'Level'], ['random', 'Random']]} />
+                <Segmented
+                  value={seeding}
+                  onChange={setSeeding}
+                  options={[
+                    ['level', 'Level'],
+                    ['random', 'Random'],
+                  ]}
+                />
               </Row>
             </Section>
 
@@ -130,7 +159,12 @@ export function TournamentBuilder({ onBack, onStart }: { onBack: () => void; onS
             </Section>
 
             <div className="mt-8 flex gap-3">
-              <button data-nav onClick={fill} disabled={picks.length >= seats} className={`glass flex-1 rounded-full py-3.5 text-[15px] font-medium disabled:opacity-40 ${focusRing}`}>
+              <button
+                data-nav
+                onClick={fill}
+                disabled={picks.length >= seats}
+                className={`glass flex-1 rounded-full py-3.5 text-[15px] font-medium disabled:opacity-40 ${focusRing}`}
+              >
                 Fill randomly
               </button>
               <button

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { music } from '../audio/music';
 import { useMenuNav } from '../lib/nav';
+import { Icon } from '../ui/Icon';
 import type { ExperienceScene } from '../ui/experience/ExperienceScene';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
@@ -37,14 +38,19 @@ export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperienc
   return (
     <div className="fixed inset-0 overflow-y-auto bg-black text-fg">
       <div ref={stage} className="fixed inset-0" aria-hidden />
-      <div aria-hidden className="pointer-events-none fixed inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.9)_0%,rgba(0,0,0,0.6)_48%,rgba(0,0,0,0.1)_80%)]" />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.9)_0%,rgba(0,0,0,0.6)_48%,rgba(0,0,0,0.1)_80%)]"
+      />
 
       <header className="fixed inset-x-0 top-0 z-20 flex h-20 items-center justify-between px-8 sm:px-12">
         <span className="font-mono text-[11px] font-medium tracking-[0.2em] uppercase">
           TETRA <span className="text-white/40">/ Why TETRA</span>
         </span>
         <button data-nav onClick={onBack} className={`glass rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
-          Close <span className="ml-1 font-mono text-[11px] text-white/40">Esc</span>
+          <span className="flex items-center gap-2">
+            <Icon name="close" size={10} /> Close <span className="font-mono text-[11px] text-white/40">Esc</span>
+          </span>
         </button>
       </header>
 
@@ -64,14 +70,15 @@ export function Oxia({ onBack, onExperience }: { onBack: () => void; onExperienc
         <div className="mt-12 grid max-w-[880px] gap-x-12 gap-y-6 text-[clamp(16px,1.2vw,18px)] leading-relaxed text-white/65 md:grid-cols-2">
           <Rise show={shown} delay={300}>
             <p>
-              The falling-block game has been played for forty years. Somewhere along the way it turned into a spreadsheet: pieces per second, finesse,
-              frames. We love that side of it. But we also remember nights when the music and the stack moved as one, and nothing else existed.
+              The falling-block game has been played for forty years. Somewhere along the way it turned into a spreadsheet: pieces per second,
+              finesse, frames. We love that side of it. But we also remember nights when the music and the stack moved as one, and nothing else
+              existed.
             </p>
           </Rise>
           <Rise show={shown} delay={380}>
             <p>
-              TETRA is our answer: a precise, competitive game that is also a room you walk into. Sound, light and play, designed as one thing. That is
-              the Experience, and it is how we play. When you are here to train, Focus is one switch away.
+              TETRA is our answer: a precise, competitive game that is also a room you walk into. Sound, light and play, designed as one thing. That
+              is the Experience, and it is how we play. When you are here to train, Focus is one switch away.
             </p>
           </Rise>
         </div>

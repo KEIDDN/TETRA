@@ -6,6 +6,7 @@ import { useSettings } from '../lib/settings';
 import { toProfile, useCustomBots } from '../lib/customBots';
 import { botRecord, isUnlocked } from '../lib/versus';
 import { BotEmblem } from '../ui/BotEmblem';
+import { Icon } from '../ui/Icon';
 import { DemoBoard } from '../ui/DemoBoard';
 
 const FORMATS = [1, 3, 5, 7];
@@ -63,7 +64,9 @@ export function VersusSelect({
             onClick={onBack}
             className={`-ml-4 rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors hover:text-fg focus-visible:text-fg ${focusRing}`}
           >
-            ← Back <span className="label ml-2">Esc</span>
+            <span className="flex items-center gap-2">
+              <Icon name="back" size={11} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+            </span>
           </button>
           <span className="label">Versus</span>
         </header>
@@ -117,12 +120,18 @@ export function VersusSelect({
 
             <div className="mt-12 flex items-end justify-between border-b border-line pb-3">
               <span className="label">Your bots</span>
-              <button data-nav onClick={() => onEdit()} className={`rounded-full px-3 py-1 text-[13px] font-medium text-muted hover:text-fg ${focusRing}`}>
+              <button
+                data-nav
+                onClick={() => onEdit()}
+                className={`rounded-full px-3 py-1 text-[13px] font-medium text-muted hover:text-fg ${focusRing}`}
+              >
                 + New bot
               </button>
             </div>
             <ol className="mt-2">
-              {custom.length === 0 && <li className="px-4 py-4 text-[14px] text-faint">Build your own opponent: speed, aggression, mistakes, strategy.</li>}
+              {custom.length === 0 && (
+                <li className="px-4 py-4 text-[14px] text-faint">Build your own opponent: speed, aggression, mistakes, strategy.</li>
+              )}
               {custom.map((bot) => {
                 const active = bot.id === selected.id;
                 const r = botRecord(bot.id);
@@ -139,8 +148,14 @@ export function VersusSelect({
                     >
                       <BotEmblem bot={bot} size={40} glow={active} />
                       <span className="label">Custom</span>
-                      <span className={`text-[26px] font-medium tracking-[-0.03em] ${active ? 'text-fg' : 'text-white/40 group-hover:text-white/70'}`}>{bot.name}</span>
-                      <span className="label tabular text-right">{r.wins + r.losses > 0 ? `${r.wins}W · ${r.losses}L` : `${bot.pps.toFixed(1)} PPS`}</span>
+                      <span
+                        className={`text-[26px] font-medium tracking-[-0.03em] ${active ? 'text-fg' : 'text-white/40 group-hover:text-white/70'}`}
+                      >
+                        {bot.name}
+                      </span>
+                      <span className="label tabular text-right">
+                        {r.wins + r.losses > 0 ? `${r.wins}W · ${r.losses}L` : `${bot.pps.toFixed(1)} PPS`}
+                      </span>
                     </button>
                   </li>
                 );
@@ -166,12 +181,7 @@ export function VersusSelect({
 
             {/* The bot itself, playing at its real speed. */}
             <div className="relative mt-6 h-[320px] overflow-hidden rounded-[28px] bg-black/40 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]">
-              <DemoBoard
-                mode="sprint"
-                skin={appearance.skin}
-                bot={selected}
-                className="absolute inset-0"
-              />
+              <DemoBoard mode="sprint" skin={appearance.skin} bot={selected} className="absolute inset-0" />
               <span className="label absolute bottom-3 left-4">Live · {selected.name}'s pace</span>
             </div>
 

@@ -8,6 +8,7 @@ import { CUPS, skinLocked } from '../lib/tournament';
 import { SKIN_ORDER, SKINS, type Skin, type SoundPackId } from '../game/skins';
 import { SkinSwatch } from '../ui/SkinSwatch';
 import { DemoBoard } from '../ui/DemoBoard';
+import { Icon, type IconName } from '../ui/Icon';
 import { buttonLabel, keyLabel, PAD_NAMES } from '../lib/labels';
 import { useMenuNav } from '../lib/nav';
 import {
@@ -88,7 +89,9 @@ export function Settings({
     <div className="fixed inset-0 flex overflow-hidden">
       <aside className="flex w-[300px] shrink-0 flex-col border-r border-line px-6 py-6">
         <button data-nav onClick={onBack} className={`glass -ml-1 self-start rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
-          ← Back <span className="ml-1 font-mono text-[11px] text-white/40">Esc</span>
+          <span className="flex items-center gap-2">
+            <Icon name="back" size={12} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+          </span>
         </button>
         <h1 className="mt-10 text-[40px] leading-none font-[520] tracking-[-0.045em]">Settings</h1>
 
@@ -133,10 +136,17 @@ export function Settings({
               onFocus={() => setCategory(id)}
               className={`group relative rounded-[16px] px-4 py-2.5 text-left transition-colors duration-200 ${focusRing} ${category === id ? 'glass-panel' : 'hover:bg-white/[0.04]'}`}
             >
-              <span className={`block text-[15px] font-medium tracking-[-0.01em] ${category === id ? 'text-fg' : 'text-muted group-hover:text-fg'}`}>
-                {name}
+              <span className="flex items-center gap-3.5">
+                <Icon name={id as IconName} size={14} className={category === id ? 'text-fg' : 'text-faint group-hover:text-muted'} />
+                <span>
+                  <span
+                    className={`block text-[15px] font-medium tracking-[-0.01em] ${category === id ? 'text-fg' : 'text-muted group-hover:text-fg'}`}
+                  >
+                    {name}
+                  </span>
+                  <span className="block text-[12px] text-faint">{hint}</span>
+                </span>
               </span>
-              <span className="block text-[12px] text-faint">{hint}</span>
             </button>
           ))}
         </nav>
@@ -215,7 +225,7 @@ function ExperiencePanel({ onAbout }: { onAbout?: () => void }) {
             <p className="mt-2 max-w-[420px] text-[14px] leading-relaxed text-muted">
               {experience
                 ? 'Club sound, binaural on headphones, a live DJ on your game, rooms that live with every beat, and the intro before each game.'
-                : 'A quiet practice room: no rooms, no club, no intro. Instant restarts, nothing between you and the stack.'}
+                : 'Built for training: no rooms, no club, no intro. Instant restarts, nothing between you and the stack.'}
             </p>
             {onAbout && (
               <button data-nav onClick={onAbout} className={`mt-4 text-[13px] font-medium text-fg underline-offset-4 hover:underline ${focusRing}`}>
@@ -343,8 +353,8 @@ function AppearancePanel() {
           />
         </Row>
         <Row
-          name="Scene quality"
-          hint={appearance.sceneQuality === 'auto' ? 'Adapts to your device so the game always runs smooth' : 'Fixed resolution for the scenes'}
+          name="Room quality"
+          hint={appearance.sceneQuality === 'auto' ? 'Adapts to your device so the game always runs smooth' : 'Fixed resolution for the rooms'}
         >
           <Segmented
             small

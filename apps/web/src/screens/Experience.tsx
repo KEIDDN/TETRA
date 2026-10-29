@@ -6,6 +6,7 @@ import { useMenuNav } from '../lib/nav';
 import { setExperience, updateSettings, useSettings } from '../lib/settings';
 import { save } from '../lib/storage';
 import { ModeWheel } from '../ui/ModeWheel';
+import { Icon } from '../ui/Icon';
 import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScene';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
@@ -170,7 +171,8 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
   // Index: arrows move the wheel, Esc leaves.
   useMenuNav(firstRun ? undefined : onDone, view === 'index');
   useEffect(() => {
-    if (view === 'index') firstRef.current?.parentElement?.querySelectorAll<HTMLButtonElement>('[data-nav]')[CHAPTERS.findIndex((c) => c.id === focused)]?.focus();
+    if (view === 'index')
+      firstRef.current?.parentElement?.querySelectorAll<HTMLButtonElement>('[data-nav]')[CHAPTERS.findIndex((c) => c.id === focused)]?.focus();
     // Only when arriving at the index.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
@@ -225,7 +227,9 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
           TETRA <span className="text-white/40">/ Experience</span>
         </button>
         <button onClick={() => finish()} className={`glass rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
-          {firstRun ? 'Skip' : 'Close'} <span className="ml-1 font-mono text-[11px] text-white/40">Esc</span>
+          <span className="flex items-center gap-2">
+            <Icon name="close" size={10} /> {firstRun ? 'Skip' : 'Close'} <span className="font-mono text-[11px] text-white/40">Esc</span>
+          </span>
         </button>
       </header>
 
@@ -260,7 +264,11 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
                 items={CHAPTERS.map((c) => c.id)}
                 selected={focused}
                 label={(id) => CHAPTERS.find((c) => c.id === id)!.name}
-                extra={(id) => <span className="ml-2 font-mono text-[0.18em] tracking-[0.2em] text-white/40">{String(CHAPTERS.findIndex((c) => c.id === id) + 1).padStart(2, '0')}</span>}
+                extra={(id) => (
+                  <span className="ml-2 font-mono text-[0.18em] tracking-[0.2em] text-white/40">
+                    {String(CHAPTERS.findIndex((c) => c.id === id) + 1).padStart(2, '0')}
+                  </span>
+                )}
                 onSelect={setFocused}
                 onActivate={(id) => go(id)}
                 firstRef={firstRef}
@@ -272,7 +280,10 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
               <p key={focused} className="animate-fade text-[16px] text-muted">
                 {CHAPTERS.find((c) => c.id === focused)!.teaser}
               </p>
-              <button onClick={() => go(focused)} className={`glass-light flex shrink-0 items-center gap-3 rounded-full py-2.5 pr-2.5 pl-5 text-[15px] font-semibold ${focusRing}`}>
+              <button
+                onClick={() => go(focused)}
+                className={`glass-light flex shrink-0 items-center gap-3 rounded-full py-2.5 pr-2.5 pl-5 text-[15px] font-semibold ${focusRing}`}
+              >
                 Open
                 <span className="grid size-7 place-items-center rounded-full bg-black/10 font-mono text-[12px]">↵</span>
               </button>
@@ -376,7 +387,10 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
 /** A full-screen layer that fades in and out with its view. */
 function Screen({ show, children }: { show: boolean; children: ReactNode }) {
   return (
-    <div className={`absolute inset-0 z-10 transition-opacity duration-500 ${show ? 'opacity-100' : 'pointer-events-none opacity-0'}`} aria-hidden={!show}>
+    <div
+      className={`absolute inset-0 z-10 transition-opacity duration-500 ${show ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      aria-hidden={!show}
+    >
       {children}
     </div>
   );
@@ -445,7 +459,9 @@ function Oxia({ show, firstRun, onWhy, onNext }: { show: boolean; firstRun: bool
           </Line>
         </h2>
         <Reveal show={show} delay={360}>
-          <p className="mx-auto mt-7 max-w-[460px] text-[17px] leading-relaxed text-white/60">A creative technology studio. We build where engineering meets feel. TETRA is ours.</p>
+          <p className="mx-auto mt-7 max-w-[460px] text-[17px] leading-relaxed text-white/60">
+            A creative technology studio. We build where engineering meets feel. TETRA is ours.
+          </p>
         </Reveal>
         <Reveal show={show} delay={480}>
           <div className="mt-10 flex justify-center gap-3">

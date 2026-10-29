@@ -12,6 +12,7 @@ import { botRecord } from '../lib/versus';
 import { DemoBoard } from '../ui/DemoBoard';
 import { SkinSwatch } from '../ui/SkinSwatch';
 import { Segmented } from '../ui/controls';
+import { Icon } from '../ui/Icon';
 import { TRACKS } from '../audio/catalog';
 import { getMusicPrefs } from '../lib/musicPrefs';
 
@@ -49,7 +50,9 @@ export function Profile({ onBack, section }: { onBack: () => void; section?: Pro
       <div className="relative mx-auto w-full max-w-[1240px] px-6 pb-24 sm:px-10">
         <header className="flex h-24 items-center justify-between">
           <button data-nav onClick={onBack} className={`glass rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
-            ← Back <span className="ml-1 font-mono text-[11px] text-white/40">Esc</span>
+            <span className="flex items-center gap-2">
+              <Icon name="back" size={11} /> Back <span className="font-mono text-[11px] text-white/40">Esc</span>
+            </span>
           </button>
           <span className="label">Profile</span>
         </header>
