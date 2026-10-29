@@ -104,8 +104,8 @@ class Music {
   }
 
   /** Plays `track` (null fades out), crossfading over `fade` seconds. Safe to call before audio unlocks. */
-  play(track: Track | null, { bpm = track?.bpm ?? null, loop = false, fade = 1.6, mix = false } = {}): void {
-    if (track?.id === this.wanted.track?.id && loop === this.wanted.loop) {
+  play(track: Track | null, { bpm = track?.bpm ?? null, loop = false, fade = 1.6, mix = false, restart = false } = {}): void {
+    if (!restart && track?.id === this.wanted.track?.id && loop === this.wanted.loop) {
       this.wanted.bpm = bpm;
       return;
     }
@@ -173,7 +173,8 @@ class Music {
 
   /**
    * Mixes into `track` like a DJ would: on the next downbeat, over eight bars
-   * of the current tempo, equal-power, swapping basslines halfway.
+   * of the current tempo, equal-power, swapping basslines halfway. Mixing
+   * into the track that's playing loops it from the top on the other deck.
    */
   mixTo(track: Track, bpm: number | null): void {
     if (!this.ctx || this.mixing) return;
@@ -190,7 +191,7 @@ class Music {
     }
     const fade = Math.max(4, Math.min(period * 32, left - wait - 1));
     this.prefetch(track);
-    this.mixTimer = window.setTimeout(() => this.play(track, { bpm, fade, mix: true }), wait * 1000);
+    this.mixTimer = window.setTimeout(() => this.play(track, { bpm, fade, mix: true, restart: true }), wait * 1000);
   }
 
   /** Fires once per track, ~20 s before its end: time to choose what comes next. */

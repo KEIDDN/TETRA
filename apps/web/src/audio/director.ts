@@ -54,10 +54,14 @@ class Director {
     else music.mixTo(next, bpmOf(next));
   }
 
-  /** The next track of the set: same room (menu or game), not recently heard, closest in tempo. */
+  /**
+   * What follows `current`: the same track again (each skin and the menu own
+   * their track, looped with a crossfade), or in Shuffle the next of the set:
+   * same room, not recently heard, closest in tempo.
+   */
   private nextAfter(current: Track): Track | null {
-    const menu = this.context.kind === 'menu' && !this.pinned;
-    const pool = TRACKS.filter((t) => (menu ? t.suggest === 'menu' : t.suggest !== 'menu') && !getMusicPrefs().rejected.includes(t.id));
+    if (getSettings().audio.musicMode !== 'shuffle' || this.context.kind === 'menu' || this.pinned) return current;
+    const pool = TRACKS.filter((t) => t.suggest !== 'menu' && !getMusicPrefs().rejected.includes(t.id));
     const fresh = pool.filter((t) => !this.history.includes(t.id));
     const candidates = fresh.length ? fresh : pool.filter((t) => t.id !== current.id);
     if (!candidates.length) return current;
