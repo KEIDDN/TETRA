@@ -9,4 +9,10 @@ contextBridge.exposeInMainWorld('tetraDesktop', {
     ipcRenderer.on('auth-callback', handler);
     return () => ipcRenderer.removeListener('auth-callback', handler);
   },
+  onUpdate: (listener) => {
+    const handler = (_event, update) => listener(update);
+    ipcRenderer.on('update', handler);
+    return () => ipcRenderer.removeListener('update', handler);
+  },
+  installUpdate: () => ipcRenderer.send('install-update'),
 });

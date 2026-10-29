@@ -88,9 +88,61 @@ app.whenReady().then(() => {
   });
   deliver(process.argv.find((a) => a.startsWith('tetra://')));
   createWindow();
+  checkForUpdates();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+// ── Updates ──────────────────────────────────────────────────
+// Windows: the new version downloads quietly and installs on the next quit,
+// or straight away if the player taps Restart. macOS: until the app is signed
+// with a Developer ID it can't replace itself, so the player is offered the
+// new download instead.
+const RELEASES = 'https://github.com/keiddn/tetra/releases/latest/download';
+const UPDATE_EVERY = 4 * 60 * 60 * 1000;
+
+function tellWindow(update) {
+  if (win && !win.isDestroyed()) win.webContents.send('update', update);
+}
+
+function newer(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  return false;
+}
+
+function checkForUpdates() {
+  if (!app.isPackaged) return;
+  if (process.platform === 'win32') {
+    const { autoUpdater } = require('electron-updater');
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.on('update-downloaded', (info) => tellWindow({ state: 'ready', version: info.version }));
+    autoUpdater.on('error', () => {});
+    const check = () => autoUpdater.checkForUpdates().catch(() => {});
+    check();
+    setInterval(check, UPDATE_EVERY);
+    return;
+  }
+  const check = async () => {
+    try {
+      const res = await net.fetch(`${RELEASES}/latest-mac.yml`);
+      if (!res.ok) return;
+      const version = /^version:\s*([\d.]+)/m.exec(await res.text())?.[1];
+      if (version && newer(version, app.getVersion())) tellWindow({ state: 'download', version, url: `${RELEASES}/TETRA-mac.dmg` });
+    } catch {
+      // Offline: try again later.
+    }
+  };
+  void check();
+  setInterval(check, UPDATE_EVERY);
+}
+
+ipcMain.on('install-update', () => {
+  if (process.platform !== 'win32') return;
+  require('electron-updater').autoUpdater.quitAndInstall(true, true);
 });
 
 app.on('window-all-closed', () => {

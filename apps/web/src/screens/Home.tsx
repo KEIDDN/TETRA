@@ -1,4 +1,4 @@
-import type { GameStats, ModeId, PieceType } from '@tetra/engine';
+import type { ModeId, PieceType } from '@tetra/engine';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { sfx } from '../audio/sfx';
 import { Lattice } from '../game/ambient';
@@ -16,6 +16,7 @@ import { ModeWheel } from '../ui/ModeWheel';
 import { installed } from '../lib/platform';
 import { useAccount } from '../lib/account';
 import { Icon } from '../ui/Icon';
+import { Logo } from '../ui/Logo';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
 import { skinLocked } from '../lib/tournament';
@@ -39,19 +40,6 @@ function entryDescription(id: Entry): string {
   if (id === 'cups') return 'Eight-bot brackets. Three cups, or your own.';
   if (id === 'multiplayer') return 'Play people, live. We are building it now.';
   return id === 'versus' ? 'Ten bots that play like people.' : MODE_CONFIGS[id].description;
-}
-
-/** The live stat the showcase shows for each mode. */
-function liveStat(id: Entry, s: GameStats): [string, string] {
-  switch (id) {
-    case 'blitz':
-      return ['Score', s.score.toLocaleString('en-US')];
-    case 'marathon':
-    case 'endless':
-      return ['Level', String(s.level)];
-    default:
-      return ['Lines', String(s.lines)];
-  }
 }
 
 export function Home({
@@ -84,8 +72,6 @@ export function Home({
   const [selected, setSelected] = useState<Entry>('sprint');
   const firstRef = useRef<HTMLButtonElement>(null);
   const showcaseRef = useRef<HTMLDivElement>(null);
-  const statLabelRef = useRef<HTMLSpanElement>(null);
-  const statValueRef = useRef<HTMLSpanElement>(null);
   const skin = SKINS[appearance.skin];
 
   const lattice = useMemo(() => new Lattice(0.9), []);
@@ -131,7 +117,7 @@ export function Home({
 
       <div className="relative mx-auto flex min-h-full w-full max-w-[1320px] flex-col px-6 sm:px-10">
         <header className="flex h-[min(96px,12vh)] shrink-0 items-center justify-between">
-          <Logo large />
+          <Logo large className="animate-rise" />
           <div className="flex items-center gap-5">
             <button
               data-nav
@@ -191,11 +177,34 @@ export function Home({
           </div>
         </header>
 
-        <main className="grid flex-1 items-center gap-10 py-[min(24px,3vh)] lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.72fr)]">
-          <div>
+        <main className="relative grid flex-1 place-items-center py-[min(40px,5vh)]">
+          {/* The live board: frameless and quiet at the edge, the menu keeps the stage. */}
+          <div
+            ref={showcaseRef}
+            aria-hidden
+            className="animate-fade pointer-events-none absolute top-1/2 right-0 hidden aspect-[4/5] h-[min(54vh,470px)] -translate-y-1/2 opacity-60 [animation-delay:400ms] [mask-image:radial-gradient(75%_70%_at_50%_50%,black_40%,transparent_100%)] xl:block"
+          >
+            <DemoBoard
+              mode={selected === 'cups' || selected === 'multiplayer' ? 'versus' : selected}
+              skin={appearance.skin}
+              className="absolute inset-0"
+              onClear={(power, y) => {
+                const rect = showcaseRef.current?.getBoundingClientRect();
+                if (!rect) return;
+                const x = rect.left + rect.width * 0.4;
+                const at = rect.top + rect.height * y;
+                const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
+                if (power >= 4) lattice.celebrate(x, at, power, lattice.palette[piece] ?? 0xffffff, [piece]);
+                else lattice.ripple(x, at, power, lattice.palette[piece]);
+              }}
+            />
+          </div>
+
+          <div className="relative flex w-full max-w-[680px] flex-col items-center text-center">
             <div className="label animate-rise">Select a mode</div>
-            <div className="animate-rise mt-[min(20px,2vh)] [animation-delay:80ms]">
+            <div className="animate-rise mt-[min(32px,3.5vh)] w-full [animation-delay:80ms]">
               <ModeWheel
+                center
                 items={ENTRIES}
                 selected={selected}
                 label={entryName}
@@ -203,7 +212,7 @@ export function Home({
                   id === 'cups' ? (
                     <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold tracking-normal text-black">New</span>
                   ) : SOON.includes(id) ? (
-                    <span className="glass rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-normal text-muted">Coming soon</span>
+                    <span className="glass rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-normal whitespace-nowrap text-muted">Coming soon</span>
                   ) : null
                 }
                 onSelect={select}
@@ -213,64 +222,23 @@ export function Home({
               />
             </div>
 
-            <div
-              key={selected}
-              className="animate-fade mt-[min(40px,3.5vh)] flex max-w-[560px] flex-wrap items-end gap-x-10 gap-y-5 border-t border-line pt-[min(24px,3vh)]"
-            >
-              <p className="min-w-[220px] flex-1 text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
-              {selected === 'multiplayer' ? (
-                <span className="glass rounded-full px-6 py-3 text-[15px] font-semibold text-muted">Coming soon</span>
-              ) : selected === 'versus' || selected === 'cups' ? (
-                <>
-                  <PlayButton onClick={() => activate(selected)} />
-                </>
-              ) : (
-                <>
-                  <div>
-                    <div className="label">Best</div>
-                    <div className="tabular mt-1.5 text-[18px] font-medium">{best ? MODE_CONFIGS[selected].formatRecord(best) : '—'}</div>
-                  </div>
-                  <PlayButton onClick={() => activate(selected)} />
-                </>
-              )}
-            </div>
-          </div>
-
-          <div
-            ref={showcaseRef}
-            className="animate-rise relative mx-auto hidden aspect-[4/5] w-full max-w-[460px] [animation-delay:200ms] lg:block lg:max-h-[min(66vh,620px)]"
-          >
-            <div className="absolute inset-0 overflow-hidden rounded-[48px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.18)] backdrop-blur-xl">
-              <DemoBoard
-                mode={selected === 'cups' || selected === 'multiplayer' ? 'versus' : selected}
-                skin={appearance.skin}
-                className="absolute inset-0"
-                onClear={(power, y) => {
-                  const rect = showcaseRef.current?.getBoundingClientRect();
-                  if (!rect) return;
-                  const x = rect.left + rect.width * 0.4;
-                  const at = rect.top + rect.height * y;
-                  const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
-                  if (power >= 4) lattice.celebrate(x, at, power, lattice.palette[piece] ?? 0xffffff, [piece]);
-                  else lattice.ripple(x, at, power, lattice.palette[piece]);
-                }}
-                onStats={(stats) => {
-                  const [label, value] = liveStat(selected, stats);
-                  if (statLabelRef.current) statLabelRef.current.textContent = label;
-                  if (statValueRef.current) statValueRef.current.textContent = value;
-                }}
-              />
-            </div>
-            <div className="pointer-events-none absolute top-6 right-7 text-right">
-              <span ref={statLabelRef} className="label block" />
-              <span ref={statValueRef} className="tabular mt-1 block text-[18px] font-medium" />
-            </div>
-            <div className="pointer-events-none absolute bottom-6 left-7 flex items-center gap-2">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#30d158] opacity-60" />
-                <span className="relative inline-flex size-2 rounded-full bg-[#30d158]" />
-              </span>
-              <span className="label text-muted">Live · {entryName(selected)}</span>
+            <div key={selected} className="animate-fade mt-[min(48px,5vh)] flex flex-col items-center">
+              <p className="max-w-[38ch] text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
+              <div className="mt-[min(28px,3vh)] flex items-center gap-8">
+                {selected === 'multiplayer' ? (
+                  <span className="glass rounded-full px-6 py-3 text-[15px] font-semibold text-muted">Coming soon</span>
+                ) : (
+                  <>
+                    {selected !== 'versus' && selected !== 'cups' && (
+                      <div className="text-left">
+                        <div className="label">Best</div>
+                        <div className="tabular mt-1.5 text-[18px] font-medium">{best ? MODE_CONFIGS[selected].formatRecord(best) : '—'}</div>
+                      </div>
+                    )}
+                    <PlayButton onClick={() => activate(selected)} />
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </main>
@@ -354,22 +322,5 @@ function SkinArrow({ children, label, onClick }: { children: string; label: stri
     >
       {children}
     </button>
-  );
-}
-
-function Logo({ large = false }: { large?: boolean }) {
-  const mark = large ? 34 : 22;
-  return (
-    <span className={`animate-rise flex items-center ${large ? 'gap-3.5' : 'gap-2.5'}`}>
-      <svg width={mark} height={mark} viewBox="0 0 64 64" aria-hidden>
-        <g fill="#fbfbfc">
-          <rect x="4" y="12" width="17" height="17" rx="4.5" />
-          <rect x="23.5" y="12" width="17" height="17" rx="4.5" />
-          <rect x="43" y="12" width="17" height="17" rx="4.5" />
-          <rect x="23.5" y="31.5" width="17" height="17" rx="4.5" />
-        </g>
-      </svg>
-      <span className={large ? 'text-[28px] font-semibold tracking-[-0.03em]' : 'text-[15px] font-semibold tracking-[-0.01em]'}>TETRA</span>
-    </span>
   );
 }

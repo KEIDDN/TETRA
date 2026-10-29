@@ -1,7 +1,7 @@
 {
   "name": "tetra-desktop",
   "productName": "TETRA",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "TETRA by OXIA Labs: feel the blocks.",
   "author": "OXIA Labs",
@@ -20,22 +20,66 @@
     "appId": "com.oxialabs.tetra",
     "productName": "TETRA",
     "copyright": "© OXIA Labs",
-    "directories": { "output": "release", "buildResources": "build" },
-    "files": ["main.cjs", "preload.cjs", "web/**/*"],
-    "protocols": [{ "name": "TETRA", "schemes": ["tetra"] }],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "web/**/*"
+    ],
+    "protocols": [
+      {
+        "name": "TETRA",
+        "schemes": [
+          "tetra"
+        ]
+      }
+    ],
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["universal"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
       "category": "public.app-category.games",
       "artifactName": "TETRA-mac.${ext}",
       "icon": "build/icon.png"
     },
-    "dmg": { "title": "TETRA" },
+    "dmg": {
+      "title": "TETRA"
+    },
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "artifactName": "TETRA-windows.${ext}",
       "icon": "build/icon.png"
     },
-    "nsis": { "oneClick": true, "perMachine": false, "shortcutName": "TETRA" },
-    "publish": [{ "provider": "github", "owner": "keiddn", "repo": "tetra", "releaseType": "release" }]
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "TETRA"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "keiddn",
+        "repo": "tetra",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
   }
 }

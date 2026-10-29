@@ -1,10 +1,11 @@
 import type { ModeId } from '@tetra/engine';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { sfx } from './audio/sfx';
 import { gamepads } from './game/gamepad';
 import { Toasts } from './ui/toast';
 import { DevBadge } from './ui/DevBadge';
+import { UpdateBanner } from './ui/UpdateBanner';
 import { LogoIntro } from './ui/LogoIntro';
 import { director } from './audio/director';
 import { getSettings as readSettings } from './lib/settings';
@@ -24,8 +25,10 @@ import { Experience } from './screens/Experience';
 import { Oxia } from './screens/Oxia';
 import { Download } from './screens/Download';
 import { Account } from './screens/Account';
+import { Landing } from './screens/Landing';
+import { Legal, type LegalDoc } from './screens/Legal';
 import { accountsEnabled, getAccount, useAccount } from './lib/account';
-import { load } from './lib/storage';
+import { load, save } from './lib/storage';
 import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
 
@@ -40,6 +43,8 @@ type Screen =
   | { name: 'oxia' }
   | { name: 'download' }
   | { name: 'account'; back?: boolean }
+  | { name: 'landing' }
+  | { name: 'legal'; doc: LegalDoc }
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
   | { name: 'editor'; id?: string }
@@ -51,11 +56,13 @@ type Screen =
   | { name: 'bout'; r: number; i: number };
 
 export function App() {
-  // The very first launch opens on the Experience, which ends by asking headphones or speakers.
-  // First launch: the Experience, then (with accounts) sign in or play as guest. Later launches ask once if they never chose.
+  // First visit: the landing, then the Experience, then (with accounts) sign in or play as guest.
+  // Later launches ask once if they never chose.
   const [screen, setScreenNow] = useState<Screen>(() =>
-    !load('onboarded', false) ? { name: 'experience', firstRun: true } : accountsEnabled && getAccount().mode === 'unknown' ? { name: 'account' } : { name: 'home' },
+    !load('onboarded', false) ? { name: 'landing' } : accountsEnabled && getAccount().mode === 'unknown' ? { name: 'account' } : { name: 'home' },
   );
+  // Pages you step into and out of (downloads, legal, the studio) go back to wherever you came from.
+  const previous = useRef<Screen[]>([]);
   const account = useAccount();
   // Screens change inside a view transition: the old one settles back, the new one rises, shared elements fly between them.
   const setScreen = (next: Screen) => {
@@ -63,7 +70,19 @@ export function App() {
     if (!VIEW_TRANSITIONS || reduced) return setScreenNow(next);
     document.startViewTransition(() => flushSync(() => setScreenNow(next)));
   };
-  const home = () => setScreen({ name: 'home' });
+  const home = () => {
+    previous.current = [];
+    setScreen({ name: 'home' });
+  };
+  const visit = (next: Screen) => {
+    previous.current.push(screen);
+    setScreen(next);
+  };
+  const back = () => setScreen(previous.current.pop() ?? { name: 'home' });
+  const finishOnboarding = () => {
+    save('onboarded', true);
+    home();
+  };
 
   // Music follows the screen: one continuous menu track, the skin's track in a game.
   useEffect(() => {
@@ -72,7 +91,10 @@ export function App() {
   }, [screen]);
 
   useEffect(() => {
-    if (screen.name === 'account' && account.mode === 'user') setScreenNow({ name: 'home' });
+    if (screen.name === 'account' && account.mode === 'user') {
+      save('onboarded', true);
+      setScreenNow({ name: 'home' });
+    }
   }, [screen.name, account.mode]);
 
   // Browsers only allow audio after a gesture: unlock on the first one.
@@ -139,18 +161,32 @@ export function App() {
           onDone={() =>
             screen.back ? setScreen({ name: 'settings' }) : accountsEnabled && getAccount().mode === 'unknown' ? setScreen({ name: 'account' }) : home()
           }
-          onOxia={() => setScreen({ name: 'oxia' })}
+          onOxia={() => visit({ name: 'oxia' })}
         />
       );
       break;
     case 'account':
-      content = <Account onDone={home} onBack={screen.back ? home : undefined} />;
+      content = <Account onDone={finishOnboarding} onBack={screen.back ? back : undefined} onLegal={(doc) => visit({ name: 'legal', doc })} />;
       break;
     case 'download':
-      content = <Download onBack={home} />;
+      content = <Download onBack={back} />;
       break;
     case 'oxia':
-      content = <Oxia onBack={home} onExperience={() => setScreen({ name: 'experience' })} />;
+      content = <Oxia onBack={back} onExperience={() => setScreen({ name: 'experience' })} />;
+      break;
+    case 'legal':
+      content = <Legal doc={screen.doc} onBack={back} />;
+      break;
+    case 'landing':
+      content = (
+        <Landing
+          onEnter={() => setScreen({ name: 'experience', firstRun: true })}
+          onSignIn={() => visit({ name: 'account', back: true })}
+          onDownload={() => visit({ name: 'download' })}
+          onWhy={() => visit({ name: 'oxia' })}
+          onLegal={(doc) => visit({ name: 'legal', doc })}
+        />
+      );
       break;
     case 'musiclab':
       content = (
@@ -164,7 +200,14 @@ export function App() {
       );
       break;
     case 'profile':
-      content = <Profile onBack={home} onSignIn={() => setScreen({ name: 'account', back: true })} section={screen.section} />;
+      content = (
+        <Profile
+          onBack={home}
+          onSignIn={() => visit({ name: 'account', back: true })}
+          onPrivacy={() => visit({ name: 'legal', doc: 'privacy' })}
+          section={screen.section}
+        />
+      );
       break;
     case 'cups':
       content = <Tournaments onBack={home} onBracket={() => setScreen({ name: 'bracket' })} onCustom={() => setScreen({ name: 'builder' })} />;
@@ -217,9 +260,9 @@ export function App() {
           onCups={() => setScreen({ name: 'cups' })}
           onProfile={(section) => setScreen({ name: 'profile', section })}
           onExperience={() => setScreen({ name: 'experience' })}
-          onOxia={() => setScreen({ name: 'oxia' })}
-          onDownload={() => setScreen({ name: 'download' })}
-          onSignIn={() => setScreen({ name: 'account', back: true })}
+          onOxia={() => visit({ name: 'oxia' })}
+          onDownload={() => visit({ name: 'download' })}
+          onSignIn={() => visit({ name: 'account', back: true })}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );
@@ -230,7 +273,8 @@ export function App() {
       <div key={screen.name} className={`min-h-full ${VIEW_TRANSITIONS ? '' : 'animate-fade'}`}>
         {content}
       </div>
-      {!['play', 'match', 'bout', 'experience', 'oxia', 'account', 'download'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
+      {!['play', 'match', 'bout', 'experience', 'oxia', 'account', 'download', 'landing', 'legal'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
+      {!['play', 'match', 'bout'].includes(screen.name) && <UpdateBanner />}
       <Toasts />
       {screen.name === 'home' && <LogoIntro />}
     </>

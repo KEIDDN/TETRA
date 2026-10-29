@@ -211,3 +211,28 @@ export async function signOut(): Promise<void> {
   localStorage.removeItem(KEY);
   location.reload();
 }
+
+/** Everything the account keeps, as a JSON file the player can save. */
+export function downloadMyData(): void {
+  const file = { exported: new Date().toISOString(), email: account.email, data: snapshot() };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'tetra-my-data.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Deletes the account and all its data for good, then starts fresh on this device. */
+export async function deleteAccount(): Promise<string | null> {
+  if (!supabase) return 'Accounts are not available yet.';
+  clearTimeout(pushTimer);
+  const { error } = await supabase.rpc('delete_my_account');
+  if (error) return error.message;
+  await supabase.auth.signOut({ scope: 'local' });
+  clearData();
+  localStorage.removeItem(SYNC);
+  localStorage.removeItem(KEY);
+  location.reload();
+  return null;
+}

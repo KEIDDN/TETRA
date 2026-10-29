@@ -19,7 +19,7 @@ import { TRACKS } from '../audio/catalog';
 import { assignTrack, getMusicPrefs, subscribeMusicPrefs } from '../lib/musicPrefs';
 import { trackAccess, trackUnlocked } from '../lib/library';
 import { director } from '../audio/director';
-import { signOut, useAccount } from '../lib/account';
+import { deleteAccount, downloadMyData, signOut, useAccount } from '../lib/account';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 const CUP_TINT: Record<string, string> = { foundations: '#5ac8f5', contenders: '#c86bff', summit: '#ffb84a', custom: '#edebfa' };
@@ -42,7 +42,17 @@ function formatPlaytime(ms: number): string {
   return h > 0 ? `${h}h ${String(minutes % 60).padStart(2, '0')}m` : `${minutes}m`;
 }
 
-export function Profile({ onBack, onSignIn, section }: { onBack: () => void; onSignIn?: () => void; section?: ProfileSection }) {
+export function Profile({
+  onBack,
+  onSignIn,
+  onPrivacy,
+  section,
+}: {
+  onBack: () => void;
+  onSignIn?: () => void;
+  onPrivacy?: () => void;
+  section?: ProfileSection;
+}) {
   const profile = useProfile();
   const { xp, trophies } = profile;
   const { level, into, needed } = levelFor(xp);
@@ -63,7 +73,7 @@ export function Profile({ onBack, onSignIn, section }: { onBack: () => void; onS
           <span className="label">Profile</span>
         </header>
 
-        <AccountBar onSignIn={onSignIn} />
+        <AccountBar onSignIn={onSignIn} onPrivacy={onPrivacy} />
 
         {/* Player card */}
         <section className="glass-panel animate-rise grid items-center gap-10 rounded-[40px] p-8 md:grid-cols-[auto_minmax(0,1fr)_auto]">
@@ -117,27 +127,72 @@ export function Profile({ onBack, onSignIn, section }: { onBack: () => void; onS
 }
 
 /** Who is signed in, or a reminder that a guest's progress isn't kept. */
-function AccountBar({ onSignIn }: { onSignIn?: () => void }) {
+function AccountBar({ onSignIn, onPrivacy }: { onSignIn?: () => void; onPrivacy?: () => void }) {
   const account = useAccount();
   const [leaving, setLeaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (account.mode === 'local') return null;
   if (account.mode === 'user') {
+    const link = `rounded-sm text-[13px] text-muted transition-colors hover:text-fg ${focusRing}`;
     return (
-      <div className="mb-5 flex items-center justify-between gap-4 px-2 text-[13px] text-muted">
-        <span className="min-w-0 truncate">
-          Signed in as <span className="text-fg">{account.email ?? 'your account'}</span> · progress saved
-        </span>
-        <button
-          data-nav
-          disabled={leaving}
-          onClick={() => {
-            setLeaving(true);
-            void signOut();
-          }}
-          className={`glass shrink-0 rounded-full px-4 py-2 text-[13px] font-medium disabled:opacity-50 ${focusRing}`}
-        >
-          {leaving ? 'Signing out…' : 'Sign out'}
-        </button>
+      <div className="mb-5 px-2">
+        <div className="flex flex-wrap items-center justify-between gap-4 text-[13px] text-muted">
+          <span className="min-w-0 truncate">
+            Signed in as <span className="text-fg">{account.email ?? 'your account'}</span> · progress saved
+          </span>
+          <div className="flex items-center gap-5">
+            <button data-nav onClick={downloadMyData} className={link}>
+              Download my data
+            </button>
+            {onPrivacy && (
+              <button data-nav onClick={onPrivacy} className={link}>
+                Privacy
+              </button>
+            )}
+            <button data-nav onClick={() => setConfirming(true)} className={`${link} hover:text-[#ff6b6b]`}>
+              Delete account
+            </button>
+            <button
+              data-nav
+              disabled={leaving}
+              onClick={() => {
+                setLeaving(true);
+                void signOut();
+              }}
+              className={`glass shrink-0 rounded-full px-4 py-2 text-[13px] font-medium text-fg disabled:opacity-50 ${focusRing}`}
+            >
+              {leaving ? 'Signing out…' : 'Sign out'}
+            </button>
+          </div>
+        </div>
+        {confirming && (
+          <div className="glass-panel animate-rise mt-4 flex flex-wrap items-center justify-between gap-4 rounded-[24px] px-6 py-4">
+            <span className="text-[14px] text-white/70">
+              Delete your account and everything in it? <span className="text-fg">This can't be undone.</span>
+              {error && <span className="ml-2 text-[#ff6b6b]">{error}</span>}
+            </span>
+            <span className="flex items-center gap-3">
+              <button data-nav onClick={() => setConfirming(false)} className={`rounded-full px-4 py-2 text-[13px] text-muted hover:text-fg ${focusRing}`}>
+                Keep it
+              </button>
+              <button
+                data-nav
+                disabled={leaving}
+                onClick={() => {
+                  setLeaving(true);
+                  void deleteAccount().then((message) => {
+                    setLeaving(false);
+                    setError(message);
+                  });
+                }}
+                className={`rounded-full bg-[#ff453a] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50 ${focusRing}`}
+              >
+                {leaving ? 'Deleting…' : 'Delete for good'}
+              </button>
+            </span>
+          </div>
+        )}
       </div>
     );
   }

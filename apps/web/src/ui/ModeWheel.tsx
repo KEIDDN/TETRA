@@ -21,6 +21,7 @@ export function ModeWheel<T extends string>({
   size = 'text-[clamp(30px,min(5.2vw,6.6vh),80px)]',
   lead,
   dim,
+  center,
 }: {
   items: T[];
   selected: T;
@@ -35,6 +36,8 @@ export function ModeWheel<T extends string>({
   lead?: (id: T) => ReactNode;
   /** Rows that are on the wheel but not available yet: they stay dim even when selected. */
   dim?: (id: T) => boolean;
+  /** Centre the rows (and the lens) on the wheel's axis instead of aligning them left. */
+  center?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const lens = useRef<HTMLDivElement>(null);
@@ -81,13 +84,13 @@ export function ModeWheel<T extends string>({
         if (!visible) return;
         const cos = Math.cos(a);
         const near = Math.max(0, 1 - Math.abs(d));
-        const x = -(1 - cos) * row * 0.35;
+        const x = center ? 0 : -(1 - cos) * row * 0.35;
         const fade = Math.min(1, (LIMIT - Math.abs(a)) / 0.35);
         // A real drum: each row sits on a cylinder and turns with it, so the
         // letters foreshorten the way printed type on a wheel would, never squashed.
-        el.style.transform = `translate3d(${x.toFixed(2)}px, 0, ${(-radius).toFixed(2)}px) rotateX(${(-a).toFixed(4)}rad) translateZ(${radius.toFixed(2)}px)`;
+        el.style.transform = `${center ? 'translateX(-50%) ' : ''}translate3d(${x.toFixed(2)}px, 0, ${(-radius).toFixed(2)}px) rotateX(${(-a).toFixed(4)}rad) translateZ(${radius.toFixed(2)}px)`;
         el.style.opacity = String((0.16 + 0.84 * near * near) * fade * (dimRef.current?.(items[i]) ? 0.4 : 1));
-        if (near > 0) lensWidth += el.scrollWidth * near;
+        if (near > 0) lensWidth += (center ? (el.firstElementChild as HTMLElement | null)?.offsetWidth ?? el.scrollWidth : el.scrollWidth) * near;
       });
       if (lens.current && lensWidth) lens.current.style.width = `${lensWidth + row * 0.5}px`;
     };
@@ -96,7 +99,7 @@ export function ModeWheel<T extends string>({
     const onResize = () => layout();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [index]);
+  }, [index, center]);
 
   useEffect(
     () => () => {
@@ -130,12 +133,12 @@ export function ModeWheel<T extends string>({
   return (
     <div
       ref={box}
-      className={`relative isolate pl-[0.45em] ${size}`}
-      style={{ height: 'min(5.4em, 44vh)', perspective: '1100px', perspectiveOrigin: '25% 50%' }}
+      className={`relative isolate ${center ? 'w-full' : 'pl-[0.45em]'} ${size}`}
+      style={{ height: 'min(5.4em, 44vh)', perspective: '1100px', perspectiveOrigin: center ? '50% 50%' : '25% 50%' }}
     >
       <div
         ref={lens}
-        className="glass-lens pointer-events-none absolute top-1/2 left-0 -z-10 h-[1.22em] -translate-y-1/2 rounded-[0.36em] transition-[width] duration-300 ease-out"
+        className={`glass-lens pointer-events-none absolute top-1/2 -z-10 h-[1.22em] -translate-y-1/2 rounded-[0.36em] transition-[width] duration-300 ease-out ${center ? 'left-1/2 -translate-x-1/2' : 'left-0'}`}
       />
       {items.map((id, i) => (
         <button
@@ -154,11 +157,24 @@ export function ModeWheel<T extends string>({
             // Keyboard and controller confirm at once; a click picks first, then plays.
             if (e.detail === 0 || pressedSelected.current) onActivate(id);
           }}
-          className="absolute top-1/2 left-[0.45em] -mt-[0.55em] flex h-[1.1em] origin-left items-center gap-[0.3em] outline-none [backface-visibility:hidden] will-change-transform"
+          className={`absolute top-1/2 -mt-[0.55em] flex h-[1.1em] items-center gap-[0.3em] outline-none [backface-visibility:hidden] will-change-transform ${
+            center ? 'left-1/2 origin-center' : 'left-[0.45em] origin-left'
+          }`}
         >
-          {lead?.(id)}
-          <span className="leading-none font-[480] tracking-[-0.045em] whitespace-nowrap">{label(id)}</span>
-          {extra?.(id)}
+          {center ? (
+            // Centred on the label alone: anything extra hangs off to its right.
+            <span className="relative flex items-center gap-[0.3em]">
+              {lead?.(id)}
+              <span className="leading-none font-[480] tracking-[-0.045em] whitespace-nowrap">{label(id)}</span>
+              <span className="absolute left-full ml-[0.3em] flex items-center">{extra?.(id)}</span>
+            </span>
+          ) : (
+            <>
+              {lead?.(id)}
+              <span className="leading-none font-[480] tracking-[-0.045em] whitespace-nowrap">{label(id)}</span>
+              {extra?.(id)}
+            </>
+          )}
         </button>
       ))}
     </div>

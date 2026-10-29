@@ -5,7 +5,12 @@ export interface DesktopBridge {
   platform: string;
   openExternal(url: string): void;
   onAuthCallback(listener: (url: string) => void): () => void;
+  onUpdate?(listener: (update: DesktopUpdate) => void): () => void;
+  installUpdate?(): void;
 }
+
+/** A newer TETRA: ready to restart into (Windows), or to download (macOS). */
+export type DesktopUpdate = { state: 'ready'; version: string } | { state: 'download'; version: string; url: string };
 
 declare global {
   interface Window {
