@@ -57,6 +57,9 @@ class Director {
     if (!audio.enabled || audio.music === 0 || audio.musicMode === 'off') return music.play(null);
     if (this.context.kind === 'menu') {
       const t = trackFor('menu');
+      music.prefetch(t);
+      // Fetch the next game's music while the player is still choosing.
+      if (audio.musicMode === 'skin') music.prefetch(trackFor(getSettings().appearance.skin) ?? trackFor('studio'));
       return music.play(t, { bpm: t ? bpmOf(t) : null });
     }
     if (audio.musicMode === 'shuffle') {

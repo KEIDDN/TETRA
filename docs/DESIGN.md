@@ -278,13 +278,19 @@ Cada hito es jugable y se revisa antes de pasar al siguiente.
 | Mono | Film grain and halo; almost nothing. |
 
 ### 8b. Music
-- Recorded electronic, ambient and IDM tracks.
-- Licenses: CC0, CC BY, CC BY-NC or CC BY-SA. Never ND, so that tracks can loop and crossfade. TETRA is never monetised.
-- Curation: Claude shortlists 20–30 tracks with verified licenses. The owner picks them in a developer-only Music lab, listening while playing each skin.
-- Assignment is per skin, with a Music setting of Skin / Shuffle / Off.
-- One minimal menu track plays continuously across menus and crossfades into the game. Any unlocked track can be set as the menu track. Menu UI sounds stay as they are, on top of the music.
-- Music plays in every mode, with separate volumes for music and effects.
-- "Now playing" shows for about 3 s in a corner when a game starts.
+- **Direction (owner, after the first shortlist):** immersive minimal techno.
+  - In game: ambient techno, dub techno, deep techno, and a touch of hard groove, always minimal.
+  - Menu: very ambient, minimal IDM. No nature sounds, no chiptune, no lo-fi.
+- **Licenses:** CC0, BY, BY-NC, BY-SA, BY-NC-SA, and also ND when a track is good.
+  - ND tracks are always played whole and unmodified: they loop from the start, with fades only at transitions (like radio play). They are never cut or edited.
+  - TETRA is never monetised.
+- **Curation:** Claude shortlists tracks from the Internet Archive's netlabels and pre-sorts them by measured audio features (tempo, kick steadiness, density, brightness), since it cannot listen. The owner picks in the developer-only Music lab, listening while playing each skin.
+- **Assignment:** per skin, with a Music setting of Skin / Shuffle / Off.
+- **Menu track:** one continuous track across menus that crossfades into the game. Any unlocked track can be set as the menu track. Menu UI sounds stay on top.
+- **Playback:**
+  - Music plays in every mode, with separate volumes for music and effects.
+  - The next game's track is fetched in the background while in menus, so it starts at once.
+  - "Now playing" shows for about 3 s when a game starts.
 
 ### 8c. Music library
 - A Music section in the profile, next to Skins.

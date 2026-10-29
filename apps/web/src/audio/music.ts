@@ -32,6 +32,10 @@ class Music {
   private wanted: { track: Track | null; bpm: number | null; loop: boolean } = { track: null, bpm: null, loop: true };
   private volume = 0.5;
   private listeners = new Set<(track: Track | null) => void>();
+  /** Whole files fetched ahead of time (track id → blob URL), so a game's music starts at once. */
+  private cache = new Map<string, Promise<string | null>>();
+  private cacheOrder: string[] = [];
+  private ready = new Map<string, string>();
   private endedListeners = new Set<() => void>();
 
   // Analysis state.
@@ -77,13 +81,46 @@ class Music {
     this.peaks = [0.05, 0.05, 0.05];
     this.listeners.forEach((l) => l(track));
     if (!track) return;
-    deck.el.src = track.url;
+    // In memory already: no network wait. Otherwise stream it, and switch to the download if it lands before playback starts.
+    deck.el.src = this.ready.get(track.id) ?? track.url;
+    if (!this.ready.has(track.id)) {
+      void this.cache.get(track.id)?.then((blob) => {
+        if (blob && deck.track === track && deck.el.readyState < 3) {
+          deck.el.src = blob;
+          void deck.el.play().catch(() => {});
+        }
+      });
+    }
     deck.el.loop = loop;
     deck.el.currentTime = 0;
     deck.gain!.gain.cancelScheduledValues(now);
     deck.gain!.gain.setValueAtTime(0, now);
     deck.gain!.gain.linearRampToValueAtTime(1, now + fade);
     void deck.el.play().catch(() => {});
+  }
+
+  /** Downloads `track` in the background (kept for the next few plays). */
+  prefetch(track: Track | null): void {
+    if (!track || this.cache.has(track.id)) return;
+    const job = fetch(track.url, { mode: 'cors' })
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => {
+        if (!b) return null;
+        const url = URL.createObjectURL(b);
+        if (this.cache.has(track.id)) this.ready.set(track.id, url);
+        return url;
+      })
+      .catch(() => null);
+    this.cache.set(track.id, job);
+    this.cacheOrder.push(track.id);
+    // Keep memory bounded: a handful of tracks is plenty.
+    while (this.cacheOrder.length > 5) {
+      const old = this.cacheOrder.shift()!;
+      if (old === this.current?.id) continue;
+      void this.cache.get(old)?.then((u) => u && URL.revokeObjectURL(u));
+      this.cache.delete(old);
+      this.ready.delete(old);
+    }
   }
 
   setVolume(v: number): void {

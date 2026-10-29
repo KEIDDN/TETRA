@@ -74,6 +74,8 @@ float boardMask(vec2 px) {
 }
 
 vec3 finish(vec3 c, vec2 px) {
+  // Every scene breathes with the music: the bass swells it, each beat lifts it for a moment.
+  c *= 1.0 + uAudio.x * 0.35 + uAudio.w * 0.45;
   float lum = dot(c, vec3(0.299, 0.587, 0.114));
   // Danger drains the color and leaves a cold red.
   c = mix(c, vec3(lum) * vec3(1.0, 0.32, 0.28) * 1.4, uDanger * 0.75);

@@ -53,7 +53,7 @@ vec3 scene(vec2 px) {
   float tw = pow(max(0.0, sin(uTime * (0.7 + h * 1.6) + h * 40.0)), 40.0) * step(0.86, h);
   vec2 f = fract(px / (uCell * 1.5)) - 0.5;
   float star = max(0.0, 1.0 - length(f) * 6.0) + max(0.0, 1.0 - abs(f.x) * 40.0) * max(0.0, 1.0 - abs(f.y) * 4.0) * 0.4 + max(0.0, 1.0 - abs(f.y) * 40.0) * max(0.0, 1.0 - abs(f.x) * 4.0) * 0.4;
-  c += vec3(1.0) * star * tw * 0.35;
+  c += vec3(1.0) * star * tw * (0.35 + uAudio.z * 0.4);
   c += pulseColor(px) * 0.3;
   return c;
 }
@@ -97,8 +97,8 @@ vec3 scene(vec2 px) {
   float horizon = 0.46;
   vec3 a = pal(5), b = pal(2);
   vec3 c = vec3(0.0);
-  float speed = 0.35 + uLevel * 0.9 + uEnergy * 0.6;
-  float glow = 0.11 + uAudio.x * 0.1 + uAudio.w * 0.06 + uFlare * 0.08;
+  float speed = 0.35 + uLevel * 0.9 + uEnergy * 0.6 + uAudio.x * 0.25;
+  float glow = 0.11 + uAudio.x * 0.16 + uAudio.w * 0.12 + uFlare * 0.08;
   for (int side = 0; side < 2; side++) {
     // Floor below the horizon, a fainter mirrored ceiling above it.
     float y = side == 0 ? uv.y - horizon : horizon - uv.y;
@@ -138,7 +138,7 @@ vec3 scene(vec2 px) {
     float rays = above > 0.0 ? exp(-above * (5.0 - uFlare)) * (0.55 + 0.45 * noise(vec2(uv.x * 60.0 + fi * 13.0, uTime * 0.4))) : exp(above * 60.0);
     vec3 col = mix(pal(3), pal(0), fi / 3.0);
     col = mix(col, pal(2), smoothstep(0.0, 0.25, above) * 0.6);
-    c += col * (hem * 0.6 + rays) * (0.022 + uAudio.y * 0.02);
+    c += col * (hem * 0.6 + rays) * (0.022 + uAudio.y * 0.03 + uAudio.x * 0.015);
   }
   c *= 1.0 + uFlare * 1.2 + uEnergy * 0.5;
   c += pulseColor(px) * 0.25;
@@ -163,7 +163,7 @@ vec3 sparks(vec2 px, float scale, float speed, float seed) {
 }
 vec3 scene(vec2 px) {
   vec2 uv = px / uRes;
-  float heat = 0.04 + uEnergy * 0.05 + uAudio.x * 0.03 + uFlare * 0.04;
+  float heat = 0.04 + uEnergy * 0.05 + uAudio.x * 0.06 + uAudio.w * 0.03 + uFlare * 0.04;
   vec3 c = vec3(1.0, 0.28, 0.06) * pow(uv.y, 3.0) * heat;
   c *= 0.7 + 0.3 * fbm(vec2(uv.x * 3.0, uTime * 0.15));
   c += sparks(px, 2.2, 1.1, 1.0) * 0.18;
@@ -223,7 +223,7 @@ vec3 scene(vec2 px) {
     float room = side < 0.0 ? bx : uRes.x - bx - bw;
     float x = side < 0.0 ? bx * (0.2 + 0.6 * h) : bx + bw + room * (0.2 + 0.6 * h);
     float y = uRes.y * (0.15 + 0.7 * fract(h * 7.3 + uTime * 0.004 * (1.0 + fi)));
-    float size = uCell * (0.7 + h * 1.2) * (1.0 + uAudio.w * 0.08);
+    float size = uCell * (0.7 + h * 1.2) * (1.0 + uAudio.w * 0.16 + uAudio.x * 0.08);
     float d = cube(px, vec2(x, y), size, uTime * (0.15 + h * 0.2) * (1.0 + uEnergy) + fi);
     c += pal(i) * exp(-d * d / (1.6 + uFlare * 2.0)) * 0.22;
     c += pal(i) * exp(-d * 0.08) * 0.012;
