@@ -241,7 +241,7 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 function Overlay({ children }: { children: ReactNode }) {
   return (
     <div className="absolute inset-0 grid place-items-center bg-black/80 px-4">
-      <div className="animate-rise hairline w-full max-w-[440px] rounded-[40px] bg-[#0c0c0d] p-8 sm:p-10">{children}</div>
+      <div className="animate-rise glass-panel w-full max-w-[440px] rounded-[40px] p-8 sm:p-10">{children}</div>
       <NowPlaying />
     </div>
   );
@@ -254,7 +254,7 @@ function PillButton({ children, onClick, hint, primary }: { children: ReactNode;
       data-nav
       onClick={onClick}
       className={`flex-1 rounded-full py-3.5 text-[16px] transition-transform duration-250 ease-spring outline-none hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-accent/70 active:scale-[0.98] ${
-        primary ? 'bg-accent font-semibold text-black' : 'hairline bg-tile font-medium'
+        primary ? 'glass-light font-semibold' : 'glass font-medium'
       }`}
     >
       {children} <span className="ml-1 font-mono text-[12px] opacity-50">{hint}</span>

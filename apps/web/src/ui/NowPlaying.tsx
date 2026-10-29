@@ -24,7 +24,7 @@ export function NowPlaying() {
   }, []);
   if (!shown) return null;
   return (
-    <div key={shown.key} className="now-playing pointer-events-none fixed bottom-6 left-6 z-30 flex items-center gap-3">
+    <div key={shown.key} className="now-playing glass-panel pointer-events-none fixed bottom-6 left-6 z-30 flex items-center gap-3 rounded-full px-4 py-2">
       <span className="now-playing-bars" aria-hidden>
         <i />
         <i />

@@ -163,7 +163,7 @@ export function BotEditor({ spec: initial, onDone, onPlay }: { spec?: CustomBotS
                   saveCustomBot(spec);
                   onDone();
                 }}
-                className={`hairline rounded-full bg-tile py-3.5 text-[16px] font-medium transition-transform duration-250 ease-spring hover:scale-[1.02] ${focusRing}`}
+                className={`glass rounded-full py-3.5 text-[16px] font-medium transition-transform duration-250 ease-spring hover:scale-[1.02] ${focusRing}`}
               >
                 Save
               </button>

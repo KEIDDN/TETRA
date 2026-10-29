@@ -73,7 +73,7 @@ export function Bracket({ onBack, onBout }: { onBack: () => void; onBout: (r: nu
               data-nav
               autoFocus
               onClick={() => onBout(mine.r, mine.i)}
-              className={`group flex items-center gap-5 rounded-[30px] bg-accent py-3 pr-7 pl-3 text-left text-black transition-transform duration-300 ease-spring hover:scale-[1.03] ${focusRing}`}
+              className={`glass-light group flex items-center gap-5 rounded-[30px] py-3 pr-7 pl-3 text-left ${focusRing}`}
             >
               <div className="rounded-[22px] bg-black p-1">
                 <BotEmblem bot={opponentProfile} size={52} glow />
@@ -87,7 +87,7 @@ export function Bracket({ onBack, onBout }: { onBack: () => void; onBout: (r: nu
             </button>
           )}
           {winner && (
-            <button data-nav onClick={() => { abandonTournament(); onBack(); }} className={`rounded-full bg-accent px-7 py-3.5 text-[15px] font-semibold text-black ${focusRing}`}>
+            <button data-nav onClick={() => { abandonTournament(); onBack(); }} className={`glass-light rounded-full px-7 py-3.5 text-[15px] font-semibold ${focusRing}`}>
               Done
             </button>
           )}

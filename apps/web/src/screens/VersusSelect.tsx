@@ -197,7 +197,7 @@ export function VersusSelect({
                 <Fact label="Wins" value={String(record.wins)} />
                 <Fact label="Losses" value={String(record.losses)} />
               </div>
-              <div className="hairline inline-flex rounded-full bg-tile p-1">
+              <div className="glass-panel inline-flex rounded-full p-1">
                 {FORMATS.map((n) => (
                   <button
                     key={n}

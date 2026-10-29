@@ -58,13 +58,13 @@ export function Tournaments({ onBack, onBracket, onCustom }: { onBack: () => voi
             <button
               data-nav
               onClick={onBracket}
-              className={`animate-rise hairline mt-10 flex w-full items-center justify-between gap-6 rounded-[28px] bg-tile px-7 py-5 text-left transition-transform duration-250 ease-spring hover:scale-[1.01] ${focusRing}`}
+              className={`animate-rise glass mt-10 flex w-full items-center justify-between gap-6 rounded-[28px] px-7 py-5 text-left transition-transform duration-250 ease-spring hover:scale-[1.01] ${focusRing}`}
             >
               <div>
                 <div className="label">{activeDone ? 'Finished' : 'In progress'}</div>
                 <div className="mt-1.5 text-[24px] font-medium tracking-[-0.025em]">{active.name}</div>
               </div>
-              <span className="rounded-full bg-accent px-5 py-2.5 text-[14px] font-semibold text-black">{activeDone ? 'See bracket' : 'Resume'}</span>
+              <span className="glass-light rounded-full px-5 py-2.5 text-[14px] font-semibold">{activeDone ? 'See bracket' : 'Resume'}</span>
             </button>
           )}
 
@@ -78,7 +78,7 @@ export function Tournaments({ onBack, onBracket, onCustom }: { onBack: () => voi
             data-nav
             disabled={!customUnlocked()}
             onClick={onCustom}
-            className={`animate-rise hairline mt-5 flex w-full items-center justify-between gap-6 rounded-[32px] bg-tile px-8 py-7 text-left transition-transform duration-250 ease-spring enabled:hover:scale-[1.01] disabled:opacity-50 ${focusRing}`}
+            className={`animate-rise glass mt-5 flex w-full items-center justify-between gap-6 rounded-[32px] px-8 py-7 text-left transition-transform duration-250 ease-spring enabled:hover:scale-[1.01] disabled:opacity-50 ${focusRing}`}
             style={{ animationDelay: '220ms' }}
           >
             <div>

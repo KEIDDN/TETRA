@@ -398,7 +398,7 @@ function SideStatsColumn({ layout, refs, offset }: { layout: Layout; refs: React
 function Overlay({ children }: { children: ReactNode }) {
   return (
     <div className="absolute inset-0 z-40 grid place-items-center bg-black/80 px-4">
-      <div className="animate-rise hairline w-full max-w-[520px] rounded-[40px] bg-[#0c0c0d] p-8 sm:p-10">{children}</div>
+      <div className="animate-rise glass-panel w-full max-w-[520px] rounded-[40px] p-8 sm:p-10">{children}</div>
     </div>
   );
 }
@@ -410,7 +410,7 @@ function Pill({ children, onClick, hint, primary }: { children: ReactNode; onCli
       data-nav
       onClick={onClick}
       className={`flex-1 rounded-full py-3.5 text-[16px] transition-transform duration-250 ease-spring hover:scale-[1.03] active:scale-[0.98] ${focusRing} ${
-        primary ? 'bg-accent font-semibold text-black' : 'hairline bg-tile font-medium'
+        primary ? 'glass-light font-semibold' : 'glass font-medium'
       }`}
     >
       {children} {hint && <span className="ml-1 font-mono text-[12px] opacity-50">{hint}</span>}

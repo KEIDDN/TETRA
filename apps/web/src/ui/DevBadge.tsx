@@ -37,20 +37,20 @@ export function DevBadge() {
       <div className={`relative ${scrolled && !asking ? '' : 'pointer-events-auto'}`}>
         <button
           onClick={() => setAsking((a) => !a)}
-          className="hairline flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 backdrop-blur-md transition-colors hover:bg-white/[0.06]"
+          className="glass flex items-center gap-2 rounded-full px-3 py-1.5"
           title="Developer mode: everything is unlocked"
         >
           <span className="size-1.5 rounded-full bg-[#ffb340] shadow-[0_0_8px_#ffb340]" />
           <span className="font-mono text-[10px] font-medium tracking-[0.18em] text-[#ffb340]">DEV</span>
         </button>
         {asking && (
-          <div className="animate-pop hairline absolute top-full left-1/2 mt-2 w-[240px] -translate-x-1/2 rounded-[20px] bg-[#111113] p-4 text-center shadow-2xl">
+          <div className="animate-pop glass-panel absolute top-full left-1/2 mt-2 w-[240px] -translate-x-1/2 rounded-[20px] p-4 text-center">
             <p className="text-[13px] leading-snug text-muted">Everything is unlocked for you. Leave developer mode?</p>
             <div className="mt-3 flex gap-2">
-              <button onClick={() => setAsking(false)} className="hairline flex-1 rounded-full bg-tile py-2 text-[13px] font-medium">
+              <button onClick={() => setAsking(false)} className="glass flex-1 rounded-full py-2 text-[13px] font-medium">
                 Keep
               </button>
-              <button onClick={leave} className="flex-1 rounded-full bg-accent py-2 text-[13px] font-semibold text-black">
+              <button onClick={leave} className="glass-light flex-1 rounded-full py-2 text-[13px] font-semibold">
                 Leave
               </button>
             </div>

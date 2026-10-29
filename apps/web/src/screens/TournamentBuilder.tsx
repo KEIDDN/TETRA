@@ -130,14 +130,14 @@ export function TournamentBuilder({ onBack, onStart }: { onBack: () => void; onS
             </Section>
 
             <div className="mt-8 flex gap-3">
-              <button data-nav onClick={fill} disabled={picks.length >= seats} className={`hairline flex-1 rounded-full bg-tile py-3.5 text-[15px] font-medium disabled:opacity-40 ${focusRing}`}>
+              <button data-nav onClick={fill} disabled={picks.length >= seats} className={`glass flex-1 rounded-full py-3.5 text-[15px] font-medium disabled:opacity-40 ${focusRing}`}>
                 Fill randomly
               </button>
               <button
                 data-nav
                 onClick={start}
                 disabled={picks.length !== seats}
-                className={`flex-1 rounded-full bg-accent py-3.5 text-[15px] font-semibold text-black transition-transform duration-250 ease-spring enabled:hover:scale-[1.03] disabled:opacity-40 ${focusRing}`}
+                className={`glass-light flex-1 rounded-full py-3.5 text-[15px] font-semibold disabled:opacity-40 ${focusRing}`}
               >
                 Start
               </button>
