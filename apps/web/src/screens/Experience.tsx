@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { director } from '../audio/director';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
+import { SKIN_ORDER, SKINS, type SkinId } from '../game/skins';
 import { setExperience, updateSettings, useSettings } from '../lib/settings';
+import { BotEmblem } from '../ui/BotEmblem';
 import { save } from '../lib/storage';
 import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
 import { GlassSwitch } from '../ui/GlassSwitch';
@@ -12,7 +14,6 @@ import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScen
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm';
 /** The page's own set: everything is cut to its beat. */
 const TRACK = 'oxia-spatial-decay';
-const RIVAL = BOTS[6];
 
 type Id = 'welcome' | 'origin' | 'sound' | 'rooms' | 'opponents' | 'focus' | 'oxia' | 'listen';
 
@@ -40,12 +41,12 @@ const CHAPTERS: Chapter[] = [
     line: 'Stack high and the mix sinks. Clear four and it drops.',
     stage: { game: 'marathon' },
   },
-  { id: 'rooms', name: 'Rooms', title: ['Every skin', 'is a room.'], line: 'Light that follows the kick, counts the bars and breaks on the drop.', stage: { game: 'blitz' } },
+  { id: 'rooms', name: 'Rooms', title: ['Every skin', 'is a room.'], line: `${SKIN_ORDER.length} skins, each with its own light. It follows the kick, counts the bars and breaks on the drop.`, stage: { game: 'blitz' } },
   {
     id: 'opponents',
     name: 'Opponents',
     title: ['Opponents', 'with a pulse.'],
-    line: 'Ten bots that hesitate, misdrop and get greedy. Just like people.',
+    line: 'Ten bots that hesitate, misdrop and get greedy, like people do. Face them one on one in Versus, or fight through the Cups.',
     stage: { game: 'versus', bot: true },
   },
   { id: 'focus', name: 'Focus', title: ['Here to train?'], line: 'One switch. Everything but the stack goes quiet.', stage: { game: 'sprint' } },
@@ -91,6 +92,18 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
   const chapter = chapters[index];
   const game = typeof chapter.stage === 'object' ? chapter.stage : null;
   const [gameMode, setGameMode] = useState<{ game: DemoMode; bot?: boolean } | null>(null);
+  // Rooms walks through every skin; Opponents through every bot. One step every two bars.
+  const [step, setStep] = useState(0);
+  const focusing = chapter.id === 'focus' && !settings.experience;
+  useEffect(() => {
+    setStep(0);
+    if (chapter.id !== 'rooms' && chapter.id !== 'opponents') return;
+    const beat = (music.nextBeat()?.period ?? 60 / 131) * 1000;
+    const id = window.setInterval(() => setStep((s) => s + 1), beat * 8);
+    return () => clearInterval(id);
+  }, [chapter.id]);
+  const skin: SkinId = chapter.id === 'rooms' ? SKIN_ORDER[step % SKIN_ORDER.length] : 'mono';
+  const rival = BOTS[chapter.id === 'opponents' ? step % BOTS.length : 6];
   useEffect(() => sfx.unlock(), []);
 
   // The page plays its own set.
@@ -159,13 +172,16 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
     const id = setInterval(apply, 200);
     const leave = game ? 0 : window.setTimeout(() => setGameMode(null), 800);
     // The opening hears the set from the next room; it opens as you walk in.
-    music.club?.setLowpass(chapter.id === 'welcome' ? 650 : null);
     return () => {
       clearInterval(id);
       clearTimeout(leave);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, settings.experience]);
+  // The opening hears the set from the next room. In Focus the music sinks far into the background.
+  useEffect(() => {
+    music.club?.setLowpass(chapter.id === 'welcome' ? 650 : focusing ? 900 : null);
+  }, [chapter.id, focusing]);
   useEffect(() => () => music.club?.setLowpass(null), []);
 
   // Keys, and the wheel: one chapter per gesture.
@@ -206,12 +222,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
   const toggleFocus = (focus: boolean) => {
     if (focus === !settings.experience) return;
     if (focus) {
-      // The room drops out: the set sinks under a filter, then the club goes dry.
-      music.club?.setLowpass(700);
-      window.setTimeout(() => {
-        setExperience(false);
-        music.club?.setLowpass(null);
-      }, 380);
+      setExperience(false);
     } else {
       setExperience(true);
       music.club?.throw(6, music.bpm);
@@ -219,7 +230,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
   };
 
   return (
-    <div ref={root} className="fixed inset-0 overflow-hidden bg-black text-fg" onClick={() => index === 0 && go(1)}>
+    <div ref={root} className={`fixed inset-0 overflow-hidden bg-black text-fg ${focusing ? 'exp-calm' : ''}`} onClick={() => index === 0 && go(1)}>
       <div ref={stage} className={`absolute inset-0 transition-opacity duration-700 ${game ? 'opacity-0' : 'opacity-100'}`} aria-hidden />
       <div
         aria-hidden
@@ -228,18 +239,25 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
 
       {/* The real game: Mono, with its room. */}
       {gameMode && (
-        <div className={`absolute inset-y-0 right-0 left-[34%] transition-opacity duration-700 ${game ? 'opacity-100' : 'opacity-0'}`}>
+        <div
+          className={`absolute inset-y-0 right-0 left-[34%] transition-[opacity,filter,transform] duration-[1400ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${game ? 'opacity-100' : 'opacity-0'} ${
+            focusing ? 'scale-[0.94] brightness-[0.55] grayscale' : ''
+          }`}
+        >
           <DemoBoard
             mode={(game ?? gameMode).game}
-            skin="mono"
-            bot={(game ?? gameMode).bot ? RIVAL : undefined}
+            skin={skin}
+            bot={(game ?? gameMode).bot ? rival : undefined}
             room={chapter.id === 'focus' ? 'experience' : 'on'}
             className="absolute inset-0"
           />
           <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-[30%] bg-gradient-to-r from-black to-transparent" />
-          {chapter.id === 'opponents' && (
-            <div className="absolute right-10 bottom-28 font-mono text-[10px] tracking-[0.24em] text-white/50 uppercase">
-              Live · {RIVAL.name} · Level {RIVAL.level}
+          {chapter.id === 'rooms' && (
+            <div key={skin} className="animate-rise absolute right-10 bottom-28 text-right">
+              <div className="font-mono text-[10px] tracking-[0.24em] text-white/45 uppercase">
+                {String(SKIN_ORDER.indexOf(skin) + 1).padStart(2, '0')} / {SKIN_ORDER.length}
+              </div>
+              <div className="mt-1 text-[28px] font-[560] tracking-[-0.03em]">{SKINS[skin].name}</div>
             </div>
           )}
         </div>
@@ -261,7 +279,15 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
       {chapters.map((c, i) => (
         <Scene key={c.id} chapter={c} active={index === i} gameSide={typeof c.stage === 'object'}>
           {c.id === 'welcome' && <p className="exp-blink font-mono text-[11px] tracking-[0.3em] text-white/60 uppercase">Press any key</p>}
-          {c.id === 'focus' && <GlassSwitch options={['Experience', 'Focus']} value={settings.experience ? 0 : 1} onChange={(v) => toggleFocus(v === 1)} />}
+          {c.id === 'focus' && (
+            <div>
+              <GlassSwitch options={['Experience', 'Focus']} value={settings.experience ? 0 : 1} onChange={(v) => toggleFocus(v === 1)} />
+              <p key={String(settings.experience)} className="animate-rise mt-6 font-mono text-[11px] tracking-[0.22em] text-white/50 uppercase">
+                {settings.experience ? 'Sound, light and play as one' : 'Just you and the stack'}
+              </p>
+            </div>
+          )}
+          {c.id === 'opponents' && <Roster active={index === i} current={rival.id} />}
           {c.id === 'oxia' && onOxia && !firstRun && (
             <button onClick={onOxia} className={`group inline-flex items-center gap-3 font-mono text-[11px] tracking-[0.24em] text-white/80 uppercase ${focusRing}`}>
               <span className="border-b border-white/30 pb-1 transition-colors group-hover:border-white">Why we made TETRA</span>
@@ -306,6 +332,40 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
           );
         })}
       </nav>
+    </div>
+  );
+}
+
+/** The ten bots as their emblems: they cascade in, and the one playing on the right steps forward. */
+function Roster({ active, current }: { active: boolean; current: string }) {
+  const bot = BOTS.find((b) => b.id === current)!;
+  return (
+    <div>
+      <div className="flex items-end gap-2.5">
+        {BOTS.map((b, i) => {
+          const on = b.id === current;
+          return (
+            <div
+              key={b.id}
+              className="transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.34,1.4,0.64,1)]"
+              style={{
+                transitionDelay: active ? `${i * 45}ms` : '0ms',
+                transform: active ? `translateY(${on ? -10 : 0}px) scale(${on ? 1.35 : 1})` : 'translateY(24px) scale(0.8)',
+                opacity: active ? (on ? 1 : 0.35) : 0,
+                filter: on ? 'none' : 'grayscale(0.4)',
+              }}
+            >
+              <BotEmblem bot={b} size={42} glow={on} />
+            </div>
+          );
+        })}
+      </div>
+      <div key={current} className="animate-rise mt-6">
+        <div className="text-[22px] font-[560] tracking-[-0.02em]">
+          {bot.name} <span className="font-mono text-[11px] tracking-[0.2em] text-white/45 uppercase">Level {bot.level}</span>
+        </div>
+        <div className="mt-1 text-[14px] text-white/50">{bot.style}</div>
+      </div>
     </div>
   );
 }

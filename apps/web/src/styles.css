@@ -841,3 +841,13 @@ body {
     filter: none;
   }
 }
+
+/* Experience in Focus: the page calms down, the beat stops pushing the type. */
+.exp-calm .exp-kick {
+  transform: none;
+}
+.exp-calm nav,
+.exp-calm header {
+  opacity: 0.6;
+  transition: opacity 1.2s ease;
+}

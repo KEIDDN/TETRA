@@ -92,7 +92,7 @@ export function DemoBoard({ mode, skin, bot, className, onClear, onStats, live =
       applySkin(initial.current.skin);
       const unsubscribe = initial.current.live
         ? subscribeSettings(() => applySkin(getSettings().appearance.skin))
-        : initial.current.room === 'experience'
+        : initial.current.room
           ? subscribeSettings(() => applySkin(initial.current.skin))
           : () => {};
       const relayout = () => r.setLayout(computeDemoLayout(host.clientWidth, host.clientHeight));
@@ -178,8 +178,9 @@ export function DemoBoard({ mode, skin, bot, className, onClear, onStats, live =
   useEffect(() => controls.current?.restart(), [bot]);
   useEffect(() => {
     initial.current.skin = skin;
+    initial.current.room = room;
     controls.current?.setSkin(skin);
-  }, [skin]);
+  }, [skin, room]);
 
   return <div ref={hostRef} className={className} aria-hidden />;
 }
