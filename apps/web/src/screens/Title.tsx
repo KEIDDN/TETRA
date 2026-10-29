@@ -106,7 +106,7 @@ export function Title({ onPlay, onSettings }: { onPlay: () => void; onSettings: 
             className={`glass flex items-center gap-3 rounded-full py-2 pr-4 pl-3 font-sans text-[13px] font-medium tracking-normal text-fg normal-case ${focusRing}`}
           >
             <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-black">New</span>
-            What's new in {PATCH_NOTES[0].version}
+            What's new in {PATCH_NOTES[0].version} · {PATCH_NOTES[0].title}
           </button>
           <span>
             {[
@@ -166,19 +166,29 @@ function PatchNotes({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         {PATCH_NOTES.map((release, i) => (
-          <section key={release.version} className={`animate-rise ${i ? 'mt-14 opacity-60' : 'mt-10'}`} style={{ animationDelay: `${i * 80}ms` }}>
-            <div className="flex items-baseline justify-between gap-4 border-b border-white/10 pb-4">
-              <h2 className="text-[clamp(36px,4vw,56px)] leading-none font-[560] tracking-[-0.045em]">TETRA {release.version}</h2>
+          <section key={release.version} className={`animate-rise ${i ? 'mt-20 opacity-60' : 'mt-10'}`} style={{ animationDelay: `${i * 80}ms` }}>
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Update {release.version}</span>
               <span className="text-[14px] text-white/45">{release.date}</span>
             </div>
-            <ul className="mt-6 space-y-3.5">
-              {release.notes.map((note) => (
-                <li key={note} className="flex gap-4 text-[17px] leading-relaxed text-white/75">
-                  <span className="mt-[11px] size-1.5 shrink-0 rounded-[2px] bg-white/50" />
-                  {note}
-                </li>
-              ))}
-            </ul>
+            <h2 className="mt-3 text-[clamp(44px,5vw,72px)] leading-none font-[560] tracking-[-0.05em]">{release.title}</h2>
+            <p className="mt-5 max-w-[56ch] text-[18px] leading-relaxed text-white/70">{release.intro}</p>
+            {release.sections.map((section) => (
+              <div key={section.heading} className="mt-10">
+                <h3 className="flex items-center gap-3 border-b border-white/10 pb-3 text-[13px] font-semibold tracking-[0.12em] uppercase">
+                  <span className={`size-2 rounded-[2px] ${section.heading === 'New' ? 'bg-white' : section.heading === 'Improved' ? 'bg-white/55' : 'bg-white/25'}`} />
+                  {section.heading}
+                </h3>
+                <ul className="mt-5 space-y-3.5">
+                  {section.notes.map((note) => (
+                    <li key={note} className="flex gap-4 text-[16px] leading-relaxed text-white/75">
+                      <span className="mt-[10px] size-1.5 shrink-0 rounded-[2px] bg-white/40" />
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </section>
         ))}
       </div>
