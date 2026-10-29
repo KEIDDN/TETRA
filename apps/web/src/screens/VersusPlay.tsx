@@ -6,6 +6,7 @@ import { resolveGrid, SKINS } from '../game/skins';
 import { VersusSession, type SideStats, type VersusPhase, type VersusResult } from '../game/versusSession';
 import { formatRate } from '../lib/format';
 import { useMenuNav } from '../lib/nav';
+import { NowPlaying } from '../ui/NowPlaying';
 import { getSettings } from '../lib/settings';
 import { findBot } from '../lib/customBots';
 import { isUnlocked } from '../lib/versus';
@@ -523,6 +524,7 @@ function AttackChart({ timeline }: { timeline: VersusResult['timeline'] }) {
         <path d={line(1)} fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
         <path d={line(0)} fill="none" stroke="#edebfa" strokeWidth={2} vectorEffect="non-scaling-stroke" />
       </svg>
+      <NowPlaying />
     </div>
   );
 }

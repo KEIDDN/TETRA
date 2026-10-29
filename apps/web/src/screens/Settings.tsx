@@ -36,7 +36,7 @@ function usePadKind() {
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
-export function Settings({ onBack, initialTab = 'appearance' }: { onBack: () => void; initialTab?: Tab }) {
+export function Settings({ onBack, onMusicLab, initialTab = 'appearance' }: { onBack: () => void; onMusicLab?: () => void; initialTab?: Tab }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [capture, setCapture] = useState<Capture>(null);
   useMenuNav(onBack, capture === null);
@@ -74,7 +74,7 @@ export function Settings({ onBack, initialTab = 'appearance' }: { onBack: () => 
           {tab === 'controls' && <ControlsPanel capture={capture} setCapture={setCapture} />}
         </div>
 
-        <DeveloperSection />
+        <DeveloperSection onMusicLab={onMusicLab} />
 
         <div className="mt-10 flex justify-end">
           <button
@@ -218,6 +218,31 @@ function SoundPanel() {
           onChange={(movement) => set({ movement })}
           onCommit={() => sfx.move()}
         />
+      </Section>
+
+      <Section label="Music" note="Electronic, ambient and IDM under Creative Commons.">
+        <SliderRow
+          name="Music volume"
+          hint="On its own fader, under the effects"
+          min={0}
+          max={1}
+          step={0.05}
+          value={audio.music}
+          display={(v) => (v === 0 ? 'Off' : `${Math.round(v * 100)}%`)}
+          onChange={(music) => set({ music })}
+        />
+        <Row name="In game" hint={audio.musicMode === 'skin' ? "Each skin plays its own track" : audio.musicMode === 'shuffle' ? 'Any track, one after another' : 'Menus only'}>
+          <Segmented
+            small
+            value={audio.musicMode}
+            onChange={(musicMode) => set({ musicMode })}
+            options={[
+              ['skin', 'Skin'],
+              ['shuffle', 'Shuffle'],
+              ['off', 'Off'],
+            ]}
+          />
+        </Row>
       </Section>
 
       <Section label="Sound pack" note="Selecting plays a sample.">
@@ -437,11 +462,18 @@ function ControlsPanel({ capture, setCapture }: { capture: Capture; setCapture: 
 // ── Building blocks ─────────────────────────────────────────────
 
 /** Only visible once developer mode was switched on from the home screen. */
-function DeveloperSection() {
+function DeveloperSection({ onMusicLab }: { onMusicLab?: () => void }) {
   const { developer } = useSettings();
   if (!developer) return null;
   return (
     <Section label="Developer">
+      {onMusicLab && (
+        <Row name="Music lab" hint="Audition the shortlist while playing and assign tracks to the menu and each skin">
+          <button data-nav onClick={onMusicLab} className="rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-black">
+            Open
+          </button>
+        </Row>
+      )}
       <ToggleRow
         name="Developer mode"
         hint="Every bot, cup and skin unlocked. Tap the version five times on the home screen to bring this back."

@@ -108,6 +108,8 @@ class Sfx {
   private hardDropped = false;
   private pack: Pack = PACKS.studio;
 
+  private unlockListeners = new Set<(ctx: AudioContext) => void>();
+
   /** Audio can only start after a user gesture; call from input handlers. */
   unlock(): void {
     if (!this.ctx) {
@@ -117,8 +119,21 @@ class Sfx {
         return;
       }
       this.build(this.ctx);
+      const ctx = this.ctx;
+      this.unlockListeners.forEach((l) => l(ctx));
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
+  /** The shared audio context, once a gesture has unlocked it (music plays through it too). */
+  get context(): AudioContext | null {
+    return this.ctx;
+  }
+
+  /** Calls back with the context as soon as audio is unlocked (right away if it already is). */
+  onUnlock(listener: (ctx: AudioContext) => void): void {
+    if (this.ctx) listener(this.ctx);
+    else this.unlockListeners.add(listener);
   }
 
   // ── Game ──────────────────────────────────────────────────────

@@ -4,6 +4,8 @@ import { sfx } from './audio/sfx';
 import { gamepads } from './game/gamepad';
 import { Toasts } from './ui/toast';
 import { DevBadge } from './ui/DevBadge';
+import { director } from './audio/director';
+import { getSettings as readSettings } from './lib/settings';
 import { Home } from './screens/Home';
 import { Play } from './screens/Play';
 import { Settings } from './screens/Settings';
@@ -15,12 +17,15 @@ import { Tournaments } from './screens/Tournaments';
 import { TournamentBuilder } from './screens/TournamentBuilder';
 import { Bracket } from './screens/Bracket';
 import { Profile, type ProfileSection } from './screens/Profile';
+import { MusicLab } from './screens/MusicLab';
+import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
 
 type SettingsTab = 'appearance' | 'sound' | 'controls';
 type Screen =
   | { name: 'home' }
-  | { name: 'play'; mode: ModeId }
+  | { name: 'play'; mode: ModeId; back?: 'musiclab' }
+  | { name: 'musiclab' }
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
   | { name: 'editor'; id?: string }
@@ -34,6 +39,12 @@ type Screen =
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const home = () => setScreen({ name: 'home' });
+
+  // Music follows the screen: one continuous menu track, the skin's track in a game.
+  useEffect(() => {
+    if (screen.name === 'play' || screen.name === 'match' || screen.name === 'bout') director.enterGame(readSettings().appearance.skin);
+    else director.enterMenu();
+  }, [screen]);
 
   // Browsers only allow audio after a gesture: unlock on the first one.
   useEffect(() => {
@@ -51,10 +62,10 @@ export function App() {
   let content;
   switch (screen.name) {
     case 'play':
-      content = <Play key={screen.mode} mode={screen.mode} onExit={home} />;
+      content = <Play key={screen.mode} mode={screen.mode} onExit={screen.back ? () => setScreen({ name: screen.back! }) : home} />;
       break;
     case 'settings':
-      content = <Settings initialTab={screen.tab} onBack={home} />;
+      content = <Settings initialTab={screen.tab} onBack={home} onMusicLab={() => setScreen({ name: 'musiclab' })} />;
       break;
     case 'versus':
       content = (
@@ -82,6 +93,17 @@ export function App() {
           firstTo={screen.firstTo}
           onExit={() => setScreen({ name: 'versus' })}
           onNext={(botId) => setScreen({ name: 'match', botId, firstTo: screen.firstTo })}
+        />
+      );
+      break;
+    case 'musiclab':
+      content = (
+        <MusicLab
+          onBack={() => setScreen({ name: 'settings', tab: 'sound' })}
+          onTry={(skin) => {
+            updateSettings((s) => ({ ...s, appearance: { ...s.appearance, skin } }));
+            setScreen({ name: 'play', mode: 'endless', back: 'musiclab' });
+          }}
         />
       );
       break;
@@ -148,7 +170,7 @@ export function App() {
       <div key={screen.name} className="animate-fade min-h-full">
         {content}
       </div>
-      {!['play', 'match', 'bout'].includes(screen.name) && <DevBadge />}
+      {!['play', 'match', 'bout'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
       <Toasts />
     </>
   );

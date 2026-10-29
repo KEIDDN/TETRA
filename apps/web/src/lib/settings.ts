@@ -57,6 +57,10 @@ export interface AudioSettings {
   movement: number;
   /** 'match' follows the skin's own sound pack. */
   pack: 'match' | SoundPackId;
+  /** 0–1, music on its own fader. */
+  music: number;
+  /** Skin: each skin's track. Shuffle: any unlocked track. */
+  musicMode: 'skin' | 'shuffle' | 'off';
 }
 
 export interface Settings {
@@ -78,7 +82,7 @@ export const MAX_BINDINGS = 2;
 export const DEFAULT_SETTINGS: Settings = {
   developer: false,
   appearance: { skin: 'studio', fx: 'subtle', smoothFall: false, ghost: true, grid: 'auto', ambient: true, background: 'full', actionText: true },
-  audio: { enabled: true, volume: 0.7, movement: 0.8, pack: 'match' },
+  audio: { enabled: true, volume: 0.7, movement: 0.8, pack: 'match', music: 0.5, musicMode: 'skin' },
   keyboard: {
     handling: DEFAULT_HANDLING,
     bindings: {
@@ -168,6 +172,12 @@ export function updateSettings(change: (s: Settings) => Settings): void {
   current = change(current);
   save('settings', encode(current));
   listeners.forEach((l) => l());
+}
+
+/** Outside React (audio, renderers): called after every change. */
+export function subscribeSettings(l: () => void): () => void {
+  listeners.add(l);
+  return () => listeners.delete(l);
 }
 
 export function resetSettings(): void {

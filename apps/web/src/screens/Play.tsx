@@ -9,6 +9,7 @@ import { getSettings } from '../lib/settings';
 import { GameSession, type LiveStats, type Phase, type SessionResult } from '../game/session';
 import { formatRate, formatTime } from '../lib/format';
 import { useMenuNav } from '../lib/nav';
+import { NowPlaying } from '../ui/NowPlaying';
 
 const STAT_LABELS: Record<StatKey, string> = { lines: 'Lines', pieces: 'Pieces', pps: 'PPS', score: 'Score', level: 'Level' };
 
@@ -238,6 +239,7 @@ function Overlay({ children }: { children: ReactNode }) {
   return (
     <div className="absolute inset-0 grid place-items-center bg-black/80 px-4">
       <div className="animate-rise hairline w-full max-w-[440px] rounded-[40px] bg-[#0c0c0d] p-8 sm:p-10">{children}</div>
+      <NowPlaying />
     </div>
   );
 }

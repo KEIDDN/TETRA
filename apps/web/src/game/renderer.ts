@@ -13,6 +13,7 @@ import {
 import { Application, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js';
 import { Lattice, type Echo } from './ambient';
 import { isShaderScene, ShaderScene } from './scenes/shaderScene';
+import { music } from '../audio/music';
 import { easeOut, easeOutBack, FlowLight, Particles, SpritePool, spriteTween, Tweens, type FxLevel } from './fx';
 import type { Layout } from './layout';
 import { hexToNumber, paintBlock, SKINS, type BlockKind, type GridStyle, type Palette, type Skin } from './skins';
@@ -493,13 +494,16 @@ export class GameRenderer {
       this.scene.setEnergy(Math.min(1, Math.max(0, b2b) * 0.15 + Math.max(0, combo) * 0.1));
       this.scene.setDanger(this.dangerTarget);
       this.scene.setLevel((level - 1) / 19);
+      this.scene.setAudio(music.analyse());
       this.scene.update(dt);
       return;
     }
     const lattice = this.ambient;
     if (!lattice || !this.shared || !this.layout) return;
     const { b2b, combo } = game.stats;
-    lattice.setEnergy(Math.min(1, Math.max(0, b2b) * 0.15 + Math.max(0, combo) * 0.1));
+    // The lattice breathes a little with the music's bass.
+    const { low, beat } = music.analyse();
+    lattice.setEnergy(Math.min(1, Math.max(0, b2b) * 0.15 + Math.max(0, combo) * 0.1 + low * 0.12 + beat * 0.08));
     lattice.setDanger(this.dangerTarget);
     lattice.update(dt);
 
