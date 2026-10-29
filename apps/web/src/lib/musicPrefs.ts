@@ -16,12 +16,12 @@ function defaults(): MusicPrefs {
   return { assign, rejected: [], bpm: {} };
 }
 
-let prefs: MusicPrefs = { ...defaults(), ...load<Partial<MusicPrefs>>('music.v3', {}) };
+let prefs: MusicPrefs = { ...defaults(), ...load<Partial<MusicPrefs>>('music.v4', {}) };
 const listeners = new Set<() => void>();
 
 function commit(next: MusicPrefs): void {
   prefs = next;
-  save('music.v3', prefs);
+  save('music.v4', prefs);
   listeners.forEach((l) => l());
 }
 

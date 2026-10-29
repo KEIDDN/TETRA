@@ -8,9 +8,25 @@ export interface AudioBands {
   high: number;
   /** 1 on a beat, decaying to 0 before the next. */
   beat: number;
+  /** 1 on a kick drum hit, decaying fast. */
+  kick: number;
+  /** 1 on a hi-hat, decaying very fast. */
+  hat: number;
+  /** Which beat of the bar (0–3), counted from the last drop. */
+  beatInBar: number;
+  /** 1 at the start of every 16-bar phrase, decaying over a bar. */
+  phrase: number;
+  /** Phrases since the music started or last dropped (scenes rotate their looks with it). */
+  phraseIndex: number;
+  /** The drop: 1 when the kick slams back after a break, easing out over ~8 bars. */
+  drop: number;
+  /** 0–1 while in a break: the kick has gone and the highs are rising. */
+  build: number;
+  /** True while the kick is away. */
+  breakdown: boolean;
 }
 
-const SILENT: AudioBands = { low: 0, mid: 0, high: 0, beat: 0 };
+const SILENT: AudioBands = { low: 0, mid: 0, high: 0, beat: 0, kick: 0, hat: 0, beatInBar: 0, phrase: 0, phraseIndex: 0, drop: 0, build: 0, breakdown: false };
 
 interface Deck {
   el: HTMLAudioElement;
@@ -48,8 +64,17 @@ class Music {
   private peaks = [0.05, 0.05, 0.05];
   private lowAvg = 0;
   private lastBeat = -1;
-  private lastOnset = -10;
   private analysedAt = 0;
+  // Musical structure.
+  private prevKickBand = 0;
+  private prevHatBand = 0;
+  private kickAvg = 0;
+  private hatAvg = 0;
+  private lastKick = -10;
+  private lastHat = -10;
+  private beatCount = 0;
+  private kickPresence = 1;
+  private breakBeats = 0;
 
   constructor() {
     sfx.onUnlock((ctx) => this.attach(ctx));
@@ -84,6 +109,10 @@ class Music {
     deck.track = track;
     this.lastBeat = -1;
     this.peaks = [0.05, 0.05, 0.05];
+    this.beatCount = 0;
+    this.breakBeats = 0;
+    this.kickPresence = 1;
+    this.bands.phraseIndex = 0;
     this.listeners.forEach((l) => l(track));
     if (!track) return;
     // In memory already: no network wait. Otherwise stream it, and switch to the download if it lands before playback starts.
@@ -191,24 +220,67 @@ class Music {
     this.bands.mid = smooth(this.bands.mid, out[1] ** 2);
     this.bands.high = smooth(this.bands.high, out[2] ** 2);
 
-    // Beat: a bass onset, or the tempo's next tick after the last onset when the track has one.
+    // Kick and hats: onsets in their own bands, against a running average.
+    const kickBand = band(40, 110);
+    const hatBand = band(6000, 12000);
+    const kickFlux = kickBand - this.prevKickBand;
+    const hatFlux = hatBand - this.prevHatBand;
+    this.prevKickBand = kickBand;
+    this.prevHatBand = hatBand;
+    this.kickAvg += (kickBand - this.kickAvg) * Math.min(1, dt * 2);
+    this.hatAvg += (hatBand - this.hatAvg) * Math.min(1, dt * 2);
     const bpm = this.wanted.bpm;
-    const period = bpm ? 60 / bpm : 0;
-    const flux = raw[0] - this.lowAvg;
-    this.lowAvg += (raw[0] - this.lowAvg) * Math.min(1, dt * 3);
-    let hit = false;
-    if (flux > 0.06 && t - this.lastOnset > (period ? period * 0.6 : 0.25)) {
-      this.lastOnset = t;
-      hit = true;
-    } else if (period && this.lastOnset > 0) {
-      const k = Math.round((t - this.lastOnset) / period);
-      const tick = this.lastOnset + k * period;
-      if (k > 0 && k < 32 && t >= tick && tick > this.lastBeat) hit = true;
+    const period = bpm ? 60 / bpm : 0.48;
+    const kickHit = kickFlux > 0.045 && kickBand > this.kickAvg * 1.05 && t - this.lastKick > period * 0.55;
+    if (kickHit) this.lastKick = t;
+    const hatHit = hatFlux > 0.02 && hatBand > this.hatAvg * 1.1 && t - this.lastHat > period * 0.2;
+    if (hatHit) this.lastHat = t;
+    this.bands.kick = kickHit ? 1 : this.bands.kick * Math.exp(-dt * 9);
+    this.bands.hat = hatHit ? 1 : this.bands.hat * Math.exp(-dt * 18);
+
+    // The beat clock: locked to the kick, and keeping time through breaks when the tempo is known.
+    let beat = false;
+    // Beats that went by since the last call (a slow frame can skip several).
+    let elapsedBeats = 1;
+    if (kickHit && t - this.lastBeat > period * 0.55) beat = true;
+    else if (bpm && this.lastBeat > 0 && t - this.lastBeat >= period * 0.98) {
+      beat = true;
+      elapsedBeats = Math.max(1, Math.floor((t - this.lastBeat) / period + 0.02));
+    } else if (!bpm) {
+      const flux = raw[0] - this.lowAvg;
+      if (flux > 0.06 && t - this.lastBeat > 0.25) beat = true;
     }
-    if (hit) {
-      this.lastBeat = t;
+    this.lowAvg += (raw[0] - this.lowAvg) * Math.min(1, dt * 3);
+    this.bands.phrase *= Math.exp(-dt / (period * 2));
+    this.bands.drop *= Math.exp(-dt / (period * 16));
+    if (beat) {
+      // On a kick, lock to it; on the grid, keep exact time so the clock never drifts.
+      this.lastBeat = kickHit || !bpm ? t : this.lastBeat + elapsedBeats * period;
       this.bands.beat = 1;
+      const before = this.beatCount;
+      this.beatCount += elapsedBeats;
+      // Is the kick still there? A short memory of hits per beat.
+      this.kickPresence += ((t - this.lastKick < period * 1.5 ? 1 : 0) - this.kickPresence) * 0.25;
+      if (this.kickPresence < 0.3) this.breakBeats++;
+      else {
+        // The kick is back after a real break: that's the drop. Bars and phrases count from here.
+        if (this.breakBeats >= 12 && kickHit) {
+          this.bands.drop = 1;
+          this.beatCount = 0;
+          this.bands.phraseIndex++;
+          this.bands.phrase = 1;
+        }
+        this.breakBeats = 0;
+      }
+      this.bands.beatInBar = this.beatCount % 4;
+      if (Math.floor(this.beatCount / 64) > Math.floor(before / 64)) {
+        this.bands.phrase = 1;
+        this.bands.phraseIndex++;
+      }
     } else this.bands.beat *= Math.exp(-dt * 7);
+    this.bands.breakdown = this.breakBeats >= 8;
+    const buildTarget = this.bands.breakdown ? Math.min(1, this.bands.high * 0.6 + Math.min(1, this.breakBeats / 32) * 0.6) : 0;
+    this.bands.build += (buildTarget - this.bands.build) * Math.min(1, dt * 2);
     return this.bands;
   }
 
@@ -228,7 +300,7 @@ class Music {
     this.bus.gain.value = this.volume * this.volume;
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
-    this.analyser.smoothingTimeConstant = 0.6;
+    this.analyser.smoothingTimeConstant = 0.35;
     this.bins = new Uint8Array(this.analyser.frequencyBinCount);
     // The analyser listens to the track itself, before any effect, so the scenes follow the music.
     this.bus.connect(this.analyser);
