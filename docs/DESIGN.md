@@ -380,3 +380,14 @@ Order: voice → Experience + OXIA → wheel + game intro → Settings → Profi
 - **Logo intro**: once per session, the mark builds from minos (~1.2 s, skippable).
 - **Motion**: screens change in view transitions, and the level ring flies from Home to Profile.
 - **Generative techno**: parked. It can't be auditioned here, and the owner worried it would sound amateur next to the curated set.
+
+### 9i. Experience v4 (fifth grill round, Q61–Q70)
+- **Feeling:** walking into a club (dark, bass, the drop), finished like an Apple keynote. References: Nothing, the Vision Pro opening.
+- **Structure:** chapters the player moves through; each is a choreographed scene.
+- **Visuals:**
+  - 3D for the opening and the logo: minos fall on the kick and build the T.
+  - The real game in the Mono skin with its room for the game chapters, so it matches the monochrome look.
+- **Music:** the page plays Spatial Decay. Kinetic type: words land on the beat, big, then leave.
+- **Story:** origin (music and blocks) → you play the music → rooms → opponents → Focus → OXIA. The copy sells.
+- **Focus:** a large liquid-glass switch with ultra-fluid motion, so the difference is seen and heard at once.
+- **First launch:** the whole Experience plays (skippable), then the headphones/speakers question, then play.

@@ -127,6 +127,10 @@ export class ExperienceScene {
   reactive = true;
   /** Text sits in the middle of the screen: compositions stay centred behind it. */
   centered = false;
+  /** Seconds over which pieces set off on a formation change: long for the opening, where they fall in one by one. */
+  stagger = 0.5;
+  /** Nothing is drawn while the stage is covered (the real game is on screen). */
+  paused = false;
   bands: AudioBands | null = null;
 
   constructor(private host: HTMLElement) {
@@ -153,7 +157,7 @@ export class ExperienceScene {
         cells: SHAPES[TYPES[i % TYPES.length]][0].map(([x, y]) => [x, y] as [number, number]),
         porcelain: i % PORCELAIN_EVERY === 1,
         seed: r(),
-        pos: new THREE.Vector3((r() - 0.5) * 40, (r() - 0.5) * 24, -30),
+        pos: new THREE.Vector3((r() - 0.5) * 30, 15 + r() * 12, -10),
         quat: new THREE.Quaternion(),
         scale: 1,
         glow: 0,
@@ -371,8 +375,8 @@ export class ExperienceScene {
 
   private frame = (now: number): void => {
     if (this.disposed) return;
-    // A hidden tab draws nothing.
-    if (document.hidden) {
+    // A hidden tab, or a covered stage, draws nothing.
+    if (document.hidden || this.paused) {
       this.last = now;
       this.raf = requestAnimationFrame(this.frame);
       return;
@@ -397,9 +401,9 @@ export class ExperienceScene {
         p.fromQuat.copy(p.quat);
         p.fromScale = p.scale;
         p.offsets.forEach((o, k) => p.fromOffsets[k].copy(o));
-        p.start = this.clock + p.seed * 0.5;
+        p.start = this.clock + p.seed * this.stagger;
       });
-      this.arrivedAt = this.clock + 0.5 + MOVE;
+      this.arrivedAt = this.clock + this.stagger + MOVE;
     }
 
     // The T: once the pieces have landed in its cells, solid blocks rise through them and take over.

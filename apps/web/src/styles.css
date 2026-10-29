@@ -573,12 +573,21 @@ body {
   }
 }
 
+/* Glass surfaces are positioned for their rim layer, but in the components
+   layer so utilities like `absolute` still win. */
+@layer components {
+  .glass,
+  .glass-light,
+  .glass-panel {
+    position: relative;
+    isolation: isolate;
+  }
+}
+
 /* ── Liquid glass ───────────────────────────────────────────
    Minimal, dark: a blurred, saturated backdrop; a specular lip on top;
    a rim that catches light at opposite corners; light pooling below. */
 .glass {
-  position: relative;
-  isolation: isolate;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.035) 48%, rgb(255 255 255 / 0.06));
   -webkit-backdrop-filter: blur(20px) saturate(1.7);
   backdrop-filter: blur(20px) saturate(1.7);
@@ -616,8 +625,6 @@ body {
 
 /* The primary action: the same glass, filled with light. */
 .glass-light {
-  position: relative;
-  isolation: isolate;
   color: #000;
   background: linear-gradient(180deg, #ffffff, var(--color-accent) 55%, #d9d6ee);
   box-shadow:
@@ -655,8 +662,6 @@ body {
 
 /* Static glass for panels: the same material, without the button's hover and press. */
 .glass-panel {
-  position: relative;
-  isolation: isolate;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.065), rgb(255 255 255 / 0.025) 40%, rgb(255 255 255 / 0.035));
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
   backdrop-filter: blur(24px) saturate(1.5);
@@ -791,5 +796,48 @@ body {
     opacity: 0;
     transform: scale(1.04);
     filter: blur(6px);
+  }
+}
+
+/* ── Experience v4: kinetic type. Each word lands on its beat: it drops in from blur with a flash of light, then holds. */
+.kin-word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.35em) scale(1.04);
+  filter: blur(14px);
+}
+.kin-in {
+  animation: kin-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes kin-in {
+  0% {
+    opacity: 0;
+    transform: translateY(0.35em) scale(1.04);
+    filter: blur(14px);
+    text-shadow: 0 0 0 rgb(255 255 255 / 0);
+  }
+  25% {
+    opacity: 1;
+    text-shadow: 0 0 36px rgb(255 255 255 / 0.65);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+    text-shadow: 0 0 0 rgb(255 255 255 / 0);
+  }
+}
+/* The whole headline breathes with the kick. */
+.exp-kick {
+  transform: scale(calc(1 + var(--kick, 0) * 0.012));
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kin-word,
+  .kin-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
   }
 }

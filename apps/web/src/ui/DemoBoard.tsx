@@ -30,15 +30,20 @@ interface Props {
   onStats?: (stats: GameStats) => void;
   /** Settings preview: every visual setting applies live, room included. */
   live?: boolean;
+  /**
+   * Shows the skin's room behind the board: always ('on'), or only while the
+   * Experience is on ('experience'), so flipping to Focus turns the light off live.
+   */
+  room?: 'on' | 'experience';
 }
 
 /** A game that plays itself in the player's skin: the home screen's hero. */
-export function DemoBoard({ mode, skin, bot, className, onClear, onStats, live = false }: Props) {
+export function DemoBoard({ mode, skin, bot, className, onClear, onStats, live = false, room }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const controls = useRef<{ setMode(mode: DemoMode): void; setSkin(skin: SkinId): void; restart(): void } | null>(null);
   const callbacks = useRef({ onClear, onStats });
   callbacks.current = { onClear, onStats };
-  const initial = useRef({ mode, skin, live });
+  const initial = useRef({ mode, skin, live, room });
   const botRef = useRef(bot);
   botRef.current = bot;
 
@@ -55,7 +60,20 @@ export function DemoBoard({ mode, skin, bot, className, onClear, onStats, live =
       const applySkin = (id: SkinId) => {
         const { appearance } = getSettings();
         const s = SKINS[id];
-        if (initial.current.live) {
+        if (initial.current.room) {
+          const on = initial.current.room === 'on' || getSettings().experience;
+          r.setOptions({
+            skin: s,
+            fx: on ? 'full' : 'subtle',
+            smoothFall: true,
+            ghost: false,
+            grid: resolveGrid(appearance.grid, s),
+            ambient: on,
+            background: 'full',
+            reduceFlashing: appearance.reduceFlashing,
+            sceneQuality: appearance.sceneQuality,
+          });
+        } else if (initial.current.live) {
           r.setOptions({
             skin: s,
             fx: appearance.fx,
@@ -72,7 +90,11 @@ export function DemoBoard({ mode, skin, bot, className, onClear, onStats, live =
         }
       };
       applySkin(initial.current.skin);
-      const unsubscribe = initial.current.live ? subscribeSettings(() => applySkin(getSettings().appearance.skin)) : () => {};
+      const unsubscribe = initial.current.live
+        ? subscribeSettings(() => applySkin(getSettings().appearance.skin))
+        : initial.current.room === 'experience'
+          ? subscribeSettings(() => applySkin(initial.current.skin))
+          : () => {};
       const relayout = () => r.setLayout(computeDemoLayout(host.clientWidth, host.clientHeight));
       relayout();
       observer = new ResizeObserver(relayout);
@@ -154,7 +176,10 @@ export function DemoBoard({ mode, skin, bot, className, onClear, onStats, live =
 
   useEffect(() => controls.current?.setMode(mode), [mode]);
   useEffect(() => controls.current?.restart(), [bot]);
-  useEffect(() => controls.current?.setSkin(skin), [skin]);
+  useEffect(() => {
+    initial.current.skin = skin;
+    controls.current?.setSkin(skin);
+  }, [skin]);
 
   return <div ref={hostRef} className={className} aria-hidden />;
 }
