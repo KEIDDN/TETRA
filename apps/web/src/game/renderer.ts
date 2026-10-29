@@ -69,6 +69,10 @@ export class GameRenderer {
   private dangerGlow = new Graphics();
   private frame = new Graphics();
   private frameFlash = new Graphics();
+  private introLayer = new Container();
+  private introPool: SpritePool;
+  private introAt = 0;
+  private introLen = 0;
   /** Incoming garbage, beside the board. */
   private meter = new Graphics();
   private boardPool: SpritePool;
@@ -168,6 +172,8 @@ export class GameRenderer {
     app.stage.addChild(this.ambientLayer, this.world);
     this.boardPool = new SpritePool(boardLayer);
     this.boardMask = new SpritePool(maskLayer);
+    this.world.addChildAt(this.introLayer, this.world.getChildIndex(pieceLayer));
+    this.introPool = new SpritePool(this.introLayer);
     this.pieceMask = new SpritePool(maskLayer);
     this.ghostPool = new SpritePool(ghostLayer);
     this.piecePool = new SpritePool(pieceLayer);
@@ -210,6 +216,7 @@ export class GameRenderer {
 
   /** Clears effects and end-of-game state (on retry). */
   reset(): void {
+    this.skipIntro();
     this.tweens.clear();
     this.particles.clear();
     this.flow.clear();
@@ -233,8 +240,56 @@ export class GameRenderer {
 
   // ── Frame ─────────────────────────────────────────────────────
 
+  /**
+   * Opens a game: a wave of minos rises through the empty board while the
+   * room fades up, then the frame lights. Lasts until Go (`durationMs`).
+   */
+  intro(durationMs: number): void {
+    this.introAt = performance.now();
+    this.introLen = durationMs;
+  }
+
+  skipIntro(): void {
+    if (!this.introLen) return;
+    this.introLen = 0;
+    this.introPool.begin();
+    this.introPool.end();
+    this.ambientLayer.alpha = this.grid.alpha = this.frame.alpha = this.holdC.alpha = this.nextC.alpha = 1;
+  }
+
+  private drawIntro(now: number): void {
+    if (!this.introLen || !this.layout) return;
+    const t = now - this.introAt;
+    if (t >= this.introLen) return this.skipIntro();
+    const { cell, boardX } = this.layout;
+    const p = t / this.introLen;
+    // The room comes up across the whole intro; the well and previews in its first half.
+    this.ambientLayer.alpha = easeOut(Math.min(1, p * 1.1));
+    const well = easeOut(Math.min(1, Math.max(0, (t - 120) / 520)));
+    this.grid.alpha = this.frame.alpha = well;
+    this.holdC.alpha = this.nextC.alpha = easeOut(Math.min(1, Math.max(0, (t - 380) / 420)));
+    const pool = this.introPool;
+    pool.begin();
+    const kinds: PieceType[] = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+    for (let y = 0; y < VISIBLE_HEIGHT; y++) {
+      for (let x = 0; x < BOARD_WIDTH; x++) {
+        // Bottom-centre first, rising outward: ~650 ms to cross the board.
+        const start = y * 26 + Math.abs(x - 4.5) * 18;
+        const local = (t - start) / 360;
+        if (local <= 0 || local >= 1) continue;
+        const alpha = local < 0.25 ? local / 0.25 : 1 - (local - 0.25) / 0.75;
+        const size = cell * (0.55 + 0.45 * easeOutBack(Math.min(1, local * 2.2)));
+        const inset = (cell - size) / 2;
+        const kind = kinds[(x * 3 + y * 5) % 7];
+        this.block(pool, kind, boardX + x * cell + inset, this.rowY(y) + inset, size, 0, alpha * 0.85);
+      }
+    }
+    pool.end();
+  }
+
   draw(game: Game, now: number): void {
     if (!this.layout) return;
+    this.drawIntro(now);
     const dt = this.last ? Math.min(50, now - this.last) : 16;
     this.last = now;
     const fx = this.options.fx;

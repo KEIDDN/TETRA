@@ -242,6 +242,17 @@ class Music {
     return this.wanted.bpm;
   }
 
+  /** Seconds to the next beat and where it falls in the bar, from the live beat clock; null without a steady pulse. */
+  nextBeat(): { in: number; beatInBar: number; period: number } | null {
+    const bpm = this.bpm;
+    if (!bpm || !this.ctx || this.lastBeat < 0) return null;
+    const period = 60 / bpm;
+    const since = this.ctx.currentTime - this.lastBeat;
+    if (since < 0 || since > period * 16) return null;
+    const passed = Math.floor(since / period);
+    return { in: (passed + 1) * period - since, beatInBar: (this.beatCount + passed + 1) % 4, period };
+  }
+
   /** Called when the playing track changes (now playing). */
   subscribe(l: (track: Track | null) => void): () => void {
     this.listeners.add(l);

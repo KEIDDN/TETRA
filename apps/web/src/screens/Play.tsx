@@ -24,7 +24,7 @@ function statText(key: StatKey, s: LiveStats): string {
   }
 }
 
-export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
+export function Play({ mode, onExit, intro = true }: { mode: ModeId; onExit: () => void; intro?: boolean }) {
   const config = MODE_CONFIGS[mode];
   const lineGoal = config.def.rules.lineGoal ?? null;
   const hostRef = useRef<HTMLDivElement>(null);
@@ -104,6 +104,7 @@ export function Play({ mode, onExit }: { mode: ModeId; onExit: () => void }) {
           result: setResult,
         },
         () => exitRef.current(),
+        intro,
       );
     });
 

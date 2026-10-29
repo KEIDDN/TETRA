@@ -1,5 +1,6 @@
 import { Game, type Action, type GameEvent, type ModeId } from '@tetra/engine';
 import { dj } from '../audio/dj';
+import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { getSettings, type Command, type Device } from '../lib/settings';
 import { awardXp, soloXp } from '../lib/profile';
@@ -10,6 +11,8 @@ import type { GameRenderer } from './renderer';
 
 const COUNTDOWN_STEP_MS = 500;
 const COUNTDOWN_STEPS = 3;
+/** The board-assembly wave that opens a game started from a menu. */
+const INTRO_MS = 900;
 
 export type Phase = 'countdown' | 'playing' | 'paused' | 'done';
 
@@ -57,6 +60,9 @@ export class GameSession {
   private goGameTime = 0;
   private phase: Phase = 'countdown';
   private shownStep = -1;
+  private stepMs = COUNTDOWN_STEP_MS;
+  /** While now < introUntil, the intro is still assembling the board (no numbers yet). */
+  private introUntil = 0;
   private resultTimer = 0;
   private router: InputRouter;
 
@@ -65,10 +71,11 @@ export class GameSession {
     private renderer: GameRenderer,
     private view: SessionView,
     private onExit: () => void,
+    intro = false,
   ) {
     this.router = new InputRouter(getSettings(), this.onCommand);
     renderer.ticker.add(this.tick);
-    this.restart();
+    this.restart(intro);
     // Lets browser tests set up positions; stripped from production builds.
     if (import.meta.env.DEV) (window as unknown as { __tetra: unknown }).__tetra = this;
   }
@@ -78,7 +85,8 @@ export class GameSession {
     return this.game;
   }
 
-  restart(): void {
+  /** A new game. Only the first one from a menu gets the intro; retries start at once. */
+  restart(intro = false): void {
     const settings = getSettings();
     this.game = new Game({
       seed: (Math.random() * 2 ** 32) >>> 0,
@@ -89,7 +97,8 @@ export class GameSession {
     this.renderer.reset();
     this.view.reset();
     this.view.result(null);
-    this.beginCountdown(0);
+    if (intro && settings.experience) this.beginIntro();
+    else this.beginCountdown(0);
   }
 
   pause(): void {
@@ -114,10 +123,46 @@ export class GameSession {
 
   private beginCountdown(gameTime: number): void {
     this.goGameTime = gameTime;
+    this.stepMs = COUNTDOWN_STEP_MS;
+    this.introUntil = 0;
     this.goAt = performance.now() + COUNTDOWN_STEP_MS * COUNTDOWN_STEPS;
     this.startAt = this.goAt - gameTime;
     this.shownStep = -1;
     this.setPhase('countdown');
+  }
+
+  /**
+   * The board assembles, the room lights up and the music opens from a
+   * filter; then 3-2-1 on the beat, and Go lands on a downbeat.
+   */
+  private beginIntro(): void {
+    const now = performance.now();
+    const beat = music.nextBeat();
+    let go = INTRO_MS + COUNTDOWN_STEP_MS * COUNTDOWN_STEPS;
+    this.stepMs = COUNTDOWN_STEP_MS;
+    if (beat && beat.period >= 0.33 && beat.period <= 0.7) {
+      // The first downbeat with room for the wave and three beats before it.
+      const period = beat.period * 1000;
+      let downbeat = beat.in * 1000 + ((4 - beat.beatInBar) % 4) * period;
+      while (downbeat < INTRO_MS + period * COUNTDOWN_STEPS) downbeat += period * 4;
+      go = downbeat;
+      this.stepMs = period;
+    }
+    this.goGameTime = 0;
+    this.goAt = now + go;
+    this.startAt = this.goAt;
+    this.introUntil = this.goAt - this.stepMs * COUNTDOWN_STEPS;
+    this.shownStep = -1;
+    this.setPhase('countdown');
+    this.renderer.intro(go);
+    music.club?.sweep(go / 1000);
+  }
+
+  /** Any key during the wave cuts straight to the countdown. */
+  private skipIntro(): void {
+    this.renderer.skipIntro();
+    music.club?.endSweep();
+    this.beginCountdown(0);
   }
 
   private setPhase(phase: Phase): void {
@@ -135,6 +180,7 @@ export class GameSession {
 
   private onCommand = (command: Command, pressed: boolean, time: number, device: Device): void => {
     if (isAction(command)) {
+      if (pressed && this.phase === 'countdown' && performance.now() < this.introUntil) return this.skipIntro();
       if (this.phase !== 'playing') return;
       if (pressed) this.useHandling(device);
       this.game.input(command, pressed, time - this.startAt);
@@ -162,8 +208,8 @@ export class GameSession {
     if (this.phase === 'countdown') {
       const remaining = this.goAt - now;
       if (remaining > 0) {
-        const step = Math.ceil(remaining / COUNTDOWN_STEP_MS);
-        if (step !== this.shownStep) {
+        const step = Math.ceil(remaining / this.stepMs);
+        if (step !== this.shownStep && step <= COUNTDOWN_STEPS) {
           this.shownStep = step;
           this.view.countdown(step);
           sfx.countdown(step);

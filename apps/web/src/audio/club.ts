@@ -206,6 +206,25 @@ export class Club {
     this.applyFilter();
   }
 
+  /** The game intro: the music opens from a muffled lowpass to full, landing on `seconds`. */
+  sweep(seconds: number): void {
+    if (!this.dj.enabled || seconds <= 0.2) return;
+    const f = this.filter.frequency;
+    const now = this.ctx.currentTime;
+    f.cancelScheduledValues(now);
+    f.setValueAtTime(Math.max(400, Math.min(20000, f.value)), now);
+    f.exponentialRampToValueAtTime(380, now + 0.15);
+    f.exponentialRampToValueAtTime(2600, now + seconds * 0.88);
+    f.exponentialRampToValueAtTime(20000, now + seconds);
+  }
+
+  /** Ends an intro sweep early. */
+  endSweep(): void {
+    const f = this.filter.frequency;
+    f.cancelScheduledValues(this.ctx.currentTime);
+    f.setTargetAtTime(20000, this.ctx.currentTime, 0.06);
+  }
+
   /** A delay throw on the beat for big moments (quads, spins, all clears). */
   throw(power: number, bpm: number | null): void {
     if (!this.dj.enabled) return;
