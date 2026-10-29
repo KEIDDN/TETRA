@@ -4,6 +4,8 @@ import '@fontsource/geist-mono/500.css';
 import './styles.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+// Decides how progress is kept before anything reads its saved state.
+import './lib/account';
 import { App } from './App';
 import { registerServiceWorker } from './lib/platform';
 

@@ -14,6 +14,7 @@ import { DemoBoard, type DemoMode } from '../ui/DemoBoard';
 import { LevelChip } from '../ui/LevelChip';
 import { ModeWheel } from '../ui/ModeWheel';
 import { installed } from '../lib/platform';
+import { useAccount } from '../lib/account';
 import { Icon } from '../ui/Icon';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
@@ -61,11 +62,13 @@ export function Home({
   onExperience,
   onOxia,
   onDownload,
+  onSignIn,
   onSettings,
 }: {
   onExperience: () => void;
   onOxia: () => void;
   onDownload: () => void;
+  onSignIn: () => void;
   onProfile: (section?: ProfileSection) => void;
   onPlay: (mode: ModeId) => void;
   onVersus: () => void;
@@ -73,6 +76,7 @@ export function Home({
   onSettings: (tab?: SettingsTab) => void;
 }) {
   const { appearance } = useSettings();
+  const account = useAccount();
   const padKind = useSyncExternalStore(
     (l) => gamepads.onStatus(l),
     () => gamepads.kind,
@@ -147,6 +151,11 @@ export function Home({
               <span className="exp-dot size-1.5 rounded-full" />
               Experience
             </button>
+            {account.mode === 'guest' && (
+              <button data-nav onClick={onSignIn} className={`glass rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`} title="Guests don't keep progress">
+                Sign in
+              </button>
+            )}
             <button
               data-nav
               onClick={() => onProfile()}

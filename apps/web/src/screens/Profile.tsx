@@ -19,12 +19,13 @@ import { TRACKS } from '../audio/catalog';
 import { assignTrack, getMusicPrefs, subscribeMusicPrefs } from '../lib/musicPrefs';
 import { trackAccess, trackUnlocked } from '../lib/library';
 import { director } from '../audio/director';
+import { signOut, useAccount } from '../lib/account';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 const CUP_TINT: Record<string, string> = { foundations: '#5ac8f5', contenders: '#c86bff', summit: '#ffb84a', custom: '#edebfa' };
 
 export type ProfileSection = 'skins';
-type Tab = 'overview' | 'records' | 'locker' | 'music' | 'trophies';
+type Tab = 'overview' | 'records' | 'locker' | 'music' | 'trophies' | 'leaderboards';
 
 const TABS: [Tab, string][] = [
   ['overview', 'Overview'],
@@ -32,6 +33,7 @@ const TABS: [Tab, string][] = [
   ['locker', 'Locker'],
   ['music', 'Music'],
   ['trophies', 'Trophies'],
+  ['leaderboards', 'Leaderboards'],
 ];
 
 function formatPlaytime(ms: number): string {
@@ -40,7 +42,7 @@ function formatPlaytime(ms: number): string {
   return h > 0 ? `${h}h ${String(minutes % 60).padStart(2, '0')}m` : `${minutes}m`;
 }
 
-export function Profile({ onBack, section }: { onBack: () => void; section?: ProfileSection }) {
+export function Profile({ onBack, onSignIn, section }: { onBack: () => void; onSignIn?: () => void; section?: ProfileSection }) {
   const profile = useProfile();
   const { xp, trophies } = profile;
   const { level, into, needed } = levelFor(xp);
@@ -60,6 +62,8 @@ export function Profile({ onBack, section }: { onBack: () => void; section?: Pro
           </button>
           <span className="label">Profile</span>
         </header>
+
+        <AccountBar onSignIn={onSignIn} />
 
         {/* Player card */}
         <section className="glass-panel animate-rise grid items-center gap-10 rounded-[40px] p-8 md:grid-cols-[auto_minmax(0,1fr)_auto]">
@@ -105,8 +109,59 @@ export function Profile({ onBack, section }: { onBack: () => void; section?: Pro
           {tab === 'locker' && <Locker />}
           {tab === 'music' && <Library />}
           {tab === 'trophies' && <Trophies trophies={trophies} />}
+          {tab === 'leaderboards' && <Leaderboards />}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Who is signed in, or a reminder that a guest's progress isn't kept. */
+function AccountBar({ onSignIn }: { onSignIn?: () => void }) {
+  const account = useAccount();
+  const [leaving, setLeaving] = useState(false);
+  if (account.mode === 'local') return null;
+  if (account.mode === 'user') {
+    return (
+      <div className="mb-5 flex items-center justify-between gap-4 px-2 text-[13px] text-muted">
+        <span className="min-w-0 truncate">
+          Signed in as <span className="text-fg">{account.email ?? 'your account'}</span> · progress saved
+        </span>
+        <button
+          data-nav
+          disabled={leaving}
+          onClick={() => {
+            setLeaving(true);
+            void signOut();
+          }}
+          className={`glass shrink-0 rounded-full px-4 py-2 text-[13px] font-medium disabled:opacity-50 ${focusRing}`}
+        >
+          {leaving ? 'Signing out…' : 'Sign out'}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="glass-panel mb-5 flex items-center justify-between gap-4 rounded-[24px] px-6 py-4">
+      <span className="text-[14px] text-white/70">Playing as guest: your progress isn't saved.</span>
+      {onSignIn && (
+        <button data-nav onClick={onSignIn} className={`glass-light shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold ${focusRing}`}>
+          Sign in →
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Placeholder until online rankings arrive. */
+function Leaderboards() {
+  return (
+    <div className="glass-panel grid place-items-center rounded-[32px] px-8 py-24 text-center">
+      <span className="font-mono text-[11px] tracking-[0.24em] text-white/45 uppercase">Coming soon</span>
+      <h3 className="mt-4 text-[clamp(28px,3vw,40px)] leading-[1.06] font-[560] tracking-[-0.04em]">Leaderboards.</h3>
+      <p className="mt-3 max-w-[420px] text-[15px] leading-relaxed text-muted">
+        Your best runs in every mode, next to players around the world. Signed-in records will count.
+      </p>
     </div>
   );
 }

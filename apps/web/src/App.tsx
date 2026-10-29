@@ -23,6 +23,8 @@ import { MusicLab } from './screens/MusicLab';
 import { Experience } from './screens/Experience';
 import { Oxia } from './screens/Oxia';
 import { Download } from './screens/Download';
+import { Account } from './screens/Account';
+import { accountsEnabled, getAccount, useAccount } from './lib/account';
 import { load } from './lib/storage';
 import { updateSettings } from './lib/settings';
 import { entrantProfile, getTournament, isYou, report, roundName, runner } from './lib/tournament';
@@ -37,6 +39,7 @@ type Screen =
   | { name: 'experience'; firstRun?: boolean; back?: 'settings' }
   | { name: 'oxia' }
   | { name: 'download' }
+  | { name: 'account'; back?: boolean }
   | { name: 'settings'; tab?: SettingsTab }
   | { name: 'versus' }
   | { name: 'editor'; id?: string }
@@ -49,7 +52,11 @@ type Screen =
 
 export function App() {
   // The very first launch opens on the Experience, which ends by asking headphones or speakers.
-  const [screen, setScreenNow] = useState<Screen>(() => (load('onboarded', false) ? { name: 'home' } : { name: 'experience', firstRun: true }));
+  // First launch: the Experience, then (with accounts) sign in or play as guest. Later launches ask once if they never chose.
+  const [screen, setScreenNow] = useState<Screen>(() =>
+    !load('onboarded', false) ? { name: 'experience', firstRun: true } : accountsEnabled && getAccount().mode === 'unknown' ? { name: 'account' } : { name: 'home' },
+  );
+  const account = useAccount();
   // Screens change inside a view transition: the old one settles back, the new one rises, shared elements fly between them.
   const setScreen = (next: Screen) => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -63,6 +70,10 @@ export function App() {
     if (screen.name === 'play' || screen.name === 'match' || screen.name === 'bout') director.enterGame(readSettings().appearance.skin);
     else director.enterMenu();
   }, [screen]);
+
+  useEffect(() => {
+    if (screen.name === 'account' && account.mode === 'user') setScreenNow({ name: 'home' });
+  }, [screen.name, account.mode]);
 
   // Browsers only allow audio after a gesture: unlock on the first one.
   useEffect(() => {
@@ -125,10 +136,15 @@ export function App() {
       content = (
         <Experience
           firstRun={screen.firstRun}
-          onDone={() => (screen.back ? setScreen({ name: 'settings' }) : home())}
+          onDone={() =>
+            screen.back ? setScreen({ name: 'settings' }) : accountsEnabled && getAccount().mode === 'unknown' ? setScreen({ name: 'account' }) : home()
+          }
           onOxia={() => setScreen({ name: 'oxia' })}
         />
       );
+      break;
+    case 'account':
+      content = <Account onDone={home} onBack={screen.back ? home : undefined} />;
       break;
     case 'download':
       content = <Download onBack={home} />;
@@ -148,7 +164,7 @@ export function App() {
       );
       break;
     case 'profile':
-      content = <Profile onBack={home} section={screen.section} />;
+      content = <Profile onBack={home} onSignIn={() => setScreen({ name: 'account', back: true })} section={screen.section} />;
       break;
     case 'cups':
       content = <Tournaments onBack={home} onBracket={() => setScreen({ name: 'bracket' })} onCustom={() => setScreen({ name: 'builder' })} />;
@@ -203,6 +219,7 @@ export function App() {
           onExperience={() => setScreen({ name: 'experience' })}
           onOxia={() => setScreen({ name: 'oxia' })}
           onDownload={() => setScreen({ name: 'download' })}
+          onSignIn={() => setScreen({ name: 'account', back: true })}
           onSettings={(tab) => setScreen({ name: 'settings', tab })}
         />
       );
@@ -213,7 +230,7 @@ export function App() {
       <div key={screen.name} className={`min-h-full ${VIEW_TRANSITIONS ? '' : 'animate-fade'}`}>
         {content}
       </div>
-      {!['play', 'match', 'bout', 'experience', 'oxia'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
+      {!['play', 'match', 'bout', 'experience', 'oxia', 'account', 'download'].includes(screen.name) && <DevBadge key={`dev-${screen.name}`} />}
       <Toasts />
       {screen.name === 'home' && <LogoIntro />}
     </>
