@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useMenuNav } from '../lib/nav';
 import { SiteFooter } from '../ui/SiteFooter';
+import { Icon } from '../ui/Icon';
 import { canPromptInstall, detectOs, DOWNLOADS, onInstallAvailable, promptInstall } from '../lib/platform';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
@@ -35,6 +36,7 @@ export function Download({ onBack, onLegal }: { onBack: () => void; onLegal?: (d
             For macOS and Windows. The full TETRA Experience in its own window: true fullscreen, smoother play, your progress with you, and it keeps
             itself up to date.
           </p>
+          <p className="mt-4 font-mono text-[11px] tracking-[0.24em] text-white/40 uppercase">Version {__APP_VERSION__}</p>
         </div>
 
         <div className="animate-rise mt-12 grid gap-4 [animation-delay:120ms] sm:grid-cols-2">
@@ -46,6 +48,8 @@ export function Download({ onBack, onLegal }: { onBack: () => void; onLegal?: (d
             Or install it from this browser
           </button>
         )}
+
+        <FirstOpen os={os} />
 
         <Requirements />
 
@@ -79,6 +83,83 @@ function Platform({ name, detail, href, suggested }: { name: string; detail: str
         <span className="text-[22px] transition-transform duration-300 group-hover:translate-y-0.5">↓</span>
       </span>
     </a>
+  );
+}
+
+/**
+ * The apps aren't signed with a paid Apple or Microsoft certificate yet, so the
+ * system asks once before opening them. Say so plainly, and show the way through.
+ */
+function FirstOpen({ os }: { os: ReturnType<typeof detectOs> }) {
+  const code = 'xattr -cr /Applications/TETRA.app';
+  return (
+    <div className="animate-rise mt-16 [animation-delay:160ms]">
+      <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">First time opening</span>
+      <div className="glass-panel mt-5 rounded-[30px] p-8">
+        <div className="flex gap-4">
+          <span className="glass grid size-9 shrink-0 place-items-center rounded-full">
+            <Icon name="info" size={12} />
+          </span>
+          <p className="text-[15px] leading-relaxed text-white/70">
+            <span className="text-fg">TETRA is safe to install.</span> It contains no malware, no ads and no tracking. We're an independent studio and the
+            apps aren't signed with a paid Apple or Microsoft certificate yet, so your computer asks you to confirm the first time you open TETRA. It only
+            takes a moment, and only once.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-6 md:grid-cols-2">
+          <div className={`rounded-[24px] p-6 ${os === 'mac' ? 'bg-white/[0.05] ring-1 ring-white/15' : 'bg-white/[0.025]'}`}>
+            <div className="text-[18px] font-[560] tracking-[-0.02em]">On a Mac</div>
+            <ol className="mt-4 space-y-3 text-[14px] leading-relaxed text-white/65">
+              <Step n={1}>
+                Open the downloaded <b>.dmg</b> and drag <b>TETRA</b> into <b>Applications</b>.
+              </Step>
+              <Step n={2}>
+                Open TETRA. macOS says it can't verify the developer: click <b>Done</b>.
+              </Step>
+              <Step n={3}>
+                Open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b> next to TETRA. Confirm with your password.
+              </Step>
+              <Step n={4}>That's it. From now on TETRA opens like any other app, and updates itself.</Step>
+            </ol>
+            <p className="mt-5 text-[13px] leading-relaxed text-white/45">
+              If macOS says TETRA “is damaged”, open Terminal, paste this and press Return:
+              <code
+                className="mt-2 block rounded-xl bg-black/50 px-3 py-2 font-mono text-[12px] text-white/80 select-all"
+                onClick={() => void navigator.clipboard?.writeText(code)}
+                title="Click to copy"
+              >
+                {code}
+              </code>
+            </p>
+          </div>
+          <div className={`rounded-[24px] p-6 ${os === 'windows' ? 'bg-white/[0.05] ring-1 ring-white/15' : 'bg-white/[0.025]'}`}>
+            <div className="text-[18px] font-[560] tracking-[-0.02em]">On Windows</div>
+            <ol className="mt-4 space-y-3 text-[14px] leading-relaxed text-white/65">
+              <Step n={1}>
+                Run <b>TETRA-windows.exe</b>.
+              </Step>
+              <Step n={2}>
+                If you see <b>“Windows protected your PC”</b>, click <b>More info</b>.
+              </Step>
+              <Step n={3}>
+                Click <b>Run anyway</b>. TETRA installs and opens.
+              </Step>
+              <Step n={4}>That's it. From now on it updates itself in the background.</Step>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Step({ n, children }: { n: number; children: ReactNode }) {
+  return (
+    <li className="flex gap-3 [&_b]:font-medium [&_b]:text-fg">
+      <span className="tabular grid size-6 shrink-0 place-items-center rounded-full bg-white/[0.08] font-mono text-[11px] text-white/80">{n}</span>
+      <span className="pt-px">{children}</span>
+    </li>
   );
 }
 

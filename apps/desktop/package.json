@@ -19,7 +19,7 @@
   "build": {
     "appId": "com.oxialabs.tetra",
     "productName": "TETRA",
-    "copyright": "© OXIA Labs",
+    "copyright": "\u00a9 OXIA Labs",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -49,7 +49,10 @@
       ],
       "category": "public.app-category.games",
       "artifactName": "TETRA-mac.${ext}",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
     "dmg": {
       "title": "TETRA"
