@@ -1,10 +1,10 @@
 import type { ModeId, PieceType } from '@tetra/engine';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { sfx } from '../audio/sfx';
 import { Lattice } from '../game/ambient';
 import { gamepads } from '../game/gamepad';
 import { MODE_CONFIGS, MODE_ORDER } from '../game/modes';
-import { hexToNumber, SKIN_ORDER, SKINS } from '../game/skins';
+import { hexToNumber, SKIN_ORDER, SKINS, type SkinId } from '../game/skins';
 import { PAD_NAMES } from '../lib/labels';
 import { useMenuNav } from '../lib/nav';
 import { updateSettings, useSettings } from '../lib/settings';
@@ -17,6 +17,7 @@ import { installed } from '../lib/platform';
 import { useAccount } from '../lib/account';
 import { Icon } from '../ui/Icon';
 import { Logo } from '../ui/Logo';
+import { SkinPicker } from '../ui/SkinPicker';
 import { toast } from '../ui/toast';
 import { getSettings } from '../lib/settings';
 import { skinLocked } from '../lib/tournament';
@@ -71,7 +72,7 @@ export function Home({
   );
   const [selected, setSelected] = useState<Entry>('sprint');
   const firstRef = useRef<HTMLButtonElement>(null);
-  const showcaseRef = useRef<HTMLDivElement>(null);
+  const roomsRef = useRef<HTMLElement>(null);
   const skin = SKINS[appearance.skin];
 
   const lattice = useMemo(() => new Lattice(0.9), []);
@@ -178,28 +179,6 @@ export function Home({
         </header>
 
         <main className="relative grid flex-1 place-items-center py-[min(40px,5vh)]">
-          {/* The live board: frameless and quiet at the edge, the menu keeps the stage. */}
-          <div
-            ref={showcaseRef}
-            aria-hidden
-            className="animate-fade pointer-events-none absolute top-1/2 right-0 hidden aspect-[4/5] h-[min(54vh,470px)] -translate-y-1/2 opacity-60 [animation-delay:400ms] [mask-image:radial-gradient(75%_70%_at_50%_50%,black_40%,transparent_100%)] xl:block"
-          >
-            <DemoBoard
-              mode={selected === 'cups' || selected === 'multiplayer' ? 'versus' : selected}
-              skin={appearance.skin}
-              className="absolute inset-0"
-              onClear={(power, y) => {
-                const rect = showcaseRef.current?.getBoundingClientRect();
-                if (!rect) return;
-                const x = rect.left + rect.width * 0.4;
-                const at = rect.top + rect.height * y;
-                const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
-                if (power >= 4) lattice.celebrate(x, at, power, lattice.palette[piece] ?? 0xffffff, [piece]);
-                else lattice.ripple(x, at, power, lattice.palette[piece]);
-              }}
-            />
-          </div>
-
           <div className="relative flex w-full max-w-[680px] flex-col items-center text-center">
             <div className="label animate-rise">Select a mode</div>
             <div className="animate-rise mt-[min(32px,3.5vh)] w-full [animation-delay:80ms]">
@@ -249,21 +228,24 @@ export function Home({
               ‹
             </SkinArrow>
             <button
-              onClick={() => onProfile('skins')}
+              onClick={() => roomsRef.current?.scrollIntoView({ behavior: 'smooth' })}
               className={`group min-w-[120px] rounded-full px-3 py-1.5 text-center transition-colors hover:bg-white/[0.06] ${focusRing}`}
-              title="All skins"
+              title="All rooms"
             >
               <span className="label mr-2">Skin</span>
               <span key={skin.id} className="animate-fade text-[14px] font-medium">
                 {skin.name}
               </span>
-              <span className="ml-2 text-[12px] text-faint transition-colors group-hover:text-fg">All</span>
+              <span className="ml-2 text-[12px] text-faint transition-colors group-hover:text-fg">All ↓</span>
             </button>
             <SkinArrow label="Next skin" onClick={() => cycleSkin(1)}>
               ›
             </SkinArrow>
           </div>
-          <div className="label hidden gap-5 md:flex">
+          <div className="label hidden items-center gap-5 md:flex">
+            <button onClick={() => roomsRef.current?.scrollIntoView({ behavior: 'smooth' })} className={`glass rounded-full px-3 py-1 text-muted transition-colors hover:text-fg ${focusRing}`}>
+              Rooms ↓
+            </button>
             <span>
               <span className="text-muted">↑↓</span> Mode
             </span>
@@ -277,7 +259,87 @@ export function Home({
           <VersionTaps />
         </footer>
       </div>
+
+      <Rooms
+        sectionRef={roomsRef}
+        mode={selected === 'cups' || selected === 'multiplayer' ? 'versus' : selected}
+        skin={appearance.skin}
+        onPick={(next) => {
+          if (next === appearance.skin) return;
+          updateSettings((s) => ({ ...s, appearance: { ...s.appearance, skin: next } }));
+          sfx.ui('move');
+        }}
+        onClear={(power, x, y) => {
+          const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
+          if (power >= 4) lattice.celebrate(x, y, power, lattice.palette[piece] ?? 0xffffff, [piece]);
+          else lattice.ripple(x, y, power, lattice.palette[piece]);
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * Below the menu: every room, and the one you pick playing itself live.
+ * The board only runs while it is on screen.
+ */
+function Rooms({
+  sectionRef,
+  mode,
+  skin,
+  onPick,
+  onClear,
+}: {
+  sectionRef: RefObject<HTMLElement | null>;
+  mode: DemoMode;
+  skin: SkinId;
+  onPick: (id: SkinId) => void;
+  onClear: (power: number, x: number, y: number) => void;
+}) {
+  const board = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: '0px 0px -10% 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [sectionRef]);
+  const open = SKIN_ORDER.filter((id) => !skinLocked(id) || id === skin);
+  const locked = SKIN_ORDER.length - open.length;
+
+  return (
+    <section ref={sectionRef} className="relative mx-auto grid min-h-full w-full max-w-[1100px] items-center gap-14 px-6 py-[10vh] sm:px-10 lg:grid-cols-2">
+      <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+        <span className="label">Rooms</span>
+        <h2 className="mt-5 text-[clamp(40px,5vw,72px)] leading-[1.02] font-[560] tracking-[-0.05em]">Pick your room.</h2>
+        <p key={skin} className="animate-fade mt-4 min-h-[3.2em] max-w-[34ch] text-[17px] leading-relaxed text-muted">
+          <span className="text-fg">{SKINS[skin].name}</span> · {SKINS[skin].description}
+        </p>
+        <div className="mt-8">
+          <SkinPicker skins={open} value={skin} onChange={onPick} />
+        </div>
+        <p className="mt-6 text-[13px] text-faint">
+          Every room plays its own set.{locked > 0 ? ` ${locked} more unlock as you win cups.` : ''}
+        </p>
+      </div>
+      <div
+        ref={board}
+        className="relative mx-auto aspect-[4/5] w-[min(400px,82vw)] overflow-hidden rounded-[44px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.16)]"
+      >
+        {visible && (
+          <DemoBoard
+            mode={mode}
+            skin={skin}
+            className="animate-fade absolute inset-0"
+            onClear={(power, y) => {
+              const rect = board.current?.getBoundingClientRect();
+              if (rect) onClear(power, rect.left + rect.width * 0.4, rect.top + rect.height * y);
+            }}
+          />
+        )}
+      </div>
+    </section>
   );
 }
 

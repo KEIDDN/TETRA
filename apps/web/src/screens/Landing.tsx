@@ -1,11 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { music } from '../audio/music';
 import { accountsEnabled } from '../lib/account';
 import { useMenuNav } from '../lib/nav';
 import { installed } from '../lib/platform';
 import { Icon } from '../ui/Icon';
 import { Logo } from '../ui/Logo';
-import type { ExperienceScene } from '../ui/experience/ExperienceScene';
+import { Stage3D } from '../ui/experience/Stage3D';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
 
@@ -26,39 +25,18 @@ export function Landing({
   onWhy: () => void;
   onLegal: (doc: 'terms' | 'privacy') => void;
 }) {
-  const stage = useRef<HTMLDivElement>(null);
   const enter = useRef<HTMLButtonElement>(null);
   useMenuNav(undefined, true);
 
   useEffect(() => {
     enter.current?.focus({ preventScroll: true });
-    let disposed = false;
-    let scene: ExperienceScene | null = null;
-    void import('../ui/experience/ExperienceScene').then(({ ExperienceScene }) => {
-      if (disposed || !stage.current) return;
-      scene = new ExperienceScene(stage.current);
-      scene.centered = true;
-      scene.stagger = 4;
-      scene.formation = 'welcome';
-    });
-    let raf = 0;
-    const tick = () => {
-      if (scene) scene.bands = music.analyse();
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      disposed = true;
-      cancelAnimationFrame(raf);
-      scene?.dispose();
-    };
   }, []);
 
   const quiet = `rounded-sm text-[13px] text-white/50 transition-colors hover:text-fg ${focusRing}`;
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black text-fg">
-      <div ref={stage} aria-hidden className="animate-fade absolute inset-0 opacity-70 [animation-duration:2.4s]" />
+      <Stage3D formation="welcome" className="animate-fade absolute inset-0 opacity-70 [animation-duration:2.4s]" />
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_50%_at_50%_50%,rgba(0,0,0,0.75),transparent_100%)]" />
 
       <header className="relative z-10 flex h-24 items-center justify-between px-8 sm:px-12">
