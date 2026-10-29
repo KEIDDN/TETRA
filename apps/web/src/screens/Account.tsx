@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { playAsGuest, sendEmailCode, signInWith, verifyEmailCode } from '../lib/account';
+import { useEffect, useState } from 'react';
+import { playAsGuest, sendEmailCode, signInProviders, signInWith, verifyEmailCode } from '../lib/account';
 import { useMenuNav } from '../lib/nav';
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70';
@@ -14,6 +14,11 @@ export function Account({ onDone, onBack }: { onDone: () => void; onBack?: () =>
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [withCode, setWithCode] = useState(false);
+  const [providers, setProviders] = useState({ google: false, apple: false });
+  useEffect(() => {
+    void signInProviders().then(setProviders);
+  }, []);
   useMenuNav(onBack, !!onBack);
 
   const run = async (task: () => Promise<string | null>, then?: () => void) => {
@@ -40,74 +45,129 @@ export function Account({ onDone, onBack }: { onDone: () => void; onBack?: () =>
       <div className="animate-rise relative w-full max-w-[420px] py-16">
         <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Your account</span>
         <h1 className="mt-5 text-[clamp(40px,5vw,60px)] leading-[1.04] font-[560] tracking-[-0.05em]">Keep your progress.</h1>
-        <p className="mt-4 text-[16px] leading-relaxed text-white/55">Your level, records, trophies and settings, saved and with you on every device.</p>
+        <p className="mt-4 text-[16px] leading-relaxed text-white/55">
+          Your level, records, trophies and settings, saved and with you on every device.
+        </p>
 
-        <div className="mt-10 grid gap-3">
-          <button disabled={busy} onClick={() => void run(() => signInWith('apple'))} className={`glass-light flex h-14 items-center justify-center gap-3 rounded-full text-[16px] font-semibold disabled:opacity-60 ${focusRing}`}>
-            <AppleGlyph /> Continue with Apple
-          </button>
-          <button disabled={busy} onClick={() => void run(() => signInWith('google'))} className={`glass flex h-14 items-center justify-center gap-3 rounded-full text-[16px] font-medium disabled:opacity-60 ${focusRing}`}>
-            <GoogleGlyph /> Continue with Google
-          </button>
-        </div>
+        {(providers.apple || providers.google) && (
+          <>
+            <div className="mt-10 grid gap-3">
+              {providers.apple && (
+                <button
+                  disabled={busy}
+                  onClick={() => void run(() => signInWith('apple'))}
+                  className={`glass-light flex h-14 items-center justify-center gap-3 rounded-full text-[16px] font-semibold disabled:opacity-60 ${focusRing}`}
+                >
+                  <AppleGlyph /> Continue with Apple
+                </button>
+              )}
+              {providers.google && (
+                <button
+                  disabled={busy}
+                  onClick={() => void run(() => signInWith('google'))}
+                  className={`glass flex h-14 items-center justify-center gap-3 rounded-full text-[16px] font-medium disabled:opacity-60 ${focusRing}`}
+                >
+                  <GoogleGlyph /> Continue with Google
+                </button>
+              )}
+            </div>
 
-        <div className="my-8 flex items-center gap-4 font-mono text-[10px] tracking-[0.24em] text-white/35 uppercase">
-          <span className="h-px flex-1 bg-white/10" />
-          or with email
-          <span className="h-px flex-1 bg-white/10" />
-        </div>
-
-        {!sent ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void run(() => sendEmailCode(email), () => setSent(true));
-            }}
-            className="grid gap-3"
-          >
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
-              placeholder="you@example.com"
-              autoComplete="email"
-              className="glass-panel h-14 rounded-full px-6 text-[16px] outline-none placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-accent/60"
-            />
-            <button disabled={busy || !email} className={`glass h-14 rounded-full text-[16px] font-medium disabled:opacity-50 ${focusRing}`}>
-              {busy ? 'Sending…' : 'Send me a code'}
-            </button>
-          </form>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void run(() => verifyEmailCode(email, code), onDone);
-            }}
-            className="grid gap-3"
-          >
-            <p className="text-[14px] leading-relaxed text-white/55">
-              We sent a code to <span className="text-fg">{email}</span>. Type it here, or open the link in the email on this device.
-            </p>
-            <input
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              onKeyDown={(e) => e.stopPropagation()}
-              placeholder="123456"
-              className="glass-panel tabular h-14 rounded-full px-6 text-center text-[22px] tracking-[0.5em] outline-none placeholder:text-white/20 focus-visible:ring-2 focus-visible:ring-accent/60"
-            />
-            <button disabled={busy || code.length < 6} className={`glass-light h-14 rounded-full text-[16px] font-semibold disabled:opacity-50 ${focusRing}`}>
-              {busy ? 'Checking…' : 'Sign in'}
-            </button>
-            <button type="button" onClick={() => setSent(false)} className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}>
-              Use a different email
-            </button>
-          </form>
+            <div className="my-8 flex items-center gap-4 font-mono text-[10px] tracking-[0.24em] text-white/35 uppercase">
+              <span className="h-px flex-1 bg-white/10" />
+              or with email
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
+          </>
         )}
+
+        <div className={providers.apple || providers.google ? '' : 'mt-10'}>
+          {!sent ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(
+                  () => sendEmailCode(email),
+                  () => setSent(true),
+                );
+              }}
+              className="grid gap-3"
+            >
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="you@example.com"
+                autoComplete="email"
+                className="glass-panel h-14 rounded-full px-6 text-[16px] outline-none placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-accent/60"
+              />
+              <button disabled={busy || !email} className={`glass h-14 rounded-full text-[16px] font-medium disabled:opacity-50 ${focusRing}`}>
+                {busy ? 'Sending…' : 'Email me a sign-in link'}
+              </button>
+            </form>
+          ) : !withCode ? (
+            <div className="grid gap-3">
+              <div className="glass-panel rounded-[28px] px-6 py-5">
+                <p className="text-[16px] font-medium">Check your email.</p>
+                <p className="mt-2 text-[14px] leading-relaxed text-white/55">
+                  We sent a sign-in link to <span className="text-fg">{email}</span>. Open it on this device and you're in.
+                </p>
+              </div>
+              <div className="flex justify-between px-2">
+                <button
+                  type="button"
+                  onClick={() => setSent(false)}
+                  className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
+                >
+                  Use a different email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWithCode(true)}
+                  className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
+                >
+                  I have a code
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(() => verifyEmailCode(email, code), onDone);
+              }}
+              className="grid gap-3"
+            >
+              <p className="text-[14px] leading-relaxed text-white/55">
+                Type the code from the email sent to <span className="text-fg">{email}</span>.
+              </p>
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="123456"
+                className="glass-panel tabular h-14 rounded-full px-6 text-center text-[22px] tracking-[0.5em] outline-none placeholder:text-white/20 focus-visible:ring-2 focus-visible:ring-accent/60"
+              />
+              <button
+                disabled={busy || code.length < 6}
+                className={`glass-light h-14 rounded-full text-[16px] font-semibold disabled:opacity-50 ${focusRing}`}
+              >
+                {busy ? 'Checking…' : 'Sign in'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setWithCode(false)}
+                className={`text-[13px] text-white/45 transition-colors hover:text-fg ${focusRing}`}
+              >
+                Back
+              </button>
+            </form>
+          )}
+        </div>
 
         {error && <p className="mt-5 text-[14px] text-[#ff6b6b]">{error}</p>}
 
@@ -140,10 +200,22 @@ function AppleGlyph() {
 function GoogleGlyph() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
-      <path fill="#fff" fillOpacity="0.9" d="M21.6 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.32 2.98-7.35z" />
-      <path fill="#fff" fillOpacity="0.75" d="M12 22c2.7 0 4.96-.9 6.62-2.42l-3.24-2.5c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.07v2.58A10 10 0 0 0 12 22z" />
+      <path
+        fill="#fff"
+        fillOpacity="0.9"
+        d="M21.6 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.32 2.98-7.35z"
+      />
+      <path
+        fill="#fff"
+        fillOpacity="0.75"
+        d="M12 22c2.7 0 4.96-.9 6.62-2.42l-3.24-2.5c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.07v2.58A10 10 0 0 0 12 22z"
+      />
       <path fill="#fff" fillOpacity="0.6" d="M6.41 13.92a6 6 0 0 1 0-3.84V7.5H3.07a10 10 0 0 0 0 9z" />
-      <path fill="#fff" fillOpacity="0.85" d="M12 5.96c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.93 5.5l3.34 2.58C7.2 7.72 9.4 5.96 12 5.96z" />
+      <path
+        fill="#fff"
+        fillOpacity="0.85"
+        d="M12 5.96c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.93 5.5l3.34 2.58C7.2 7.72 9.4 5.96 12 5.96z"
+      />
     </svg>
   );
 }
