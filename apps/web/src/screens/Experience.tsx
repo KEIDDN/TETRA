@@ -14,7 +14,8 @@ import { SkinPicker } from '../ui/SkinPicker';
 import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScene';
 
 /** On a phone these chapters show their controls instead of the board: both won't fit. */
-const PHONE_CONTROLS = new Set<string>(['rooms', 'opponents', 'focus']);
+const PHONE_CONTROLS = new Set<string>(['opponents', 'focus']);
+const PHONE = typeof window !== 'undefined' && matchMedia('(max-width: 767px)').matches;
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm';
 /** The page's own set: everything is cut to its beat. */
@@ -262,7 +263,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
       {/* The real game: Mono, with its room. */}
       {gameMode && (
         <div
-          className={`absolute top-20 right-[3vw] bottom-28 left-[40%] ${PHONE_CONTROLS.has(chapter.id) ? 'max-md:hidden' : ''} [mask-composite:intersect] [mask-image:linear-gradient(to_right,transparent,black_14%,black_86%,transparent),linear-gradient(to_bottom,transparent,black_6%,black_94%,transparent)] transition-[opacity,filter,transform] max-md:inset-x-0 max-md:top-[44%] max-md:bottom-16 duration-[1400ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${game ? 'opacity-100' : 'opacity-0'} ${
+          className={`absolute top-20 right-[3vw] bottom-28 left-[40%] ${PHONE_CONTROLS.has(chapter.id) ? 'max-md:hidden' : ''} [mask-composite:intersect] [mask-image:linear-gradient(to_right,transparent,black_14%,black_86%,transparent),linear-gradient(to_bottom,transparent,black_6%,black_94%,transparent)] transition-[opacity,filter,transform] max-md:inset-x-0 ${chapter.id === 'rooms' ? 'max-md:top-[56%]' : 'max-md:top-[44%]'} max-md:bottom-16 duration-[1400ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${game ? 'opacity-100' : 'opacity-0'} ${
             focusing ? 'scale-[0.94] brightness-[0.55] grayscale' : ''
           }`}
         >
@@ -309,7 +310,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
               </p>
             </div>
           )}
-          {c.id === 'rooms' && <SkinPicker skins={SKIN_ORDER} value={skin} onChange={setPickedSkin} />}
+          {c.id === 'rooms' && <SkinPicker row={PHONE} skins={SKIN_ORDER} value={skin} onChange={setPickedSkin} />}
           {c.id === 'opponents' && <Roster current={rival.id} onPick={setPickedBot} />}
           {c.id === 'oxia' && onOxia && !firstRun && (
             <button onClick={onOxia} className={`group inline-flex items-center gap-3 font-mono text-[11px] tracking-[0.24em] text-white/80 uppercase ${focusRing}`}>

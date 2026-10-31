@@ -1,6 +1,7 @@
 import type { ModeId } from '@tetra/engine';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { music } from './audio/music';
 import { sfx } from './audio/sfx';
 import { gamepads } from './game/gamepad';
 import { Toasts } from './ui/toast';
@@ -155,12 +156,22 @@ export function App() {
 
   // Browsers only allow audio after a gesture: unlock on the first one.
   useEffect(() => {
-    const unlock = () => sfx.unlock();
+    // iOS only counts the end of a touch (or a click) as a gesture that may start sound.
+    const unlock = () => {
+      sfx.unlock();
+      music.gesture();
+    };
     window.addEventListener('pointerdown', unlock);
+    window.addEventListener('pointerup', unlock);
+    window.addEventListener('touchend', unlock);
+    window.addEventListener('click', unlock);
     window.addEventListener('keydown', unlock);
     const unsubscribe = gamepads.subscribe(unlock);
     return () => {
       window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('pointerup', unlock);
+      window.removeEventListener('touchend', unlock);
+      window.removeEventListener('click', unlock);
       window.removeEventListener('keydown', unlock);
       unsubscribe();
     };

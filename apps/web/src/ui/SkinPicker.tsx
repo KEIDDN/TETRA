@@ -41,6 +41,7 @@ export function SkinPicker({
   onChange,
   locked,
   onLocked,
+  row = false,
 }: {
   skins: SkinId[];
   value: SkinId;
@@ -48,8 +49,49 @@ export function SkinPicker({
   /** Skins still to be won: shown dimmed with a lock, and not picked. */
   locked?: (id: SkinId) => boolean;
   onLocked?: (id: SkinId) => void;
+  /** Phones: one row that scrolls sideways under the thumb, instead of the 5-wide pane. */
+  row?: boolean;
 }) {
   const index = Math.max(0, skins.indexOf(value));
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!row) return;
+    // Scroll only the strip (scrollIntoView would also move the page).
+    const box = strip.current;
+    const el = box?.children[index] as HTMLElement | undefined;
+    if (box && el) box.scrollTo({ left: el.offsetLeft - (box.clientWidth - el.offsetWidth) / 2, behavior: 'smooth' });
+  }, [row, index]);
+  if (row) {
+    return (
+      <div onClick={(e) => e.stopPropagation()} className="-mx-6 w-[calc(100%+3rem)]">
+        <div ref={strip} className="relative flex snap-x gap-1.5 overflow-x-auto px-6 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {skins.map((id) => {
+            const shut = id !== value && !!locked?.(id);
+            return (
+              <button
+                key={id}
+                onClick={() => (shut ? onLocked?.(id) : onChange(id))}
+                aria-label={shut ? `${SKINS[id].name}, locked` : SKINS[id].name}
+                aria-pressed={id === value}
+                className={`relative grid h-14 w-16 shrink-0 snap-center place-items-center rounded-[18px] outline-none transition-[background-color,opacity] duration-300 ${
+                  id === value ? 'pick-lens' : shut ? '' : 'opacity-60'
+                }`}
+              >
+                <span className={shut ? 'opacity-20 grayscale' : ''}>
+                  <MiniT id={id} />
+                </span>
+                {shut && (
+                  <span className="absolute inset-0 grid place-items-center text-white/70">
+                    <Icon name="lock" size={12} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <div className="glass-panel relative inline-grid grid-cols-5 rounded-[30px] p-2.5">

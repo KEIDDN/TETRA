@@ -120,6 +120,9 @@ export class ExperienceScene {
   private raf = 0;
   private last = performance.now();
   private disposed = false;
+  private observer: ResizeObserver;
+  private width = 0;
+  private height = 0;
   private beats = 0;
   private lastBeat = 0;
   formation: Formation = 'welcome';
@@ -140,7 +143,9 @@ export class ExperienceScene {
     this.renderer.toneMappingExposure = 1;
     this.renderer.setClearColor(0x000000, 1);
     host.appendChild(this.renderer.domElement);
-    this.renderer.domElement.style.display = 'block';
+    // The canvas always fills its host in CSS pixels. Its buffer is larger on dense screens,
+    // and without this it would show at buffer size, spilling right and down on every Retina display.
+    Object.assign(this.renderer.domElement.style, { display: 'block', width: '100%', height: '100%' });
 
     this.scene.fog = new THREE.Fog(0x000000, 28, 64);
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x000000, 0.35));
@@ -201,6 +206,9 @@ export class ExperienceScene {
 
     this.resize();
     window.addEventListener('resize', this.resize);
+    // Phones resize the page without a window resize (the toolbar sliding away, rotation settling).
+    this.observer = new ResizeObserver(() => this.resize());
+    this.observer.observe(host);
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -208,6 +216,7 @@ export class ExperienceScene {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.resize);
+    this.observer.disconnect();
     this.graphite.geometry.dispose();
     this.markCells[0]?.geometry.dispose();
     for (const cell of this.markCells) (cell.material as THREE.Material).dispose();
@@ -221,12 +230,19 @@ export class ExperienceScene {
   }
 
   private resize = (): void => {
-    const w = this.host.clientWidth;
-    const h = this.host.clientHeight;
+    const w = Math.max(1, this.host.clientWidth);
+    const h = Math.max(1, this.host.clientHeight);
+    if (w === this.width && h === this.height) return;
+    this.width = w;
+    this.height = h;
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
     this.bloom.resolution.set(w / 2, h / 2);
     this.camera.aspect = w / h;
+    // The compositions are framed for a landscape screen. On narrower ones the view widens
+    // instead of cropping the sides, so a phone sees the same picture as a desktop, smaller.
+    const FRAME = 1.25;
+    this.camera.fov = this.camera.aspect >= FRAME ? 34 : (2 * Math.atan((Math.tan((17 * Math.PI) / 180) * FRAME) / this.camera.aspect) * 180) / Math.PI;
     this.camera.updateProjectionMatrix();
   };
 

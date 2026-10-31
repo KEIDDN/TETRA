@@ -135,8 +135,6 @@ export function Home({
     if (id === 'multiplayer') return toast('Multiplayer is coming soon');
     // In the setup only Play (or Enter) starts: a stray click on the wheel never does.
     if (setup) return pointer ? undefined : start(id);
-    // On a phone or a narrow window there's no room beside the wheel: go straight in.
-    if (narrow) return start(id);
     setSetup(true);
     sfx.ui('select');
   };
@@ -222,10 +220,20 @@ export function Home({
           {/* The wheel: centre stage, then a step to the left once a mode is picked. */}
           <div
             className="absolute top-1/2 left-1/2 flex w-[min(680px,90vw)] flex-col items-center text-center will-change-transform"
-            style={{
-              transform: setup ? 'translate3d(calc(-50% - min(31vw, 440px)), -50%, 0)' : 'translate3d(-50%, -50%, 0)',
-              transition: `transform ${setup ? 1100 : 900}ms ${GLIDE}`,
-            }}
+            style={
+              narrow
+                ? {
+                    // Phones: no room beside the setup, so the wheel lifts away and the setup takes its place.
+                    opacity: setup ? 0 : 1,
+                    pointerEvents: setup ? 'none' : undefined,
+                    transform: setup ? 'translate3d(-50%, calc(-50% - 36px), 0)' : 'translate3d(-50%, -50%, 0)',
+                    transition: `opacity ${setup ? 350 : 700}ms ${GLIDE} ${setup ? 0 : 200}ms, transform ${setup ? 700 : 900}ms ${GLIDE}`,
+                  }
+                : {
+                    transform: setup ? 'translate3d(calc(-50% - min(31vw, 440px)), -50%, 0)' : 'translate3d(-50%, -50%, 0)',
+                    transition: `transform ${setup ? 1100 : 900}ms ${GLIDE}`,
+                  }
+            }
           >
             <div className="label animate-rise">Select a mode</div>
             <div className="animate-rise mt-[min(32px,3.5vh)] w-full [animation-delay:80ms]">
@@ -252,8 +260,9 @@ export function Home({
               key={selected}
               className={`animate-fade mt-[min(48px,5vh)] flex flex-col items-center transition-[opacity,translate] duration-500 ${setup ? 'pointer-events-none translate-y-3 opacity-0' : ''}`}
             >
-              <p className="max-w-[38ch] text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
-              <div className="mt-[min(28px,3vh)] flex items-center gap-8">
+              {/* Always two lines tall, so switching modes never moves the wheel. */}
+              <p className="flex min-h-[3.25em] max-w-[38ch] items-start justify-center text-[16px] leading-relaxed text-muted">{entryDescription(selected)}</p>
+              <div className="mt-[min(28px,3vh)] flex h-12 items-center gap-8">
                 {selected === 'multiplayer' ? (
                   <span className="glass rounded-full px-6 py-3 text-[15px] font-semibold text-muted">Coming soon</span>
                 ) : (
@@ -263,7 +272,7 @@ export function Home({
                     onClick={() => activate(selected)}
                     className={`glass-light group flex h-12 items-center gap-3 rounded-full pr-2.5 pl-6 text-[16px] font-semibold ${focusRing}`}
                   >
-                    {narrow ? 'Play' : 'Choose'}
+                    Choose
                     <span className="grid size-8 place-items-center rounded-full bg-black/10 text-black/60">
                       {touchDevice ? <Icon name="play" size={10} /> : <Glyph k="confirm" />}
                     </span>
@@ -284,7 +293,7 @@ export function Home({
           >
             <div
               ref={boardRef}
-              className="relative aspect-[4/5] h-[min(56vh,520px)] overflow-hidden rounded-[44px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.16)]"
+              className="relative aspect-[4/5] h-[min(56vh,520px)] overflow-hidden max-lg:h-[min(40vh,420px)] max-lg:rounded-[32px] rounded-[44px] bg-gradient-to-b from-[#1b1b1d]/90 to-[#111113]/90 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07),0_40px_120px_-40px_rgba(237,235,250,0.16)]"
             >
               {setup && (
                 <DemoBoard
@@ -303,7 +312,28 @@ export function Home({
                 />
               )}
             </div>
-            <div className="mt-7 flex items-center gap-8">
+            {narrow && (
+              <div className="mt-5 flex w-[min(520px,calc(100vw-3rem))] flex-col items-center text-center">
+                <div key={appearance.skin} className="animate-fade text-[22px] leading-none font-[560] tracking-[-0.03em]">
+                  {skin.name}
+                </div>
+                <div className="mt-3 w-full">
+                  <SkinPicker
+                    row
+                    skins={SKIN_ORDER}
+                    value={appearance.skin}
+                    locked={skinLocked}
+                    onLocked={(id) => toast(`${SKINS[id].name} · ${skinUnlockHint(id)}`)}
+                    onChange={(next) => {
+                      if (next === appearance.skin) return;
+                      updateSettings((st) => ({ ...st, appearance: { ...st.appearance, skin: next } }));
+                      sfx.ui('move');
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            <div className="mt-7 flex items-center gap-8 max-lg:mt-5">
               {best !== null || (selected !== 'versus' && selected !== 'cups') ? (
                 <div className="text-left">
                   <div className="label">Best</div>
@@ -319,7 +349,7 @@ export function Home({
 
           {/* Right: the rooms. */}
           <div
-            className={`absolute top-1/2 right-0 w-[min(390px,30vw)] will-change-transform ${setup ? '' : 'pointer-events-none'}`}
+            className={`absolute top-1/2 right-0 w-[min(390px,30vw)] will-change-transform max-lg:hidden ${setup ? '' : 'pointer-events-none'}`}
             style={{
               opacity: setup ? 1 : 0,
               transform: setup ? 'translate3d(0, -50%, 0)' : 'translate3d(48px, -50%, 0)',
@@ -351,8 +381,8 @@ export function Home({
           </div>
         </main>
 
-        <footer className="flex h-16 shrink-0 items-center justify-between gap-6 border-t border-line">
-          <div className="label hidden items-center gap-6 md:flex">
+        <footer className="flex min-h-16 shrink-0 items-center justify-between gap-6 border-t border-line max-md:justify-center max-md:py-4">
+          <div className={`label hidden items-center gap-6 ${touchDevice ? '' : 'md:flex'}`}>
             <span className="flex items-center gap-2">
               <Glyph k="vertical" className="text-muted" /> Mode
             </span>
@@ -370,7 +400,7 @@ export function Home({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 whitespace-nowrap">
             <button onClick={onOxia} className={`label rounded-sm transition-colors hover:text-fg lg:hidden ${focusRing}`}>
               Why TETRA
             </button>

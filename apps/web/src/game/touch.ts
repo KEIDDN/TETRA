@@ -33,13 +33,23 @@ export class TouchControls {
     el.addEventListener('pointerup', this.up);
     el.addEventListener('pointercancel', this.cancel);
     el.style.touchAction = 'none';
+    // iOS runs its own long-press and double-tap gestures (the magnifier, text selection) on
+    // raw touches whatever CSS says. Cancelling them here leaves only the game's pointer events.
+    el.addEventListener('touchstart', this.block, { passive: false });
+    el.addEventListener('touchmove', this.block, { passive: false });
   }
+
+  private block = (e: TouchEvent): void => {
+    if (e.cancelable) e.preventDefault();
+  };
 
   dispose(): void {
     this.el.removeEventListener('pointerdown', this.down);
     this.el.removeEventListener('pointermove', this.move);
     this.el.removeEventListener('pointerup', this.up);
     this.el.removeEventListener('pointercancel', this.cancel);
+    this.el.removeEventListener('touchstart', this.block);
+    this.el.removeEventListener('touchmove', this.block);
   }
 
   private tap(command: Command, t: number): void {
