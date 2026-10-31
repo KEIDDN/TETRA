@@ -89,8 +89,7 @@ class Director {
     if (!audio.enabled || audio.music === 0 || audio.musicMode === 'off') return music.play(null);
     if (this.context.kind === 'menu') {
       const t = this.shuffled && this.shuffled.suggest === 'menu' && music.current?.id === this.shuffled.id ? this.shuffled : trackFor('menu');
-      music.prefetch(t);
-      // Fetch the next game's music while the player is still choosing.
+      // The menu track streams; only the next game's music is fetched ahead, once the menu's is playing.
       if (audio.musicMode === 'skin') music.prefetch(skinTrack(getSettings().appearance.skin));
       return music.play(t, { bpm: t ? bpmOf(t) : null });
     }

@@ -1,3 +1,4 @@
+import { touchDevice } from '../game/touch';
 import { BOTS, type BotProfile } from '@tetra/bot';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { computeDemoLayout, computeLayout, type Layout } from '../game/layout';
@@ -454,7 +455,7 @@ function Pill({ children, onClick, hint, primary }: { children: ReactNode; onCli
         primary ? 'glass-light font-semibold' : 'glass font-medium'
       }`}
     >
-      {children} {hint && <span className="ml-1 font-mono text-[12px] opacity-50">{hint}</span>}
+      {children} {hint && !touchDevice && <span className="ml-1 font-mono text-[12px] opacity-50">{hint}</span>}
     </button>
   );
 }

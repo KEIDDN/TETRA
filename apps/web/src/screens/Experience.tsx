@@ -4,6 +4,7 @@ import { director } from '../audio/director';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { SKIN_ORDER, SKINS, type SkinId } from '../game/skins';
+import { touchDevice } from '../game/touch';
 import { setExperience, updateSettings, useSettings } from '../lib/settings';
 import { BotEmblem } from '../ui/BotEmblem';
 import { save } from '../lib/storage';
@@ -15,6 +16,8 @@ import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScen
 
 /** On a phone these chapters show their controls instead of the board: both won't fit. */
 const PHONE_CONTROLS = new Set<string>(['opponents', 'focus']);
+/** When the last swipe landed, so the click it ends with doesn't also step on. */
+let swiped = 0;
 const PHONE = typeof window !== 'undefined' && matchMedia('(max-width: 767px)').matches;
 
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm';
@@ -234,11 +237,40 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
       acc = 0;
       lockedUntil = now + 900;
     };
+    // Touch: swipe up or left for the next chapter, down or right for the previous one.
+    let sx = 0;
+    let sy = 0;
+    let st = 0;
+    let tracking = false;
+    // Touch events, not pointer events: the browser can cancel a pointer mid-swipe to pan, but touchend always arrives.
+    const onDown = (e: TouchEvent) => {
+      const t = e.touches[0];
+      // The roster and the skin row scroll under the finger: those swipes are theirs.
+      tracking = e.touches.length === 1 && !(e.target as Element | null)?.closest?.('[data-roster], [data-swipe-own]');
+      sx = t.clientX;
+      sy = t.clientY;
+      st = performance.now();
+    };
+    const onUp = (e: TouchEvent) => {
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      if (performance.now() - st > 900 || Math.max(Math.abs(dx), Math.abs(dy)) < 40) return;
+      swiped = performance.now();
+      if (Math.abs(dy) >= Math.abs(dx)) go(index + (dy < 0 ? 1 : -1));
+      else go(index + (dx < 0 ? 1 : -1));
+    };
     window.addEventListener('keydown', onKey);
     window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('touchstart', onDown, { passive: true });
+    window.addEventListener('touchend', onUp);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onDown);
+      window.removeEventListener('touchend', onUp);
     };
   }, [index, go, finish, chapter.id]);
 
@@ -253,7 +285,14 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
   };
 
   return (
-    <div ref={root} className={`fixed inset-0 overflow-hidden bg-black text-fg ${focusing ? 'exp-calm' : ''}`} onClick={() => index === 0 && go(1)}>
+    <div ref={root} className={`fixed inset-0 overflow-hidden bg-black text-fg ${focusing ? 'exp-calm' : ''}`} onClick={(e) => {
+        if (index === 0) return go(1);
+        // On a touch screen, a tap on empty space moves on (a swipe already did).
+        if (!touchDevice || performance.now() - swiped < 400) return;
+        if ((e.target as Element).closest('button, a, input, [data-roster], [data-swipe-own]')) return;
+        go(index + 1);
+      }}
+>
       <div ref={stage} className={`absolute inset-0 transition-opacity duration-700 ${game ? 'opacity-0' : 'opacity-100'}`} aria-hidden />
       <div
         aria-hidden
@@ -301,7 +340,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
 
       {chapters.map((c, i) => (
         <Scene key={c.id} chapter={c} active={index === i} gameSide={typeof c.stage === 'object'} phoneControls={PHONE_CONTROLS.has(c.id)}>
-          {c.id === 'welcome' && <p className="exp-blink font-mono text-[11px] tracking-[0.3em] text-white/60 uppercase">Press any key</p>}
+          {c.id === 'welcome' && <p className="exp-blink font-mono text-[11px] tracking-[0.3em] text-white/60 uppercase">{touchDevice ? 'Tap to begin' : 'Press any key'}</p>}
           {c.id === 'focus' && (
             <div>
               <GlassSwitch options={['Experience', 'Focus']} value={settings.experience ? 0 : 1} onChange={(v) => toggleFocus(v === 1)} />
@@ -346,7 +385,8 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
                 e.stopPropagation();
                 go(i);
               }}
-              className={`group flex flex-col items-center gap-2.5 ${focusRing}`}
+              aria-label={c.name}
+              className={`group flex flex-col items-center gap-2.5 max-md:px-1 max-md:py-6 ${focusRing}`}
             >
               <span className={`h-px transition-all duration-500 ${i === index ? 'w-10 bg-fg' : 'w-5 bg-white/25 group-hover:bg-white/60'}`} />
               <span className={`font-mono text-[10px] tracking-[0.2em] uppercase transition-colors duration-500 max-md:hidden ${i === index ? 'text-fg' : 'text-white/30 group-hover:text-white/70'}`}>

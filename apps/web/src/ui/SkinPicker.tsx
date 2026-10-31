@@ -63,7 +63,7 @@ export function SkinPicker({
   }, [row, index]);
   if (row) {
     return (
-      <div onClick={(e) => e.stopPropagation()} className="-mx-6 w-[calc(100%+3rem)]">
+      <div data-swipe-own onClick={(e) => e.stopPropagation()} className="-mx-6 w-[calc(100%+3rem)]">
         <div ref={strip} className="relative flex snap-x gap-1.5 overflow-x-auto px-6 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {skins.map((id) => {
             const shut = id !== value && !!locked?.(id);

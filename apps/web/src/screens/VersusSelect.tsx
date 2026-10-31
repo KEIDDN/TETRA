@@ -1,3 +1,4 @@
+import { touchDevice } from '../game/touch';
 import { BOTS, type BotProfile } from '@tetra/bot';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { sfx } from '../audio/sfx';
@@ -229,7 +230,7 @@ export function VersusSelect({
               style={{ background: open ? selected.color : '#3a3a3f' }}
             >
               {open ? `Challenge ${selected.name}` : `Beat ${BOTS[selected.level - 2]?.name ?? 'the previous bot'} to unlock`}
-              {open && <span className="grid size-7 place-items-center rounded-full bg-black/15 font-mono text-[12px]">↵</span>}
+              {open && !touchDevice && <span className="grid size-7 place-items-center rounded-full bg-black/15 font-mono text-[12px]">↵</span>}
             </button>
             <div className="label mt-3 text-center">First to {firstTo} · ←→ to change</div>
             {isCustom(selected) && (

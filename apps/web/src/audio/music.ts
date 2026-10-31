@@ -235,7 +235,10 @@ class Music {
   /** Downloads `track` in the background (kept for the next few plays). */
   prefetch(track: Track | null): void {
     if (!track || this.cache.has(track.id)) return;
-    const job = fetch(track.url, { mode: 'cors' })
+    // Never compete with the track that's starting: on a phone connection that's what made it stall.
+    // The download waits until the playing deck can play through (or a few seconds, whichever first).
+    const job = this.whenSettled()
+      .then(() => fetch(track.url, { mode: 'cors' }))
       .then((r) => (r.ok ? r.blob() : null))
       .then((b) => {
         if (!b) return null;
@@ -254,6 +257,21 @@ class Music {
       this.cache.delete(old);
       this.ready.delete(old);
     }
+  }
+
+  /** Resolves once the playing deck has buffered enough to play through, or after 6 s. */
+  private whenSettled(): Promise<void> {
+    const deck = this.decks[this.active];
+    if (!deck.track || deck.el.readyState >= 4 || deck.el.src.startsWith('blob:')) return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        deck.el.removeEventListener('canplaythrough', done);
+        resolve();
+      };
+      const timer = window.setTimeout(done, 6000);
+      deck.el.addEventListener('canplaythrough', done);
+    });
   }
 
   setVolume(v: number): void {

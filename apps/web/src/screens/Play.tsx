@@ -359,7 +359,7 @@ function PillButton({ children, onClick, hint, primary }: { children: ReactNode;
         primary ? 'glass-light font-semibold' : 'glass font-medium'
       }`}
     >
-      {children} <span className="ml-1 font-mono text-[12px] opacity-50">{hint}</span>
+      {children} {hint && !touchDevice && <span className="ml-1 font-mono text-[12px] opacity-50">{hint}</span>}
     </button>
   );
 }
