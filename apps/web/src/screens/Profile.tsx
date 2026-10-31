@@ -79,8 +79,8 @@ export function Profile({
         <AccountBar onSignIn={onSignIn} onPrivacy={onPrivacy} />
 
         {/* Player card */}
-        <section className="glass-panel animate-rise grid items-center gap-10 rounded-[40px] p-8 md:grid-cols-[auto_minmax(0,1fr)_auto]">
-          <div className="[view-transition-name:level-ring]">
+        <section className="glass-panel animate-rise grid items-center gap-10 rounded-[40px] p-8 max-md:gap-6 max-md:rounded-[32px] max-md:p-6 md:grid-cols-[auto_minmax(0,1fr)_auto]">
+          <div className="[view-transition-name:level-ring] max-md:-my-4 max-md:origin-left max-md:scale-[0.7]">
             <LevelRing level={level} progress={into / needed} />
           </div>
           <div className="min-w-0">
@@ -112,8 +112,10 @@ export function Profile({
           </div>
         </section>
 
-        <div className="mt-10 mb-8">
-          <Segmented value={tab} onChange={setTab} options={TABS} />
+        <div className="mt-10 mb-8 max-lg:-mx-6 max-lg:overflow-x-auto max-lg:px-6 max-lg:[scrollbar-width:none]">
+          <div className="w-max">
+            <Segmented value={tab} onChange={setTab} options={TABS} />
+          </div>
         </div>
 
         <div key={tab} className="animate-fade">

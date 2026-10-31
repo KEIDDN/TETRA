@@ -28,7 +28,7 @@ export function Download({ onBack, onLegal }: { onBack: () => void; onLegal?: (d
         </button>
       </header>
 
-      <main className="mx-auto max-w-[1100px] px-8 pt-36 pb-24 sm:px-12">
+      <main className="mx-auto flex max-w-[1100px] flex-col px-6 pt-28 pb-24 sm:px-12 sm:pt-36">
         <div className="animate-rise">
           <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Desktop app</span>
           <h1 className="mt-5 max-w-[15ch] text-[clamp(44px,6vw,96px)] leading-[1.03] font-[560] tracking-[-0.05em]">Download TETRA for desktop.</h1>
@@ -53,7 +53,8 @@ export function Download({ onBack, onLegal }: { onBack: () => void; onLegal?: (d
 
         <Requirements />
 
-        <div className="animate-rise mt-28 [animation-delay:240ms]">
+        {/* On a phone, the phone steps come first. */}
+        <div className={`animate-rise mt-28 [animation-delay:240ms] ${os === 'ios' || os === 'android' ? 'order-first mt-0 mb-24' : ''}`}>
           <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Phone and tablet</span>
           <h2 className="mt-5 max-w-[16ch] text-[clamp(36px,4.4vw,72px)] leading-[1.04] font-[560] tracking-[-0.045em]">
             Put TETRA on your home screen.

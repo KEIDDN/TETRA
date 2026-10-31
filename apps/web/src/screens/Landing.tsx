@@ -42,7 +42,7 @@ export function Landing({
       <header className="relative z-10 flex h-24 items-center justify-between px-8 sm:px-12">
         <Logo large className="animate-rise" />
         <nav className="animate-rise flex items-center gap-6 [animation-delay:120ms]">
-          <button onClick={onWhy} className={`hidden sm:block ${quiet}`}>
+          <button onClick={onWhy} className={quiet}>
             Why TETRA
           </button>
           {accountsEnabled && (

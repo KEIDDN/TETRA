@@ -102,7 +102,7 @@ export function Account({
       <div className="relative mx-auto flex min-h-[calc(100%-6rem)] max-w-[560px] flex-col items-center justify-center px-6 pb-16 text-center">
         <div className="animate-rise flex flex-col items-center">
           <span className="font-mono text-[11px] tracking-[0.24em] text-white/50 uppercase">Your account</span>
-          <h1 className="mt-5 text-[clamp(44px,5.4vw,80px)] leading-[1] font-[560] tracking-[-0.055em] whitespace-nowrap">Keep your progress.</h1>
+          <h1 className="mt-5 text-[clamp(44px,5.4vw,80px)] leading-[1] font-[560] tracking-[-0.055em] sm:whitespace-nowrap">Keep your progress.</h1>
           <p className="mt-5 max-w-[38ch] text-[clamp(16px,1.25vw,18px)] leading-relaxed text-white/55">
             Sign in once and TETRA remembers you: on the web, on your phone and on your desktop.
           </p>

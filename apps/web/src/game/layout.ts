@@ -64,7 +64,7 @@ export function computeLayout(width: number, height: number): Layout {
 export function computeDemoLayout(width: number, height: number): Layout {
   const pad = 28;
   // 20 rows plus room above for the spawning piece and below for the captions.
-  const cell = Math.max(8, Math.floor(Math.min((height - pad * 2) / 22.5, (width - pad * 2) / 15)));
+  const cell = Math.max(5, Math.floor(Math.min((height - pad * 2) / 22.5, (width - pad * 2) / 15)));
   const boardW = cell * 10;
   const boardH = cell * 20;
   const previewCell = Math.round(cell * 0.7);

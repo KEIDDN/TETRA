@@ -318,8 +318,8 @@ function TouchTips({ show }: { show: boolean }) {
     ['Swipe up', 'Hold'],
   ];
   return (
-    <div className="animate-fade pointer-events-none absolute inset-x-0 bottom-8 flex justify-center px-4">
-      <div className="glass-panel grid grid-cols-4 gap-1 rounded-[22px] px-3 py-3 text-center">
+    <div className="animate-fade pointer-events-none absolute inset-x-0 bottom-6 z-10 flex justify-center px-4">
+      <div className="grid grid-cols-4 gap-1 rounded-[22px] bg-[#0d0d0f] px-3 py-3 text-center shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1),0_0_0_24px_#000]">
         {tips.map(([gesture, action]) => (
           <div key={gesture} className="px-2">
             <div className="text-[13px] font-semibold">{action}</div>

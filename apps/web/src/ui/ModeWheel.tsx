@@ -48,6 +48,8 @@ export function ModeWheel<T extends string>({
   const pressedSelected = useRef(false);
   const dimRef = useRef(dim);
   dimRef.current = dim;
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     const m = motion.current;
@@ -111,6 +113,46 @@ export function ModeWheel<T extends string>({
     [],
   );
 
+  // A finger turns it too: drag up or down, a row per row-height travelled.
+  const dragged = useRef(false);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    let startY = 0;
+    let startIndex = 0;
+    let active = false;
+    const down = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') return;
+      active = true;
+      dragged.current = false;
+      startY = e.clientY;
+      startIndex = motion.current.target;
+    };
+    const move = (e: PointerEvent) => {
+      if (!active) return;
+      const row = rows.current[0]?.offsetHeight || 40;
+      const steps = Math.round((startY - e.clientY) / (row * 0.9));
+      if (steps !== 0) dragged.current = true;
+      const next = Math.min(items.length - 1, Math.max(0, startIndex + steps));
+      // Select directly: rows far round the drum are hidden and can't take focus yet.
+      if (next !== motion.current.target) onSelectRef.current(items[next]);
+    };
+    const up = () => {
+      active = false;
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.style.touchAction = 'none';
+    return () => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+  }, [items]);
+
   // The mouse wheel turns the wheel, one row per notch.
   useEffect(() => {
     const el = box.current;
@@ -158,6 +200,11 @@ export function ModeWheel<T extends string>({
           onFocus={() => onSelect(id)}
           onPointerDown={() => (pressedSelected.current = id === selected)}
           onClick={(e) => {
+            // A drag to turn the wheel isn't a tap on a row.
+            if (dragged.current) {
+              dragged.current = false;
+              return;
+            }
             // Keyboard and controller confirm at once; a click picks first, then plays.
             if (e.detail === 0 || pressedSelected.current) onActivate(id, e.detail !== 0);
           }}

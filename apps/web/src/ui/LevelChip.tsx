@@ -25,7 +25,7 @@ export function LevelChip() {
         </svg>
         <span className="tabular text-[12px] font-medium">{level}</span>
       </span>
-      <span className="hidden flex-col sm:flex">
+      <span className="hidden flex-col whitespace-nowrap lg:flex">
         <span className="label">Level {level}</span>
         <span className="tabular text-[11px] text-faint">
           {into} / {needed} XP

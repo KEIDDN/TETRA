@@ -161,7 +161,7 @@ export function Home({
             <button
               data-nav
               onClick={onOxia}
-              className={`hidden rounded-full px-2 py-2 text-[13px] font-medium text-muted transition-colors hover:text-fg md:block ${focusRing}`}
+              className={`hidden rounded-full px-2 py-2 text-[13px] font-medium whitespace-nowrap text-muted transition-colors hover:text-fg lg:block ${focusRing}`}
             >
               <span className="flex items-center gap-2">
                 <Icon name="info" size={11} /> Why TETRA
@@ -170,7 +170,7 @@ export function Home({
             <button
               data-nav
               onClick={onExperience}
-              className={`exp-pill hidden items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium md:flex ${focusRing}`}
+              className={`exp-pill hidden items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium whitespace-nowrap md:flex ${focusRing}`}
               title="What is the TETRA Experience"
             >
               <span className="exp-dot size-1.5 rounded-full" />
@@ -199,21 +199,21 @@ export function Home({
               <button
                 data-nav
                 onClick={onDownload}
-                className={`glass-light flex items-center gap-2 rounded-full px-3 py-2 text-[14px] font-semibold whitespace-nowrap sm:px-5 ${focusRing}`}
+                className={`glass-light flex items-center gap-2 rounded-full px-3 py-2 text-[14px] font-semibold whitespace-nowrap lg:px-5 ${focusRing}`}
                 aria-label="Get the app"
               >
                 <Icon name="download" size={12} />
-                <span className="hidden sm:inline">Get the app</span>
+                <span className="hidden lg:inline">Get the app</span>
               </button>
             )}
             <button
               data-nav
               onClick={() => onSettings()}
-              className={`glass flex items-center gap-2 rounded-full px-3 py-2 text-[14px] font-medium sm:px-5 ${focusRing}`}
+              className={`glass flex items-center gap-2 rounded-full px-3 py-2 text-[14px] font-medium lg:px-5 ${focusRing}`}
               aria-label="Settings"
             >
               <Icon name="settings" size={12} />
-              <span className="hidden sm:inline">Settings</span>
+              <span className="hidden lg:inline">Settings</span>
             </button>
           </div>
         </header>
@@ -371,6 +371,9 @@ export function Home({
             )}
           </div>
           <div className="flex items-center gap-5">
+            <button onClick={onOxia} className={`label rounded-sm transition-colors hover:text-fg lg:hidden ${focusRing}`}>
+              Why TETRA
+            </button>
             <button onClick={openBugReport} className={`label flex items-center gap-1.5 rounded-sm transition-colors hover:text-fg ${focusRing}`}>
               <Icon name="feedback" size={10} /> Report a bug
             </button>

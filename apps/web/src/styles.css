@@ -881,3 +881,23 @@ body {
     animation: none;
   }
 }
+
+/* A game, not a page: no text-selection loupe, long-press menu, tap flash or
+   double-tap zoom on phones. Fields (and the legal pages) stay selectable. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable],
+.selectable {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}

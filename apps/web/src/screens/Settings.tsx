@@ -9,6 +9,7 @@ import { SKIN_ORDER, SKINS, type Skin, type SoundPackId } from '../game/skins';
 import { SkinSwatch } from '../ui/SkinSwatch';
 import { DemoBoard } from '../ui/DemoBoard';
 import { BugReportForm } from '../ui/BugReport';
+import { touchDevice } from '../game/touch';
 import { TRACKS } from '../audio/catalog';
 import { skinUnlockHint } from '../lib/achievements';
 import { ControllerPreview, KeyboardPreview, SUPPORTED_PADS } from '../ui/ControlsPreview';
@@ -92,16 +93,16 @@ export function Settings({
   const title = categories.find(([id]) => id === category)!;
 
   return (
-    <div className="fixed inset-0 flex overflow-hidden">
-      <aside className="flex w-[300px] shrink-0 flex-col border-r border-line px-6 py-6">
+    <div className="fixed inset-0 flex overflow-hidden max-md:flex-col max-md:overflow-y-auto">
+      <aside className="flex w-[300px] shrink-0 flex-col border-r border-line px-6 py-6 max-md:w-full max-md:border-r-0 max-md:border-b max-md:px-5 max-md:pb-4">
         <button data-nav onClick={onBack} className={`glass -ml-1 self-start rounded-full px-4 py-2 text-[13px] font-medium ${focusRing}`}>
           <span className="flex items-center gap-2">
             <Icon name="back" size={12} /> Back <Glyph k="back" className="text-white/40" />
           </span>
         </button>
-        <h1 className="mt-10 text-[40px] leading-none font-[520] tracking-[-0.045em]">Settings</h1>
+        <h1 className="mt-10 text-[40px] leading-none font-[520] tracking-[-0.045em] max-md:mt-6 max-md:text-[32px]">Settings</h1>
 
-        <div className="mt-8">
+        <div className="mt-8 max-md:mt-5">
           <div className="label mb-3">Preset</div>
           <div className="glass-panel grid grid-cols-3 rounded-full p-1">
             {(
@@ -133,14 +134,14 @@ export function Settings({
           </p>
         </div>
 
-        <nav className="mt-8 flex flex-col gap-1">
+        <nav className="mt-8 flex flex-col gap-1 max-md:-mx-5 max-md:mt-5 max-md:flex-row max-md:overflow-x-auto max-md:px-5 max-md:pb-1 max-md:[scrollbar-width:none]">
           {categories.map(([id, name, hint]) => (
             <button
               key={id}
               data-nav
               onClick={() => setCategory(id)}
               onFocus={() => setCategory(id)}
-              className={`group relative rounded-[16px] px-4 py-2.5 text-left transition-colors duration-200 ${focusRing} ${category === id ? 'glass-panel' : 'hover:bg-white/[0.04]'}`}
+              className={`group relative shrink-0 rounded-[16px] px-4 py-2.5 text-left transition-colors duration-200 ${focusRing} ${category === id ? 'glass-panel' : 'hover:bg-white/[0.04]'}`}
             >
               <span className="flex items-center gap-3.5">
                 <Icon name={id as IconName} size={14} className={category === id ? 'text-fg' : 'text-faint group-hover:text-muted'} />
@@ -150,7 +151,7 @@ export function Settings({
                   >
                     {name}
                   </span>
-                  <span className="block text-[12px] text-faint">{hint}</span>
+                  <span className="block text-[12px] text-faint max-md:hidden">{hint}</span>
                 </span>
               </span>
             </button>
@@ -161,13 +162,13 @@ export function Settings({
           onClick={() => {
             if (window.confirm('Reset all settings to their defaults?')) resetSettings();
           }}
-          className={`mt-auto self-start text-[12px] font-medium text-faint transition-colors hover:text-fg ${focusRing}`}
+          className={`mt-auto self-start text-[12px] font-medium text-faint transition-colors hover:text-fg max-md:hidden ${focusRing}`}
         >
           Reset to defaults
         </button>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto px-10 py-10">
+      <main className="min-w-0 flex-1 overflow-y-auto px-10 py-10 max-md:overflow-visible max-md:px-5 max-md:py-6">
         <div key={category} className="animate-rise mx-auto w-full max-w-[680px] pb-16">
           <div className="label">{title[1]}</div>
           <p className="mt-2 mb-8 text-[22px] font-[480] tracking-[-0.025em] text-muted">{title[2]}</p>
@@ -718,6 +719,24 @@ function ControlsPanel({
             onChange={(deadzone) => updateSettings((s) => ({ ...s, gamepad: { ...s.gamepad, deadzone } }))}
           />
         </Section>
+      )}
+
+      {part === 'bindings' && touchDevice && (
+        <div className="glass-panel mb-6 grid grid-cols-2 gap-x-6 gap-y-4 rounded-[28px] p-6 sm:grid-cols-4">
+          {(
+            [
+              ['Move', 'Drag sideways'],
+              ['Rotate', 'Tap (two fingers: the other way)'],
+              ['Drop', 'Flick down · drag down for soft'],
+              ['Hold', 'Flick up'],
+            ] as const
+          ).map(([action, gesture]) => (
+            <div key={action}>
+              <div className="text-[15px] font-semibold">{action}</div>
+              <div className="mt-1 text-[13px] leading-snug text-muted">{gesture}</div>
+            </div>
+          ))}
+        </div>
       )}
 
       {part === 'bindings' && (

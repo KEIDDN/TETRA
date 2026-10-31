@@ -1,4 +1,5 @@
 import { useInputDevice, type InputDevice } from '../lib/inputDevice';
+import { touchDevice } from '../game/touch';
 
 export type GlyphKind = 'confirm' | 'back' | 'pause' | 'retry' | 'vertical' | 'horizontal';
 
@@ -14,6 +15,8 @@ const FACE: Record<Exclude<InputDevice, 'keyboard'>, Partial<Record<GlyphKind, s
  */
 export function Glyph({ k, className = '' }: { k: GlyphKind; className?: string }) {
   const device = useInputDevice();
+  // On a phone or tablet there are no keys to point at.
+  if (device === 'keyboard' && touchDevice) return null;
   if (device === 'keyboard') return <span className={`font-mono text-[11px] ${className}`}>{KEYS[k]}</span>;
   if (k === 'vertical' || k === 'horizontal') return <DPad axis={k} className={className} />;
   const label = FACE[device][k]!;

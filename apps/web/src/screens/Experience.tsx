@@ -13,6 +13,9 @@ import { ModeWheel } from '../ui/ModeWheel';
 import { SkinPicker } from '../ui/SkinPicker';
 import type { ExperienceScene, Formation } from '../ui/experience/ExperienceScene';
 
+/** On a phone these chapters show their controls instead of the board: both won't fit. */
+const PHONE_CONTROLS = new Set<string>(['rooms', 'opponents', 'focus']);
+
 const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-accent/70 rounded-sm';
 /** The page's own set: everything is cut to its beat. */
 const TRACK = 'oxia-spatial-decay';
@@ -259,7 +262,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
       {/* The real game: Mono, with its room. */}
       {gameMode && (
         <div
-          className={`absolute inset-y-0 right-0 left-[34%] transition-[opacity,filter,transform] duration-[1400ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${game ? 'opacity-100' : 'opacity-0'} ${
+          className={`absolute top-20 right-[3vw] bottom-28 left-[40%] ${PHONE_CONTROLS.has(chapter.id) ? 'max-md:hidden' : ''} [mask-composite:intersect] [mask-image:linear-gradient(to_right,transparent,black_14%,black_86%,transparent),linear-gradient(to_bottom,transparent,black_6%,black_94%,transparent)] transition-[opacity,filter,transform] max-md:inset-x-0 max-md:top-[44%] max-md:bottom-16 duration-[1400ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${game ? 'opacity-100' : 'opacity-0'} ${
             focusing ? 'scale-[0.94] brightness-[0.55] grayscale' : ''
           }`}
         >
@@ -270,9 +273,9 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
             room={chapter.id === 'focus' ? 'experience' : 'on'}
             className="absolute inset-0"
           />
-          <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-[30%] bg-gradient-to-r from-black to-transparent" />
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-[18%] bg-gradient-to-r from-black to-transparent max-md:hidden" />
           {chapter.id === 'rooms' && (
-            <div key={skin} className="animate-rise absolute right-10 bottom-28 text-right">
+            <div key={skin} className="animate-rise absolute right-4 bottom-4 text-right max-md:hidden">
               <div className="font-mono text-[10px] tracking-[0.24em] text-white/45 uppercase">
                 {String(SKIN_ORDER.indexOf(skin) + 1).padStart(2, '0')} / {SKIN_ORDER.length}
               </div>
@@ -282,7 +285,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
         </div>
       )}
 
-      <header className="absolute inset-x-0 top-0 z-20 flex h-20 items-center justify-between px-8 sm:px-12">
+      <header className="absolute inset-x-0 top-0 z-20 flex h-20 items-center justify-between px-6 sm:px-12">
         <span className="font-mono text-[11px] font-medium tracking-[0.24em] text-white/70 uppercase">TETRA · Experience</span>
         <button
           onClick={(e) => {
@@ -296,7 +299,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
       </header>
 
       {chapters.map((c, i) => (
-        <Scene key={c.id} chapter={c} active={index === i} gameSide={typeof c.stage === 'object'}>
+        <Scene key={c.id} chapter={c} active={index === i} gameSide={typeof c.stage === 'object'} phoneControls={PHONE_CONTROLS.has(c.id)}>
           {c.id === 'welcome' && <p className="exp-blink font-mono text-[11px] tracking-[0.3em] text-white/60 uppercase">Press any key</p>}
           {c.id === 'focus' && (
             <div>
@@ -332,7 +335,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
       ))}
 
       {/* The bar: where you are, and a menu to jump anywhere. */}
-      <nav className={`absolute inset-x-0 bottom-0 z-20 flex h-24 items-center justify-center gap-7 px-8 transition-opacity duration-700 ${index === 0 ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
+      <nav className={`absolute inset-x-0 bottom-0 z-20 flex h-24 items-center justify-center gap-7 px-8 max-md:h-16 max-md:gap-3 transition-opacity duration-700 ${index === 0 ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
         {chapters.slice(1).map((c, k) => {
           const i = k + 1;
           return (
@@ -345,7 +348,7 @@ export function Experience({ onDone, onOxia, firstRun = false }: { onDone: () =>
               className={`group flex flex-col items-center gap-2.5 ${focusRing}`}
             >
               <span className={`h-px transition-all duration-500 ${i === index ? 'w-10 bg-fg' : 'w-5 bg-white/25 group-hover:bg-white/60'}`} />
-              <span className={`font-mono text-[10px] tracking-[0.2em] uppercase transition-colors duration-500 ${i === index ? 'text-fg' : 'text-white/30 group-hover:text-white/70'}`}>
+              <span className={`font-mono text-[10px] tracking-[0.2em] uppercase transition-colors duration-500 max-md:hidden ${i === index ? 'text-fg' : 'text-white/30 group-hover:text-white/70'}`}>
                 {c.name}
               </span>
             </button>
@@ -383,7 +386,19 @@ function Roster({ current, onPick }: { current: string; onPick: (id: string) => 
  * the line and any controls, a beat apart. Centred over the 3D stage, or on
  * the left with the game beside it.
  */
-function Scene({ chapter, active, gameSide, children }: { chapter: Chapter; active: boolean; gameSide: boolean; children?: React.ReactNode }) {
+function Scene({
+  chapter,
+  active,
+  gameSide,
+  phoneControls,
+  children,
+}: {
+  chapter: Chapter;
+  active: boolean;
+  gameSide: boolean;
+  phoneControls: boolean;
+  children?: React.ReactNode;
+}) {
   const beats = useBeats(active);
   // The opening waits for the mark to build before it speaks.
   const offset = chapter.id === 'welcome' ? 8 : 0;
@@ -396,15 +411,19 @@ function Scene({ chapter, active, gameSide, children }: { chapter: Chapter; acti
       aria-hidden={!active}
       className={`absolute inset-0 z-10 flex flex-col justify-center transition-[opacity,filter] duration-700 ${active ? 'opacity-100' : 'pointer-events-none opacity-0 blur-[8px]'} ${
         gameSide
-          ? 'items-start px-8 text-left sm:px-12 lg:pl-[7vw]'
-          : `items-center px-8 text-center ${chapter.stage === 'oxia' ? 'pt-[16vh]' : ''}`
+          ? `items-start px-8 text-left sm:px-12 lg:pl-[6vw] max-md:items-center max-md:px-6 max-md:text-center ${phoneControls ? 'max-md:pt-16' : 'max-md:justify-start max-md:pt-24'}`
+          : `items-center px-6 text-center sm:px-8 ${chapter.stage === 'oxia' ? 'pt-[16vh]' : ''}`
       }`}
     >
       <h2
-        className={`exp-kick font-[560] tracking-[-0.05em] ${gameSide ? 'max-w-[32vw] text-[clamp(40px,4.8vw,92px)] leading-[1.04]' : 'text-[clamp(48px,7.2vw,136px)] leading-[1.03]'}`}
+        className={`exp-kick font-[560] tracking-[-0.05em] ${
+          gameSide
+            ? 'max-w-[34vw] text-[clamp(36px,min(4.4vw,7.4vh),92px)] leading-[1.04] max-md:max-w-none max-md:text-[clamp(28px,8vw,40px)]'
+            : 'text-[clamp(48px,min(7.2vw,12vh),136px)] leading-[1.03] max-md:text-[clamp(32px,10vw,56px)]'
+        }`}
       >
         {lines.map((words, li) => (
-          <span key={li} className="block whitespace-nowrap">
+          <span key={li} className="block md:whitespace-nowrap">
             {words.map(({ word, at }, wi) => (
               <span key={wi} className={`kin-word ${shown(at) ? 'kin-in' : ''}`}>
                 {word}
@@ -415,13 +434,13 @@ function Scene({ chapter, active, gameSide, children }: { chapter: Chapter; acti
         ))}
       </h2>
       {chapter.punch && (
-        <p className={`mt-4 text-[clamp(40px,4.8vw,92px)] leading-[1.04] font-[560] tracking-[-0.05em] text-white/45`}>
+        <p className={`mt-4 text-[clamp(32px,min(4.4vw,7.4vh),92px)] leading-[1.04] font-[560] tracking-[-0.05em] text-white/45 max-md:text-[clamp(26px,7.5vw,40px)]`}>
           <span className={`kin-word ${shown(after) ? 'kin-in' : ''}`}>{chapter.punch}</span>
         </p>
       )}
       {chapter.line && (
         <p
-          className={`mt-8 max-w-[38ch] text-[clamp(16px,1.25vw,20px)] leading-relaxed text-white/55 transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          className={`mt-8 max-w-[38ch] text-[clamp(15px,1.25vw,20px)] leading-relaxed text-white/55 max-md:mt-4 max-md:text-[15px] transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
             shown(after + (chapter.punch ? 2 : 1)) ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
           }`}
         >
@@ -430,7 +449,7 @@ function Scene({ chapter, active, gameSide, children }: { chapter: Chapter; acti
       )}
       {children && (
         <div
-          className={`mt-12 transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${shown(after + (chapter.punch ? 3 : 2)) ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0'}`}
+          className={`mt-12 transition-[opacity,transform] max-md:mt-6 duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${shown(after + (chapter.punch ? 3 : 2)) ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0'}`}
         >
           {children}
         </div>

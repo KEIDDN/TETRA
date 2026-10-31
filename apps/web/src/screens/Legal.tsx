@@ -55,7 +55,7 @@ export function Legal({ doc: initial = 'privacy', onBack }: { doc?: LegalDoc; on
           ))}
         </div>
 
-        <article key={doc} className="animate-fade mt-14">
+        <article key={doc} className="selectable animate-fade mt-14">
           <h1 className="text-[clamp(40px,5vw,64px)] leading-[1.04] font-[560] tracking-[-0.045em]">{doc === 'terms' ? 'Terms of use.' : 'Your data.'}</h1>
           <p className="mt-4 font-mono text-[11px] tracking-[0.2em] text-white/40 uppercase">Last updated {UPDATED}</p>
           {doc === 'terms' ? <Terms /> : <Privacy />}

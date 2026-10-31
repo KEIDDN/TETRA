@@ -1,6 +1,9 @@
 import { BOTS, type BotProfile } from '@tetra/bot';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { computeLayout, type Layout } from '../game/layout';
+import { computeDemoLayout, computeLayout, type Layout } from '../game/layout';
+
+/** A phone held upright: your board fills the screen, the bot's sits small above it. */
+const PORTRAIT = typeof window !== 'undefined' && window.innerHeight > window.innerWidth && window.innerWidth < 720;
 import { GameRenderer } from '../game/renderer';
 import { resolveGrid, SKINS } from '../game/skins';
 import { VersusSession, type SideStats, type VersusPhase, type VersusResult } from '../game/versusSession';
@@ -95,7 +98,8 @@ export function VersusPlay({
         });
         const host = hosts[i].current!;
         const relayout = () => {
-          const l = computeLayout(host.clientWidth, host.clientHeight);
+          // On a phone the bot plays in a small window at the top: board and queue, no hold.
+          const l = PORTRAIT && i === 1 ? computeDemoLayout(host.clientWidth, host.clientHeight) : computeLayout(host.clientWidth, host.clientHeight);
           r.setLayout(l);
           layoutRef.current[i] = l;
           setLayouts([...layoutRef.current] as [Layout | null, Layout | null]);
@@ -242,11 +246,11 @@ export function VersusPlay({
           {phase === 'playing' ? 'Pause' : '← Menu'} <Glyph k="pause" className="label ml-2" />
         </button>
         <Scoreboard score={score} firstTo={firstTo} botName={bot.name} botColor={bot.color} leftName={leftName} leftColor={leftColor} />
-        <span className="label justify-self-end">{bout ? `${bout.label} · ` : ''}First to {firstTo}</span>
+        <span className="label justify-self-end max-sm:hidden">{bout ? `${bout.label} · ` : ''}First to {firstTo}</span>
       </header>
 
-      <div className={`absolute inset-0 top-16 grid ${left ? 'grid-cols-2' : 'grid-cols-[1.25fr_1fr]'}`}>
-        <div ref={hosts[0]} className="relative">
+      <div className={`absolute inset-0 top-16 ${PORTRAIT ? '' : `grid ${left ? 'grid-cols-2' : 'grid-cols-[1.25fr_1fr]'}`}`}>
+        <div ref={hosts[0]} className={PORTRAIT ? 'absolute inset-x-0 top-[30%] bottom-0' : 'relative'}>
           {you && (
             <>
               {left && (
@@ -262,7 +266,7 @@ export function VersusPlay({
               <div className="label absolute" style={{ left: you.nextX, top: you.boardY, width: you.sideW }}>
                 Next
               </div>
-              <SideStatsColumn layout={you} refs={statRefs} offset={0} />
+              <SideStatsColumn layout={you} refs={statRefs} offset={0} row={PORTRAIT} />
               <div
                 ref={actionSide}
                 className="action-stack pointer-events-none absolute"
@@ -279,8 +283,26 @@ export function VersusPlay({
             </>
           )}
         </div>
-        <div ref={hosts[1]} className="relative">
-          {them && (
+        {PORTRAIT && (
+          <div className="absolute top-0 left-0 flex h-[30%] w-[45%] flex-col justify-center gap-3 pl-5">
+            <div className="flex items-center gap-2.5">
+              <BotEmblem bot={bot} size={26} glow />
+              <span className="text-[17px] font-medium tracking-[-0.02em]">{bot.name}</span>
+            </div>
+            <div className="flex gap-4">
+              {['PPS', 'APM', 'VS'].map((label, i) => (
+                <div key={label}>
+                  <div className="label mb-1">{label}</div>
+                  <span ref={(el) => void (statRefs.current[3 + i] = el)} className="tabular text-[14px] font-medium leading-none">
+                    0
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div ref={hosts[1]} className={PORTRAIT ? 'absolute top-0 right-0 h-[30%] w-[55%] overflow-hidden' : 'relative'}>
+          {them && !PORTRAIT && (
             <>
               <div className="absolute flex items-center gap-3" style={{ left: them.holdX, top: them.boardY - 58 }}>
                 <BotEmblem bot={bot} size={30} glow />
@@ -369,23 +391,38 @@ function Scoreboard({
     ));
   return (
     <div className="flex items-center gap-5">
-      <span className="label text-fg">{leftName}</span>
+      <span className="label text-fg max-sm:hidden">{leftName}</span>
       <span className="flex gap-1.5">{dots(score[0], leftColor)}</span>
-      <span className="tabular text-[15px] font-medium">
+      <span className="tabular text-[15px] font-medium whitespace-nowrap">
         {score[0]}–{score[1]}
       </span>
       <span className="flex gap-1.5">{dots(score[1], botColor)}</span>
-      <span className="label text-fg">{botName}</span>
+      <span className="label text-fg max-sm:hidden">{botName}</span>
     </div>
   );
 }
 
-function SideStatsColumn({ layout, refs, offset }: { layout: Layout; refs: React.RefObject<(HTMLSpanElement | null)[]>; offset: number }) {
+function SideStatsColumn({
+  layout,
+  refs,
+  offset,
+  row = false,
+}: {
+  layout: Layout;
+  refs: React.RefObject<(HTMLSpanElement | null)[]>;
+  offset: number;
+  /** Under the board in a row (phones) instead of a column beside it. */
+  row?: boolean;
+}) {
   const labels = ['PPS', 'APM', 'VS'];
   return (
     <div
-      className="absolute flex flex-col items-end gap-4 text-right"
-      style={{ right: layout.width - layout.holdX - layout.sideW, bottom: layout.height - layout.boardY - layout.boardH, width: layout.sideW * 1.6 }}
+      className={`absolute flex ${row ? 'flex-row justify-center gap-8 text-left' : 'flex-col items-end gap-4 text-right'}`}
+      style={
+        row
+          ? { left: layout.boardX, top: layout.boardY + layout.boardH + layout.cell * 0.6, width: layout.boardW }
+          : { right: layout.width - layout.holdX - layout.sideW, bottom: layout.height - layout.boardY - layout.boardH, width: layout.sideW * 1.6 }
+      }
     >
       {labels.map((label, i) => (
         <div key={label}>
